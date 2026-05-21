@@ -1,0 +1,126 @@
+{
+  "qoderProgrammingRules": {
+    "generalPrinciples": [
+      "遵循gj.md中的技能映射表规则",
+      "在修复错误时系统性地解决问题",
+      "确保代码修改符合项目架构和设计模式",
+      "优先使用安全的编程实践避免常见错误"
+    ],
+    "errorHandlingRules": [
+      "所有UI控件访问前必须进行空值检查",
+      "类型转换必须使用安全的方法（如as操作符、TryParse）",
+      "枚举访问必须进行有效性验证",
+      "DataGrid数据绑定必须使用安全的数据访问模式",
+      "异步操作必须正确处理异常和取消",
+      "提供有意义的错误消息给用户，同时记录技术详细信息"
+    ],
+    "codingStandards": [
+      "使用有意义的变量和方法命名",
+      "保持代码结构清晰，适当添加注释",
+      "遵循单一职责原则",
+      "避免深度嵌套的条件语句",
+      "使用适当的异常处理机制"
+    ],
+    "verificationSteps": [
+      "修改前备份原文件（如适用）",
+      "修改后验证代码能够成功编译",
+      "测试修改的功能是否正常工作",
+      "确认没有引入新的错误",
+      "验证现有功能仍然正常工作"
+    ],
+    "projectSpecificRules": [
+      "对于网络安全漏洞扫描工具项目，特别注意网络相关的安全问题",
+      "确保所有网络扫描功能仅在授权范围内使用",
+      "扫描结果的处理必须安全可靠",
+      "用户界面必须友好且反应灵敏",
+      "错误处理必须不影响整体应用程序稳定性"
+    ]
+  },
+  "skillMapping": {
+    "designOrBrainstorming": {
+      "purpose": "设计/头脑风暴/规划功能",
+      "requiredSkill": "brainstorming"
+    },
+    "debuggingOrTroubleshooting": {
+      "purpose": "调试/排查问题",
+      "requiredSkill": "systematic-debugging"
+    },
+    "testDrivenDevelopment": {
+      "purpose": "写测试/测试驱动",
+      "requiredSkill": "test-driven-development"
+    },
+    "planCreation": {
+      "purpose": "制定实施计划",
+      "requiredSkill": "writing-plans"
+    },
+    "planExecution": {
+      "purpose": "执行计划/批量开发",
+      "requiredSkill": "executing-plans"
+    },
+    "codeReview": {
+      "purpose": "代码审查",
+      "requiredSkill": "requesting-code-review"
+    },
+    "gitManagement": {
+      "purpose": "Git分支管理",
+      "requiredSkill": "using-git-worktrees"
+    },
+    "taskCompletion": {
+      "purpose": "完成任务/合并分支",
+      "requiredSkill": "finishing-a-development-branch"
+    },
+    "fixVerification": {
+      "purpose": "验证修复",
+      "requiredSkill": "verification-before-completion"
+    },
+    "parallelTasks": {
+      "purpose": "并行任务",
+      "requiredSkill": "dispatching-parallel-agents"
+    },
+    "reviewResponse": {
+      "purpose": "响应代码审查反馈",
+      "requiredSkill": "receiving-code-review"
+    },
+    "newSkillCreation": {
+      "purpose": "创建新技能",
+      "requiredSkill": "writing-skills"
+    }
+  },
+  "applicationGuidelines": {
+    "forCSharpProjects": {
+      "nullSafety": [
+        "使用空条件运算符（?.）进行安全访问",
+        "使用空合并运算符（??）提供默认值",
+        "在访问对象属性前验证对象不为null"
+      ],
+      "typeSafety": [
+        "使用as操作符进行类型转换，避免直接强制转换",
+        "使用is操作符进行类型检查",
+        "使用TryParse模式进行安全的字符串解析",
+        "对枚举值进行有效性验证"
+      ],
+      "asyncSafety": [
+        "在UI线程上更新界面元素时使用Dispatcher.Invoke",
+        "正确处理异步操作的异常",
+        "避免在异步方法中使用.Result或.Wait()"
+      ],
+      "resourceManagement": [
+        "使用using语句管理资源",
+        "正确实现IDisposable模式",
+        "避免在Finalizer中释放关键资源"
+      ]
+    },
+    "forWpfApplications": {
+      "uiThreadSafety": [
+        "所有UI更新必须在UI线程上执行",
+        "跨线程访问UI控件时使用Dispatcher.Invoke",
+        "正确处理数据绑定的生命周期"
+      ],
+      "dataBindingBestPractices": [
+        "使用INotifyPropertyChanged接口实现数据更新",
+        "使用ObservableCollection<T>进行动态数据绑定",
+        "避免在数据绑定中造成内存泄漏"
+      ]
+    }
+  }
+}
