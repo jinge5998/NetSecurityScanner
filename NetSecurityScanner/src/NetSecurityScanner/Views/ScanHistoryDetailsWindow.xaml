@@ -1,0 +1,65 @@
+<Window x:Class="NetSecurityScanner.Views.ScanHistoryDetailsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="扫描详情" Height="600" Width="800"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 标题 -->
+        <Border Grid.Row="0" Background="#3498DB" CornerRadius="4" Padding="15" Margin="0,0,0,15">
+            <TextBlock Text="📋 扫描详情" FontSize="20" FontWeight="Bold" Foreground="White"/>
+        </Border>
+        
+        <!-- 基本信息 -->
+        <Grid Grid.Row="1" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            
+            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                <TextBlock Name="ScanIdTextBlock" Text="扫描ID: " FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <TextBlock Name="TargetTextBlock" Text="目标: " Margin="0,0,0,5"/>
+                <TextBlock Name="ScanTimeTextBlock" Text="扫描时间: " Margin="0,0,0,5"/>
+                <TextBlock Name="ScanModeTextBlock" Text="扫描模式: " Margin="0,0,0,5"/>
+            </StackPanel>
+            
+            <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                <TextBlock Name="TotalVulnsTextBlock" Text="漏洞总数: " FontWeight="SemiBold" Margin="0,0,0,5"/>
+                <TextBlock Name="CriticalTextBlock" Text="严重: " Foreground="#E74C3C" Margin="0,0,0,5"/>
+                <TextBlock Name="HighTextBlock" Text="高危: " Foreground="#E67E22" Margin="0,0,0,5"/>
+                <TextBlock Name="DurationTextBlock" Text="扫描时长: " Margin="0,0,0,5"/>
+                <TextBlock Name="StatusTextBlock" Text="状态: " Margin="0,0,0,5"/>
+            </StackPanel>
+        </Grid>
+        
+        <!-- 漏洞列表 -->
+        <Border Grid.Row="2" BorderBrush="#BDC3C7" BorderThickness="1" CornerRadius="4">
+            <DataGrid Name="VulnerabilitiesDataGrid" AutoGenerateColumns="False" 
+                      CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                      AlternatingRowBackground="#F8F9FA">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="CVE编号" Binding="{Binding CveId}" Width="120"/>
+                    <DataGridTextColumn Header="漏洞名称" Binding="{Binding Name}" Width="*"/>
+                    <DataGridTextColumn Header="风险等级" Binding="{Binding RiskLevel}" Width="80"/>
+                    <DataGridTextColumn Header="端口" Binding="{Binding Port}" Width="60"/>
+                    <DataGridTextColumn Header="服务" Binding="{Binding Service}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+        
+        <!-- 底部按钮 -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Name="ExportButton" Content="📄 导出详情" Width="120" Height="35" 
+                    Margin="5" Background="#27AE60" Foreground="White" Click="ExportButton_Click"/>
+            <Button Name="CloseButton" Content="❌ 关闭" Width="100" Height="35" 
+                    Margin="5" Background="#95A5A6" Foreground="White" Click="CloseButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

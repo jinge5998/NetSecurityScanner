@@ -1,0 +1,15 @@
+- [x] LicenseDialog机器码旁有"复制"按钮，点击后复制到剪贴板
+- [x] 复制按钮点击后短暂显示"已复制"提示
+- [x] LicenseRecord模型包含RecordId、LicenseCode、LicenseType、MachineId、IssuedTime、ExpiryTime、Notes字段
+- [x] LicenseRecordService实现添加记录、查询、保存、加载功能
+- [x] 发放记录存储在license_records.json文件中
+- [x] 生成器界面改为TabControl三标签页（生成授权码、批量发放、发放记录）
+- [x] 批量发放支持从文本框输入多行机器码
+- [x] 批量发放支持从txt文件导入机器码
+- [x] 批量生成后结果可复制和导出
+- [x] 发放记录标签页显示DataGrid记录列表
+- [x] 支持按机器码搜索过滤发放记录
+- [x] 支持删除选中的发放记录
+- [x] 单个生成授权码时自动记录到发放数据库
+- [x] 批量生成授权码时自动记录到发放数据库
+- [x] 主程序和生成器项目均能成功编译无错误

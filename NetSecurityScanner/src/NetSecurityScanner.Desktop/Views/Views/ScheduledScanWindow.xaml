@@ -1,0 +1,146 @@
+<Window x:Class="NetSecurityScanner.Views.ScheduledScanWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="定时扫描配置" Height="600" Width="800"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 标题 -->
+        <Border Grid.Row="0" Background="#3498DB" CornerRadius="4" Padding="15" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="⏰ 定时扫描配置" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="设置定期自动扫描任务，支持邮件通知" FontSize="12" Foreground="#ECF0F1" Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+        
+        <!-- 主内容区 -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="350"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- 左侧：任务列表 -->
+            <Border Grid.Column="0" BorderBrush="#BDC3C7" BorderThickness="1" CornerRadius="4" Margin="0,0,10,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <Border Grid.Row="0" Background="#ECF0F1" Padding="10">
+                        <TextBlock Text="📋 定时任务列表" FontWeight="Bold" FontSize="14"/>
+                    </Border>
+                    
+                    <DataGrid Grid.Row="1" Name="ScheduledScansDataGrid" 
+                              AutoGenerateColumns="False" 
+                              CanUserAddRows="False"
+                              GridLinesVisibility="Horizontal"
+                              HeadersVisibility="Column"
+                              AlternatingRowBackground="#F8F9FA"
+                              SelectionMode="Single"
+                              Margin="5">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="任务名称" Binding="{Binding Name}" Width="*"/>
+                            <DataGridTextColumn Header="目标" Binding="{Binding TargetValue}" Width="120"/>
+                            <DataGridTextColumn Header="扫描模式" Binding="{Binding ScanMode}" Width="80"/>
+                            <DataGridTextColumn Header="调度类型" Binding="{Binding ScheduleType}" Width="80"/>
+                            <DataGridTextColumn Header="执行时间" Binding="{Binding ScheduleTime}" Width="70"/>
+                            <DataGridCheckBoxColumn Header="启用" Binding="{Binding IsEnabled}" Width="50"/>
+                            <DataGridTextColumn Header="上次执行" Binding="{Binding LastRunTime, StringFormat={}{0:MM-dd HH:mm}}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+            
+            <!-- 右侧：添加/编辑任务 -->
+            <Border Grid.Column="1" BorderBrush="#BDC3C7" BorderThickness="1" CornerRadius="4">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <TextBlock Text="📝 添加/编辑任务" FontWeight="Bold" FontSize="14" Margin="0,0,0,15"/>
+                        
+                        <!-- 任务名称 -->
+                        <Label Content="任务名称：" FontWeight="SemiBold"/>
+                        <TextBox Name="TaskNameTextBox" Height="25" Margin="0,0,0,10"/>
+                        
+                        <!-- 任务描述 -->
+                        <Label Content="任务描述：" FontWeight="SemiBold"/>
+                        <TextBox Name="TaskDescriptionTextBox" Height="50" 
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 Margin="0,0,0,10"/>
+                        
+                        <!-- 目标类型 -->
+                        <Label Content="目标类型：" FontWeight="SemiBold"/>
+                        <ComboBox Name="TargetTypeComboBox" Height="25" Margin="0,0,0,10" SelectionChanged="TargetTypeComboBox_SelectionChanged">
+                            <ComboBoxItem Content="单个IP" Tag="Single"/>
+                            <ComboBoxItem Content="IP段" Tag="Range"/>
+                            <ComboBoxItem Content="CIDR" Tag="CIDR"/>
+                            <ComboBoxItem Content="文件列表" Tag="File"/>
+                        </ComboBox>
+                        
+                        <!-- 目标值 -->
+                        <Label Content="目标值：" FontWeight="SemiBold"/>
+                        <TextBox Name="TargetValueTextBox" Height="25" Margin="0,0,0,5"/>
+                        <TextBlock Name="TargetHintTextBlock" Text="提示：输入单个IP地址" 
+                                   FontSize="10" Foreground="#7F8C8D" Margin="0,0,0,10"/>
+                        
+                        <!-- 扫描模式 -->
+                        <Label Content="扫描模式：" FontWeight="SemiBold"/>
+                        <ComboBox Name="TaskScanModeComboBox" Height="25" Margin="0,0,0,10">
+                            <ComboBoxItem Content="⚡ 闪电扫描" Tag="Lightning"/>
+                            <ComboBoxItem Content="🔍 标准扫描" Tag="Standard"/>
+                            <ComboBoxItem Content="🔬 深度扫描" Tag="Deep"/>
+                        </ComboBox>
+                        
+                        <!-- 调度类型 -->
+                        <Label Content="调度类型：" FontWeight="SemiBold"/>
+                        <ComboBox Name="ScheduleTypeComboBox" Height="25" Margin="0,0,0,10">
+                            <ComboBoxItem Content="每天" Tag="Daily"/>
+                            <ComboBoxItem Content="每周" Tag="Weekly"/>
+                            <ComboBoxItem Content="每月" Tag="Monthly"/>
+                        </ComboBox>
+                        
+                        <!-- 执行时间 -->
+                        <Label Content="执行时间：" FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <ComboBox Name="HourComboBox" Width="60" Margin="0,0,5,0"/>
+                            <TextBlock Text=":" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <ComboBox Name="MinuteComboBox" Width="60"/>
+                        </StackPanel>
+                        
+                        <!-- 邮件通知 -->
+                        <CheckBox Name="EnableEmailCheckBox" Content="启用邮件通知" Margin="0,10,0,5"/>
+                        <Label Content="通知邮箱：" FontWeight="SemiBold"/>
+                        <TextBox Name="NotificationEmailTextBox" Height="25" Margin="0,0,0,15"/>
+                        
+                        <!-- 按钮 -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Name="AddTaskButton" Content="➕ 添加任务" Width="100" Height="30" 
+                                    Margin="5" Background="#27AE60" Foreground="White" Click="AddTaskButton_Click"/>
+                            <Button Name="UpdateTaskButton" Content="💾 更新任务" Width="100" Height="30" 
+                                    Margin="5" Background="#3498DB" Foreground="White" Click="UpdateTaskButton_Click"/>
+                            <Button Name="DeleteTaskButton" Content="🗑️ 删除任务" Width="100" Height="30" 
+                                    Margin="5" Background="#E74C3C" Foreground="White" Click="DeleteTaskButton_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+        
+        <!-- 底部按钮 -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Name="StartSchedulerButton" Content="▶️ 启动调度器" Width="120" Height="35" 
+                    Margin="5" Background="#27AE60" Foreground="White" FontWeight="Bold" Click="StartSchedulerButton_Click"/>
+            <Button Name="StopSchedulerButton" Content="⏹️ 停止调度器" Width="120" Height="35" 
+                    Margin="5" Background="#E74C3C" Foreground="White" FontWeight="Bold" Click="StopSchedulerButton_Click"/>
+            <Button Name="CloseButton" Content="❌ 关闭" Width="100" Height="35" 
+                    Margin="5" Background="#95A5A6" Foreground="White" Click="CloseButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

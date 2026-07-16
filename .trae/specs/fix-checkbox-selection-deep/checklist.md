@@ -1,0 +1,10 @@
+- [x] CheckBox 添加了 Click 事件处理器
+- [x] CheckBox 设置了 Focusable="False"
+- [x] CheckBox_Click 方法正确切换 IsSelected 属性
+- [x] CheckBox_Click 方法调用 UpdateSelectionStatus() 更新计数
+- [x] CheckBox_Click 方法设置 e.Handled = true 阻止事件冒泡
+- [x] ListViewItem 不干扰 CheckBox 点击
+- [x] 点击 CheckBox 能正确勾选/取消勾选记录
+- [x] 双击 CheckBox 不打开详情弹窗
+- [x] 右键点击 CheckBox 不切换选中状态
+- [x] 底部计数正确更新

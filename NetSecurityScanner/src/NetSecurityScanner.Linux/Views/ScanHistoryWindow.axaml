@@ -1,0 +1,82 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NetSecurityScanner.Views.ScanHistoryWindow"
+        Title="扫描历史" Height="700" Width="1000"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <Border Grid.Row="0" Background="#2C3E50" CornerRadius="4" Padding="15" Margin="0,0,0,15">
+            <StackPanel>
+                <TextBlock Text="扫描历史记录" FontSize="22" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="查看和管理所有历史扫描记录" FontSize="12" Foreground="#BDC3C7" Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+        
+        <Grid Grid.Row="1" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <TextBox Grid.Column="0" Name="SearchTextBox" Height="35" FontSize="14" 
+                     Padding="10,5" Margin="0,0,10,0"/>
+            
+            <ComboBox Grid.Column="1" Name="RiskFilterComboBox" Height="35" Margin="0,0,10,0">
+                <ComboBoxItem Content="所有风险等级" IsSelected="True"/>
+                <ComboBoxItem Content="严重"/>
+                <ComboBoxItem Content="高危"/>
+                <ComboBoxItem Content="中危"/>
+                <ComboBoxItem Content="低危"/>
+            </ComboBox>
+            
+            <ComboBox Grid.Column="2" Name="DateFilterComboBox" Height="35" Margin="0,0,10,0">
+                <ComboBoxItem Content="所有时间" IsSelected="True"/>
+                <ComboBoxItem Content="今天"/>
+                <ComboBoxItem Content="最近7天"/>
+                <ComboBoxItem Content="最近30天"/>
+            </ComboBox>
+            
+            <Button Grid.Column="3" Name="RefreshButton" Content="刷新" Width="100" Height="35" 
+                    Background="#3498DB" Foreground="White" FontWeight="Bold"/>
+        </Grid>
+        
+        <Border Grid.Row="2" BorderBrush="#BDC3C7" BorderThickness="1" CornerRadius="4">
+            <DataGrid Name="HistoryDataGrid" AutoGenerateColumns="False" 
+                      GridLinesVisibility="Horizontal"
+                      SelectionMode="Single">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="扫描ID" Binding="{Binding ScanId}" Width="80"/>
+                    <DataGridTextColumn Header="目标" Binding="{Binding Target}" Width="150"/>
+                    <DataGridTextColumn Header="扫描时间" Binding="{Binding ScanTime}" Width="130"/>
+                    <DataGridTextColumn Header="扫描模式" Binding="{Binding ScanMode}" Width="100"/>
+                    <DataGridTextColumn Header="漏洞总数" Binding="{Binding TotalVulnerabilities}" Width="80"/>
+                    <DataGridTextColumn Header="严重" Binding="{Binding CriticalCount}" Width="50"/>
+                    <DataGridTextColumn Header="高危" Binding="{Binding HighCount}" Width="50"/>
+                    <DataGridTextColumn Header="中危" Binding="{Binding MediumCount}" Width="50"/>
+                    <DataGridTextColumn Header="低危" Binding="{Binding LowCount}" Width="50"/>
+                    <DataGridTextColumn Header="扫描时长" Binding="{Binding ScanDuration}" Width="80"/>
+                    <DataGridTextColumn Header="状态" Binding="{Binding ScanStatus}" Width="80"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+        
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Name="ViewDetailsButton" Content="查看详情" Width="120" Height="40" 
+                    Margin="5" Background="#9B59B6" Foreground="White" FontWeight="Bold" IsEnabled="False"/>
+            <Button Name="ExportButton" Content="导出记录" Width="120" Height="40" 
+                    Margin="5" Background="#27AE60" Foreground="White" FontWeight="Bold"/>
+            <Button Name="DeleteButton" Content="删除记录" Width="120" Height="40" 
+                    Margin="5" Background="#E74C3C" Foreground="White" FontWeight="Bold" IsEnabled="False"/>
+            <Button Name="CloseButton" Content="关闭" Width="100" Height="40" 
+                    Margin="5" Background="#95A5A6" Foreground="White"/>
+        </StackPanel>
+    </Grid>
+</Window>

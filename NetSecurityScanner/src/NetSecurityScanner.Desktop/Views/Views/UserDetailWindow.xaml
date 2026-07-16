@@ -1,0 +1,33 @@
+<Window x:Class="NetSecurityScanner.Views.UserDetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="👤 用户详情" Height="640" Width="620"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        Background="#f8f9fa">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <Border Grid.Row="0" Background="#6c5ce7" CornerRadius="8" Padding="18" Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="👤 用户详细信息" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                <TextBlock x:Name="HeaderText" Text="" FontSize="13" Foreground="#dfe6e9" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 详情 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="DetailPanel"/>
+        </ScrollViewer>
+
+        <!-- 底部 -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Content="关闭" Width="100" Height="32" Click="CloseButton_Click" Cursor="Hand"/>
+        </StackPanel>
+    </Grid>
+</Window>

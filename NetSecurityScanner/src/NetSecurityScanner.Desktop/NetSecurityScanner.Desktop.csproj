@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <UseWindowsDesktopSdk>true</UseWindowsDesktopSdk>
+    <UseWindowsForms>true</UseWindowsForms>
+    <NoWarn>$(NoWarn);NETSDK1138;NU1701;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625</NoWarn>
+    <AssemblyVersion>1.0.1.1</AssemblyVersion>
+    <FileVersion>1.0.1.1</FileVersion>
+    <Version>1.0.1.1</Version>
+    <Product>网络安全扫描工具</Product>
+    <Company>NetSecurityScanner</Company>
+    <Copyright>© 2026 NetSecurityScanner</Copyright>
+    <NeutralLanguage>zh-CN</NeutralLanguage>
+  </PropertyGroup>
+
+
+
+  <ItemGroup>
+    <ProjectReference Include="..\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DocX" Version="5.0.0" />
+    <PackageReference Include="iTextSharp" Version="5.5.13.5" />
+    <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.0-rc2" />
+    <PackageReference Include="OxyPlot.Wpf" Version="2.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Data\StaticVulnerabilityDatabase.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Data\PluginPolicy.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

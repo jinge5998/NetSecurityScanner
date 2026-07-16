@@ -1,0 +1,146 @@
+<Window x:Class="NetSecurityScanner.Views.DatabaseSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="⚙️ 数据库更新设置" Height="500" Width="600"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <Border Grid.Row="0" CornerRadius="8" Padding="15" Margin="0,0,0,20">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#3498db" Offset="0"/>
+                    <GradientStop Color="#2980b9" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <TextBlock Text="⚙️ 数据库更新设置" FontSize="20" FontWeight="Bold" Foreground="White"/>
+        </Border>
+
+        <!-- 设置内容 -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- 自动更新设置 -->
+                <Border Background="White" CornerRadius="8" Padding="15" Margin="0,0,0,15"
+                        BorderBrush="#e0e0e0" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="🔄 自动更新" FontWeight="Bold" FontSize="16" Foreground="#2c3e50" Margin="0,0,0,15"/>
+                        
+                        <Border Background="#f8f9fa" CornerRadius="6" Padding="12">
+                            <StackPanel>
+                                <CheckBox Name="AutoUpdateEnabledCheckBox" Content="启用自动更新" 
+                                          FontSize="14" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                                
+                                <TextBlock Text="启用后，系统将在后台定时检查并更新漏洞数据库" 
+                                           FontSize="12" Foreground="Gray" Margin="0,0,0,15"/>
+                                
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Text="更新周期:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
+                                    <ComboBox Name="UpdateIntervalComboBox" Width="150" SelectedIndex="1">
+                                        <ComboBoxItem Content="每天"/>
+                                        <ComboBoxItem Content="每3天"/>
+                                        <ComboBoxItem Content="每周"/>
+                                        <ComboBoxItem Content="每15天"/>
+                                        <ComboBoxItem Content="每月"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Text="自动更新时间:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold"/>
+                                    <ComboBox Name="AutoUpdateTimeComboBox" Width="100">
+                                        <ComboBoxItem Content="00:00"/>
+                                        <ComboBoxItem Content="02:00"/>
+                                        <ComboBoxItem Content="04:00" IsSelected="True"/>
+                                        <ComboBoxItem Content="06:00"/>
+                                        <ComboBoxItem Content="08:00"/>
+                                        <ComboBoxItem Content="12:00"/>
+                                        <ComboBoxItem Content="18:00"/>
+                                        <ComboBoxItem Content="22:00"/>
+                                    </ComboBox>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- 数据源API设置 -->
+                <Border Background="White" CornerRadius="8" Padding="15" Margin="0,0,0,15"
+                        BorderBrush="#e0e0e0" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="📡 数据源API设置" FontWeight="Bold" FontSize="16" Foreground="#2c3e50" Margin="0,0,0,15"/>
+                        
+                        <!-- NVD API Key -->
+                        <Border Background="#f8f9fa" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="NVD API Key（可选）" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5"/>
+                                <TextBox Name="NvdApiKeyTextBox" Height="35" Padding="8,5" 
+                                         Text="https://services.nvd.nist.gov" IsReadOnly="True"
+                                         Foreground="Gray"/>
+                                <TextBlock Text="NVD API免费使用，无需API Key，但注册后可获得更高请求限制" 
+                                           FontSize="11" Foreground="Gray" Margin="0,5,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- CNNVD API Key -->
+                        <Border Background="#f8f9fa" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock Text="CNNVD API Key" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5"/>
+                                <TextBox Name="CnnvdApiKeyTextBox" Height="35" Padding="8,5"/>
+                                <TextBlock Text="请访问 http://www.cnnvd.org.cn 申请API访问权限" 
+                                           FontSize="11" Foreground="Gray" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- CNCERT API Key -->
+                        <Border Background="#f8f9fa" CornerRadius="6" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="CNCERT API Key" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5"/>
+                                <TextBox Name="CncertApiKeyTextBox" Height="35" Padding="8,5"/>
+                                <TextBlock Text="请访问 https://www.cert.org.cn 申请API访问权限" 
+                                           FontSize="11" Foreground="Gray" Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- 更新选项 -->
+                <Border Background="White" CornerRadius="8" Padding="15" Margin="0,0,0,15"
+                        BorderBrush="#e0e0e0" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="⚙️ 更新选项" FontWeight="Bold" FontSize="16" Foreground="#2c3e50" Margin="0,0,0,15"/>
+                        
+                        <CheckBox Name="IncrementalUpdateCheckBox" Content="优先使用增量更新" 
+                                  FontSize="13" Margin="0,0,0,8"/>
+                        <TextBlock Text="增量更新仅获取上次更新后的新数据，速度更快" FontSize="11" Foreground="Gray" Margin="0,0,0,15"/>
+                        
+                        <CheckBox Name="AutoBackupCheckBox" Content="更新前自动备份数据库" 
+                                  FontSize="13" IsChecked="True" Margin="0,0,0,8"/>
+                        <CheckBox Name="NotifyOnCompleteCheckBox" Content="更新完成后显示通知" 
+                                  FontSize="13" IsChecked="True" Margin="0,0,0,8"/>
+                        <CheckBox Name="KeepUpdateLogCheckBox" Content="保留更新日志" 
+                                  FontSize="13" IsChecked="True" Margin="0,0,0,0"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 底部按钮 -->
+        <Border Grid.Row="2" Background="#f8f9fa" CornerRadius="8" Padding="15" Margin="0,15,0,0">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="取消" Width="80" Height="35" Margin="0,0,10,0"
+                        Background="#95a5a6" Foreground="White" BorderThickness="0"
+                        FontWeight="SemiBold" Click="CancelButton_Click" Cursor="Hand"/>
+                <Button Content="恢复默认" Width="90" Height="35" Margin="0,0,10,0"
+                        Background="#f39c12" Foreground="White" BorderThickness="0"
+                        FontWeight="SemiBold" Click="ResetButton_Click" Cursor="Hand"/>
+                <Button Name="SaveButton" Content="💾 保存" Width="80" Height="35"
+                        Background="#27ae60" Foreground="White" BorderThickness="0"
+                        FontWeight="SemiBold" Click="SaveButton_Click" Cursor="Hand"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,104 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NetSecurityScanner.Views.AssetManagementWindow"
+        Title="资产管理" Height="700" Width="1100"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <Border Grid.Row="0" Background="#e17055" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+            <StackPanel>
+                <TextBlock Text="资产管理" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="管理IT资产，追踪变更历史" FontSize="13" Foreground="#ffeaa7" Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+        
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Name="AddAssetButton" Content="添加资产" Width="80" Height="30" Margin="5" 
+                    Background="#27AE60" Foreground="White"/>
+            <Button Name="EditAssetButton" Content="编辑" Width="60" Height="30" Margin="5" 
+                    Background="#3498DB" Foreground="White" IsEnabled="False"/>
+            <Button Name="DeleteAssetButton" Content="删除" Width="60" Height="30" Margin="5" 
+                    Background="#E74C3C" Foreground="White" IsEnabled="False"/>
+            <TextBox Name="SearchTextBox" Width="200" Height="30" Margin="20,0,0,0" Padding="5"/>
+            <Button Name="SearchButton" Content="搜索" Width="60" Height="30" Margin="5" 
+                    Background="#3498DB" Foreground="White"/>
+            <Button Name="RefreshButton" Content="刷新" Width="60" Height="30" Margin="5" 
+                    Background="#95A5A6" Foreground="White"/>
+        </StackPanel>
+        
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="300"/>
+            </Grid.ColumnDefinitions>
+            
+            <Border Grid.Column="0" BorderBrush="#dfe6e9" BorderThickness="1" CornerRadius="8" Margin="0,0,10,0">
+                <DataGrid Name="AssetsDataGrid" AutoGenerateColumns="False" 
+                          GridLinesVisibility="Horizontal"
+                          BorderThickness="0"
+                          SelectionMode="Single">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="150"/>
+                        <DataGridTextColumn Header="IP地址" Binding="{Binding IPAddress}" Width="120"/>
+                        <DataGridTextColumn Header="类型" Binding="{Binding AssetType}" Width="100"/>
+                        <DataGridTextColumn Header="部门" Binding="{Binding Department}" Width="100"/>
+                        <DataGridTextColumn Header="负责人" Binding="{Binding Owner}" Width="100"/>
+                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="80"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+            
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <Border Grid.Row="0" Background="#f8f9fa" CornerRadius="8" Padding="15" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="资产统计" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="总资产" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Name="TotalAssetsText" Text="0" FontSize="28" FontWeight="Bold"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="在线" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Name="OnlineAssetsText" Text="0" FontSize="28" FontWeight="Bold" Foreground="#00b894"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+                
+                <Border Grid.Row="1" BorderBrush="#dfe6e9" BorderThickness="1" CornerRadius="8">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Background="#f8f9fa" Padding="10" CornerRadius="8,8,0,0">
+                            <TextBlock Text="最近变更" FontWeight="Bold"/>
+                        </Border>
+                        <ListBox Grid.Row="1" Name="ChangeLogListBox" BorderThickness="0"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+        
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Name="ImportButton" Content="导入扫描结果" Width="130" Height="35" Margin="5"/>
+            <Button Name="ExportButton" Content="导出" Width="100" Height="35" Margin="5"/>
+            <Button Name="CloseButton" Content="关闭" Width="100" Height="35" Margin="5"/>
+        </StackPanel>
+    </Grid>
+</Window>

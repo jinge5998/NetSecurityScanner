@@ -1,0 +1,66 @@
+# 构建产物
+**/bin/
+**/obj/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Rider/ReSharper
+.idea/
+*.DotSettings.user
+
+# 日志和临时文件
+*.log
+Logs/
+*.tmp
+*.temp
+
+# 测试结果
+TestResults/
+[Bb]uild[Ll]og.*
+*.coverage
+*.coveragexml
+
+# 发布产物
+publish/
+[Pp]ackage*/
+*.zip
+*.tar.gz
+*.7z
+*.rar
+
+# 视频和媒体
+*.mp4
+*.avi
+*.mov
+*.wmv
+video-frames/
+
+# node_modules
+node_modules/
+
+# 文档临时文件
+temp_*.txt
+~$*.docx
+~$*.doc
+
+# 系统文件
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# 运行时数据
+ScanHistory/
+Reports/
+PerformanceReports/

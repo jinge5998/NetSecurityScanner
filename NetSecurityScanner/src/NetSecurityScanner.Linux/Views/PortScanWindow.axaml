@@ -1,0 +1,58 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NetSecurityScanner.Views.PortScanWindow"
+        Title="端口扫描" Height="600" Width="900"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+            <TextBlock Text="目标IP/域名：" VerticalAlignment="Center"/>
+            <TextBox Name="TargetIpTextBox" Text="127.0.0.1" Width="180" Margin="5"/>
+            
+            <TextBlock Text="端口范围：" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            <TextBox Name="PortRangeTextBox" Text="1-1000" Width="100" Margin="5"/>
+            
+            <TextBlock Text="扫描类型：" VerticalAlignment="Center"/>
+            <ComboBox Name="ScanTypeComboBox" Width="100" Margin="5" SelectedIndex="0">
+                <ComboBoxItem Content="TCP"/>
+                <ComboBoxItem Content="UDP"/>
+            </ComboBox>
+            
+            <Button Name="StartPortScanButton" Content="开始扫描" Width="80" Height="30" Margin="5" 
+                    Background="#3498DB" Foreground="White" FontWeight="Bold"/>
+            <Button Name="StopPortScanButton" Content="停止扫描" Width="80" Height="30" Margin="5" 
+                    Background="#E74C3C" Foreground="White" FontWeight="Bold" IsEnabled="False"/>
+            
+            <CheckBox Name="AutoScanCheckBox" Content="自动扫描常用端口" Margin="15,0" VerticalAlignment="Center"/>
+        </StackPanel>
+        
+        <DataGrid Grid.Row="2" Name="PortScanResultsDataGrid" Margin="5"
+                  AutoGenerateColumns="False"
+                  GridLinesVisibility="All" HeadersVisibility="Column"
+                  CanUserSortColumns="True" SelectionMode="Single">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="端口号" Binding="{Binding PortNumber}" Width="*"/>
+                <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="*"/>
+                <DataGridTextColumn Header="服务" Binding="{Binding Service}" Width="*"/>
+                <DataGridTextColumn Header="服务版本" Binding="{Binding ServiceVersion}" Width="2*"/>
+                <DataGridCheckBoxColumn Header="选择" Binding="{Binding IsSelected}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+        
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="5">
+            <Button Content="全选" Width="60" Height="25" Margin="5" Background="#3498DB" Foreground="White"/>
+            <Button Content="取消全选" Width="80" Height="25" Margin="5" Background="#95A5A6" Foreground="White"/>
+            <Button Name="GeneratePortBatButton" Content="生成关闭端口脚本" Width="140" Height="30" Margin="5" 
+                    Background="#E74C3C" Foreground="White" FontWeight="Bold" IsEnabled="False"/>
+            <TextBlock Name="ScanProgressText" Text="就绪" VerticalAlignment="Center" Margin="10,0" FontWeight="Bold"/>
+            <ProgressBar Name="ScanProgressBar" Width="150" Height="20" Margin="10,0" Minimum="0" Maximum="100" 
+                         IsVisible="False"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,16 @@
+- [x] PluginManager 提供 EnablePluginAsync/DisablePluginAsync 公共方法
+- [x] GetApplicablePluginsAsync 过滤已禁用插件
+- [x] ScanWithAllPluginsAsync 过滤已禁用插件
+- [x] UninstallPluginAsync 删除 DLL 文件
+- [x] PluginManager 提供 ScanWithPluginsForTargetAsync 方法（接收IP+端口列表）
+- [x] 插件扫描完成后更新运行时状态统计（ScanCount、VulnerabilityFound、LastScanTime）
+- [x] PluginMarketService 使用与 PluginManager 相同的 Plugins 目录
+- [x] Plugin 市场模型与 IVulnerabilityScannerPlugin 运行时模型有映射方法
+- [x] 综合扫描流程中在端口扫描后自动调用适用插件
+- [x] 插件扫描结果合并到综合扫描结果并写入历史记录
+- [x] PortServicePlugin 实现真实 Banner 抓取逻辑
+- [x] SslTlsPlugin 使用 SslStream 进行真实 TLS 握手分析
+- [x] WeakPasswordPlugin 实现真实密码认证探测
+- [x] WebVulnPlugin 使用 HttpClient 发送真实探测请求
+- [x] 所有内置插件扫描后更新 PluginRuntimeStatus 统计
+- [x] 主程序编译无错误

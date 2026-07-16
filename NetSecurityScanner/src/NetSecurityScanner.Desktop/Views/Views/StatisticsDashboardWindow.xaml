@@ -1,0 +1,329 @@
+<Window x:Class="NetSecurityScanner.Views.StatisticsDashboardWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+        Title="📊 扫描统计仪表板" Height="850" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
+        Background="#F5F7FA">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题区域 -->
+        <Border Grid.Row="0" CornerRadius="8" Margin="0,0,0,15">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#9B59B6" Offset="0"/>
+                    <GradientStop Color="#3498DB" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Grid Margin="25,15">
+                <StackPanel>
+                    <TextBlock Text="📊 扫描统计仪表板" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="可视化展示扫描数据统计、安全趋势和漏洞分析" FontSize="13" Foreground="#E8DAEF" Margin="0,8,0,0"/>
+                </StackPanel>
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                    <Button Name="RefreshButton" Content="🔄 刷新数据" Width="100" Height="32"
+                            Margin="0,0,8,0" Background="White" Foreground="#9B59B6" BorderThickness="0"
+                            FontWeight="SemiBold" Click="RefreshButton_Click" Cursor="Hand"/>
+                    <Button Name="ExportButton" Content="📄 导出报告" Width="100" Height="32"
+                            Background="#F39C12" Foreground="White" BorderThickness="0"
+                            FontWeight="SemiBold" Click="ExportButton_Click" Cursor="Hand"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 统计卡片 -->
+        <Grid Grid.Row="1" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" CornerRadius="8" Margin="0,0,8,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#3498DB" Offset="0"/>
+                        <GradientStop Color="#2980B9" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel Margin="15">
+                    <TextBlock Text="🔍 总扫描次数" Foreground="#D5E8F7" FontSize="12"/>
+                    <TextBlock Name="TotalScansTextBlock" Text="0" FontSize="32" FontWeight="Bold" Foreground="White" Margin="0,5,0,0"/>
+                    <TextBlock Name="AvgScansPerDayTextBlock" Text="0 次/天" Foreground="#D5E8F7" FontSize="11" Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" CornerRadius="8" Margin="4,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#E74C3C" Offset="0"/>
+                        <GradientStop Color="#C0392B" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel Margin="15">
+                    <TextBlock Text="⚠️ 总漏洞数" Foreground="#FADBD8" FontSize="12"/>
+                    <TextBlock Name="TotalVulnsTextBlock" Text="0" FontSize="32" FontWeight="Bold" Foreground="White" Margin="0,5,0,0"/>
+                    <TextBlock Name="VulnsPerScanTextBlock" Text="0 个/次" Foreground="#FADBD8" FontSize="11" Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2" CornerRadius="8" Margin="4,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#E67E22" Offset="0"/>
+                        <GradientStop Color="#D35400" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel Margin="15">
+                    <TextBlock Text="🔴 严重/高危" Foreground="#FAE5D3" FontSize="12"/>
+                    <TextBlock Name="CriticalVulnsTextBlock" Text="0" FontSize="32" FontWeight="Bold" Foreground="White" Margin="0,5,0,0"/>
+                    <TextBlock Name="CriticalPercentTextBlock" Text="0%" Foreground="#FAE5D3" FontSize="11" Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="3" CornerRadius="8" Margin="4,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#27AE60" Offset="0"/>
+                        <GradientStop Color="#229954" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel Margin="15">
+                    <TextBlock Text="🟢 开放端口" Foreground="#D5F5E3" FontSize="12"/>
+                    <TextBlock Name="TotalPortsTextBlock" Text="0" FontSize="32" FontWeight="Bold" Foreground="White" Margin="0,5,0,0"/>
+                    <TextBlock Name="AvgPortsPerScanTextBlock" Text="0 个/次" Foreground="#D5F5E3" FontSize="11" Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="4" CornerRadius="8" Margin="4,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#8E44AD" Offset="0"/>
+                        <GradientStop Color="#7D3C98" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel Margin="15">
+                    <TextBlock Text="🎯 扫描目标" Foreground="#E8DAEF" FontSize="12"/>
+                    <TextBlock Name="TotalTargetsTextBlock" Text="0" FontSize="32" FontWeight="Bold" Foreground="White" Margin="0,5,0,0"/>
+                    <TextBlock Name="UniqueTargetsTextBlock" Text="0 个唯一" Foreground="#E8DAEF" FontSize="11" Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="5" CornerRadius="8" Margin="8,0,0,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#1ABC9C" Offset="0"/>
+                        <GradientStop Color="#16A085" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel Margin="15">
+                    <TextBlock Text="📅 统计周期" Foreground="#D1F2EB" FontSize="12"/>
+                    <TextBlock Name="TimeRangeTextBlock" Text="-" FontSize="18" FontWeight="Bold" Foreground="White" Margin="0,5,0,0"/>
+                    <TextBlock Name="DaysCountTextBlock" Text="0 天" Foreground="#D1F2EB" FontSize="11" Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- 筛选和图表控制 -->
+        <Border Grid.Row="2" Background="White" CornerRadius="8" Margin="0,0,0,15" Padding="15"
+                BorderBrush="#E0E0E0" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="筛选: " FontSize="13" FontWeight="SemiBold" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <ComboBox Name="TimeRangeComboBox" Width="120" Height="28" SelectionChanged="TimeRangeComboBox_SelectionChanged">
+                        <ComboBoxItem Content="最近7天" IsSelected="True"/>
+                        <ComboBoxItem Content="最近30天"/>
+                        <ComboBoxItem Content="最近90天"/>
+                        <ComboBoxItem Content="全部时间"/>
+                    </ComboBox>
+                    <ComboBox Name="RiskFilterComboBox" Width="100" Height="28" Margin="10,0,0,0" SelectionChanged="RiskFilterComboBox_SelectionChanged">
+                        <ComboBoxItem Content="全部风险" IsSelected="True"/>
+                        <ComboBoxItem Content="严重"/>
+                        <ComboBoxItem Content="高危"/>
+                        <ComboBoxItem Content="中危"/>
+                        <ComboBoxItem Content="低危"/>
+                    </ComboBox>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Name="LastUpdateTimeTextBlock" FontSize="12" Foreground="#7F8C8D" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 详细统计 -->
+        <TabControl Grid.Row="3" Background="Transparent" BorderThickness="0">
+            <!-- 风险分布 -->
+            <TabItem Header="🎯 风险分布">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="White" CornerRadius="8" Margin="0,0,10,0" BorderBrush="#E0E0E0" BorderThickness="1">
+                        <StackPanel Margin="15">
+                            <TextBlock Text="风险等级分布" FontWeight="Bold" FontSize="14" Foreground="#2C3E50" Margin="0,0,0,10"/>
+                            <lvc:PieChart Name="RiskPieChart" Height="280" LegendPosition="Bottom"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Background="White" CornerRadius="8" Margin="5,0" BorderBrush="#E0E0E0" BorderThickness="1">
+                        <StackPanel Margin="15">
+                            <TextBlock Text="漏洞趋势(柱状图)" FontWeight="Bold" FontSize="14" Foreground="#2C3E50" Margin="0,0,0,10"/>
+                            <lvc:CartesianChart Name="VulnBarChart" Height="280"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="2" Background="White" CornerRadius="8" Margin="10,0,0,0" BorderBrush="#E0E0E0" BorderThickness="1">
+                        <StackPanel Margin="15">
+                            <TextBlock Text="风险等级明细" FontWeight="Bold" FontSize="14" Foreground="#2C3E50" Margin="0,0,0,10"/>
+                            <StackPanel Name="RiskDistributionPanel">
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- 扫描趋势 -->
+            <TabItem Header="📈 扫描趋势">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Border Grid.Row="0" Background="White" CornerRadius="8" Margin="0,0,0,10" BorderBrush="#E0E0E0" BorderThickness="1">
+                        <StackPanel Margin="15">
+                            <TextBlock Text="扫描活动趋势" FontWeight="Bold" FontSize="14" Foreground="#2C3E50" Margin="0,0,0,10"/>
+                            <lvc:CartesianChart Name="ScanTrendChart" Height="250"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Grid.Row="1" Background="White" CornerRadius="8" BorderBrush="#E0E0E0" BorderThickness="1">
+                        <StackPanel Margin="15">
+                            <TextBlock Text="每日扫描统计明细" FontWeight="Bold" FontSize="14" Foreground="#2C3E50" Margin="0,0,0,10"/>
+                            <DataGrid Name="ScanTrendDataGrid" AutoGenerateColumns="False" 
+                                      CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                                      AlternatingRowBackground="#F8F9FA" IsReadOnly="True"
+                                      SelectionMode="Extended" HeadersVisibility="Column"
+                                      MaxHeight="300">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="日期" Binding="{Binding Date}" Width="100"/>
+                                    <DataGridTextColumn Header="扫描次数" Binding="{Binding ScanCount}" Width="80"/>
+                                    <DataGridTextColumn Header="开放端口" Binding="{Binding PortCount}" Width="80"/>
+                                    <DataGridTextColumn Header="漏洞总数" Binding="{Binding VulnerabilityCount}" Width="80"/>
+                                    <DataGridTextColumn Header="严重" Binding="{Binding CriticalCount}" Width="70"/>
+                                    <DataGridTextColumn Header="高危" Binding="{Binding HighCount}" Width="70"/>
+                                    <DataGridTextColumn Header="中危" Binding="{Binding MediumCount}" Width="70"/>
+                                    <DataGridTextColumn Header="低危" Binding="{Binding LowCount}" Width="70"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- TOP漏洞 -->
+            <TabItem Header="⚠️ TOP漏洞">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="White" CornerRadius="8" Margin="0,0,10,0" BorderBrush="#E0E0E0" BorderThickness="1">
+                        <StackPanel Margin="15">
+                            <TextBlock Text="最常见的漏洞TOP15" FontWeight="Bold" FontSize="14" Foreground="#2C3E50" Margin="0,0,0,10"/>
+                            <DataGrid Name="TopVulnerabilitiesDataGrid" AutoGenerateColumns="False" 
+                                      CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                                      AlternatingRowBackground="#F8F9FA" IsReadOnly="True"
+                                      SelectionMode="Extended" HeadersVisibility="Column"
+                                      MaxHeight="400">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="排名" Binding="{Binding Rank}" Width="50"/>
+                                    <DataGridTextColumn Header="漏洞名称" Binding="{Binding Name}" Width="*"/>
+                                    <DataGridTextColumn Header="CVE编号" Binding="{Binding CveId}" Width="130"/>
+                                    <DataGridTextColumn Header="出现次数" Binding="{Binding Count}" Width="80"/>
+                                    <DataGridTextColumn Header="风险等级" Binding="{Binding RiskLevel}" Width="80"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Background="White" CornerRadius="8" Margin="10,0,0,0" BorderBrush="#E0E0E0" BorderThickness="1">
+                        <StackPanel Margin="15">
+                            <TextBlock Text="漏洞类型分布" FontWeight="Bold" FontSize="14" Foreground="#2C3E50" Margin="0,0,0,10"/>
+                            <lvc:CartesianChart Name="VulnTypeChart" Height="400"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- 端口分析 -->
+            <TabItem Header="🔌 端口分析">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0" Background="White" CornerRadius="8" Margin="0,0,10,0" BorderBrush="#E0E0E0" BorderThickness="1">
+                        <StackPanel Margin="15">
+                            <TextBlock Text="最常见开放端口TOP20" FontWeight="Bold" FontSize="14" Foreground="#2C3E50" Margin="0,0,0,10"/>
+                            <lvc:CartesianChart Name="PortChart" Height="400"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Background="White" CornerRadius="8" Margin="10,0,0,0" BorderBrush="#E0E0E0" BorderThickness="1">
+                        <StackPanel Margin="15">
+                            <TextBlock Text="服务类型分布" FontWeight="Bold" FontSize="14" Foreground="#2C3E50" Margin="0,0,0,10"/>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="400">
+                                <StackPanel Name="ServiceDistributionPanel">
+                                </StackPanel>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- 扫描历史 -->
+            <TabItem Header="📋 扫描历史">
+                <Border Background="White" CornerRadius="8" Margin="10" BorderBrush="#E0E0E0" BorderThickness="1">
+                    <StackPanel Margin="15">
+                        <TextBlock Text="所有扫描记录" FontWeight="Bold" FontSize="14" Foreground="#2C3E50" Margin="0,0,0,10"/>
+                        <DataGrid Name="ScanHistoryDataGrid" AutoGenerateColumns="False" 
+                                  CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                                  AlternatingRowBackground="#F8F9FA" IsReadOnly="True"
+                                  SelectionMode="Extended" HeadersVisibility="Column"
+                                  MouseDoubleClick="ScanHistoryDataGrid_MouseDoubleClick"
+                                  MaxHeight="500">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="扫描时间" Binding="{Binding ScanTime, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="150"/>
+                                <DataGridTextColumn Header="目标" Binding="{Binding TargetIp}" Width="150"/>
+                                <DataGridTextColumn Header="扫描类型" Binding="{Binding ScanType}" Width="120"/>
+                                <DataGridTextColumn Header="开放端口" Binding="{Binding OpenPortsCount}" Width="80"/>
+                                <DataGridTextColumn Header="漏洞数" Binding="{Binding VulnerabilitiesCount}" Width="80"/>
+                                <DataGridTextColumn Header="风险等级" Binding="{Binding RiskLevel}" Width="80"/>
+                                <DataGridTextColumn Header="扫描ID" Binding="{Binding ScanId}" Width="200"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>

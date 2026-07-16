@@ -1,0 +1,18 @@
+NetSecurity Scanner Icon Requirements
+=====================================
+
+Please place an icon file here:
+  - File name: netsec-icon.png
+  - Size: 256x256 pixels minimum (512x512 recommended)
+  - Format: PNG with transparency
+  - Style: Shield or lock icon, modern flat design
+  
+Recommended online tools for creating icons:
+  - https://www.flaticon.com/
+  - https://iconoir.com/
+  - https://fonts.google.com/icons (Material Symbols)
+
+The icon will be used for:
+  - AppImage application icon
+  - deb package desktop entry
+  - Application window icon

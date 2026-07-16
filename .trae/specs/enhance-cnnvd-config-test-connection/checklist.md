@@ -1,0 +1,11 @@
+- [x] CnnvdSyncService 新增 `TestConnectionAsync` 方法
+- [x] 连接测试使用配置中的 `BaseUrl`、`RequestTimeoutSeconds`、`UseSystemProxy`
+- [x] API Key 非空时发送 `X-API-Key` 请求头
+- [x] 连接成功返回延迟毫秒数，失败返回友好错误信息
+- [x] DatabaseSettingsWindow CNNVD 面板显示“测试连接”按钮
+- [x] 测试期间按钮禁用并显示“测试中...”
+- [x] 测试结果以绿色/红色文本反馈在界面
+- [x] 保存设置后 `CnnvdSyncService` 重新加载配置
+- [x] `DatabaseSettings.Cnnvd` 序列化键名为小写 `cnnvd`，与服务端读取一致
+- [x] `dotnet build NetSecurityScanner.Desktop.csproj` 0 错误
+- [x] 实际运行验证程序可启动（PID 26320）

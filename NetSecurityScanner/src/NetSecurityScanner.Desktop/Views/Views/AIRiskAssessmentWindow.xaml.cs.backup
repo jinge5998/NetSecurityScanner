@@ -1,0 +1,784 @@
+using LiveChartsCore;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.SkiaSharpView.WPF;
+using Microsoft.Win32;
+using SkiaSharp;
+using NetSecurityScanner.Models;
+using NetSecurityScanner.Services;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+
+namespace NetSecurityScanner.Views
+{
+    public partial class AIRiskAssessmentWindow : Window
+    {
+        private readonly AIRiskAssessmentService _riskService;
+        private AIRiskAssessmentReport? _currentReport;
+        private List<PortScanResult> _portScanResults;
+        private List<VulnerabilityResult> _vulnerabilityResults;
+
+        public AIRiskAssessmentWindow(List<PortScanResult> portScanResults, List<VulnerabilityResult> vulnerabilityResults = null)
+        {
+            InitializeComponent();
+            _riskService = new AIRiskAssessmentService();
+            _portScanResults = portScanResults ?? new List<PortScanResult>();
+            _vulnerabilityResults = vulnerabilityResults ?? new List<VulnerabilityResult>();
+
+            Loaded += AIRiskAssessmentWindow_Loaded;
+        }
+
+        private async void AIRiskAssessmentWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            await RunAssessmentAsync();
+        }
+
+        private async Task RunAssessmentAsync()
+        {
+            try
+            {
+                AssessmentStatusText.Text = "正在进行AI风险评估...";
+                RefreshAssessmentButton.IsEnabled = false;
+
+                // 执行风险评估
+                _currentReport = await _riskService.AssessRiskAsync(_portScanResults, _vulnerabilityResults);
+
+                // 更新UI
+                DisplayReport();
+
+                AssessmentStatusText.Text = $"评估完成 - 综合风险评分: {_currentReport.RiskScore:F1}/10";
+                ExportReportButton.IsEnabled = true;
+                CopyReportButton.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                AssessmentStatusText.Text = $"评估失败: {ex.Message}";
+                MessageBox.Show($"风险评估失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                RefreshAssessmentButton.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// 复制报告到剪贴板
+        /// </summary>
+        private void CopyReportButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentReport == null) return;
+
+            try
+            {
+                var sb = new StringBuilder();
+                sb.AppendLine("=".PadRight(50, '='));
+                sb.AppendLine("AI智能风险评估报告");
+                sb.AppendLine("=".PadRight(50, '='));
+                sb.AppendLine();
+                sb.AppendLine($"评估时间: {_currentReport.AssessmentTime:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine($"目标IP: {_portScanResults.FirstOrDefault()?.TargetIp ?? "未知"}");
+                sb.AppendLine($"风险评分: {_currentReport.RiskScore:F1}/10");
+                sb.AppendLine($"风险等级: {_currentReport.OverallRiskLevel}");
+                sb.AppendLine();
+                sb.AppendLine("-".PadRight(50, '-'));
+                sb.AppendLine("端口扫描统计");
+                sb.AppendLine("-".PadRight(50, '-'));
+                sb.AppendLine($"总扫描端口: {_currentReport.PortStatistics.TotalPortsScanned}");
+                sb.AppendLine($"开放端口: {_currentReport.PortStatistics.OpenPortsCount}");
+                sb.AppendLine();
+                sb.AppendLine("-".PadRight(50, '-'));
+                sb.AppendLine("风险统计");
+                sb.AppendLine("-".PadRight(50, '-'));
+                sb.AppendLine($"严重风险: {_currentReport.PortStatistics.CriticalPortsCount}");
+                sb.AppendLine($"高危风险: {_currentReport.PortStatistics.HighRiskPortsCount}");
+                sb.AppendLine($"中危风险: {_currentReport.PortStatistics.MediumRiskPortsCount}");
+                sb.AppendLine($"低危风险: {_currentReport.PortStatistics.LowRiskPortsCount}");
+                sb.AppendLine();
+                sb.AppendLine("-".PadRight(50, '-'));
+                sb.AppendLine("风险项列表");
+                sb.AppendLine("-".PadRight(50, '-'));
+
+                foreach (var item in _currentReport.RiskItems.OrderByDescending(r => r.RiskScore).Take(10))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"[{item.RiskLevel}] {item.Title}");
+                    sb.AppendLine($"  目标: {item.Target}");
+                    sb.AppendLine($"  评分: {item.RiskScore:F1}");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("=".PadRight(50, '='));
+
+                // 复制到剪贴板
+                Clipboard.SetText(sb.ToString());
+                MessageBox.Show("报告已复制到剪贴板！", "复制成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"复制失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void DisplayReport()
+        {
+            if (_currentReport == null) return;
+
+            // 更新头部信息
+            var target = _portScanResults.FirstOrDefault()?.TargetIp ?? "未知目标";
+            TargetTextBox.Text = target;
+            ScanTimeTextBox.Text = _currentReport.AssessmentTime.ToString("yyyy-MM-dd HH:mm:ss");
+            RiskScoreText.Text = _currentReport.RiskScore.ToString("F1");
+            
+            // 更新端口扫描统计
+            TotalPortsTextBox.Text = _currentReport.PortStatistics?.TotalPortsScanned.ToString() ?? "0";
+            OpenPortsTextBox.Text = _currentReport.PortStatistics?.OpenPortsCount.ToString() ?? "0";
+
+            // 根据风险等级设置评分颜色
+            RiskScoreText.Foreground = _currentReport.OverallRiskLevel switch
+            {
+                RiskLevel.Critical => new SolidColorBrush(Colors.Red),
+                RiskLevel.High => new SolidColorBrush(Colors.Orange),
+                RiskLevel.Medium => new SolidColorBrush(Colors.Gold),
+                RiskLevel.Low => new SolidColorBrush(Colors.Green),
+                _ => new SolidColorBrush(Colors.Gray)
+            };
+
+            // 更新统计卡片
+            var criticalCount = _currentReport.RiskItems.Count(r => r.RiskLevel == RiskLevel.Critical);
+            var highCount = _currentReport.RiskItems.Count(r => r.RiskLevel == RiskLevel.High);
+            var mediumCount = _currentReport.RiskItems.Count(r => r.RiskLevel == RiskLevel.Medium);
+            var lowCount = _currentReport.RiskItems.Count(r => r.RiskLevel == RiskLevel.Low);
+
+            CriticalCountText.Text = criticalCount.ToString();
+            HighCountText.Text = highCount.ToString();
+            MediumCountText.Text = mediumCount.ToString();
+            LowCountText.Text = lowCount.ToString();
+
+            // 更新风险项列表
+            RiskItemsDataGrid.ItemsSource = _currentReport.RiskItems.OrderByDescending(r => r.RiskScore).ToList();
+
+            // 更新风险分布图表
+            UpdateRiskDistributionChart(criticalCount, highCount, mediumCount, lowCount);
+            
+            // 更新服务类型分布图表
+            UpdateServiceTypeChart();
+        }
+
+        /// <summary>
+        /// 更新服务类型分布图表
+        /// </summary>
+        private void UpdateServiceTypeChart()
+        {
+            if (_currentReport?.PortStatistics?.ServiceTypeDistribution == null) return;
+
+            var serviceTypes = _currentReport.PortStatistics.ServiceTypeDistribution;
+            if (!serviceTypes.Any()) return;
+
+            // 定义颜色
+            var colors = new[]
+            {
+                new SKColor(102, 126, 234),   // 蓝紫色
+                new SKColor(118, 75, 162),    // 紫色
+                new SKColor(231, 76, 60),     // 红色
+                new SKColor(230, 126, 34),    // 橙色
+                new SKColor(241, 196, 15),    // 黄色
+                new SKColor(39, 174, 96),     // 绿色
+                new SKColor(52, 152, 219),    // 蓝色
+                new SKColor(155, 89, 182)     // 紫罗兰
+            };
+
+            var series = new List<ISeries>();
+            int colorIndex = 0;
+
+            foreach (var service in serviceTypes.OrderByDescending(s => s.Value).Take(8))
+            {
+                var color = colors[colorIndex % colors.Length];
+                series.Add(new PieSeries<int>
+                {
+                    Name = service.Key,
+                    Values = new[] { service.Value },
+                    Fill = new SolidColorPaint(color),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)),
+                    DataLabelsSize = 12,
+                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
+                    DataLabelsFormatter = point => point.Coordinate.PrimaryValue > 0 ? $"{point.Coordinate.PrimaryValue}" : ""
+                });
+                colorIndex++;
+            }
+
+            ServiceTypeChart.Series = series;
+        }
+
+        private void UpdateRiskDistributionChart(int critical, int high, int medium, int low)
+        {
+            var series = new ISeries[]
+            {
+                new PieSeries<int>
+                {
+                    Name = "严重",
+                    Values = new[] { critical },
+                    Fill = new SolidColorPaint(new SKColor(231, 76, 60)),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)),
+                    DataLabelsSize = 14,
+                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
+                    DataLabelsFormatter = point => point.Coordinate.PrimaryValue > 0 ? $"{point.Coordinate.PrimaryValue}" : ""
+                },
+                new PieSeries<int>
+                {
+                    Name = "高危",
+                    Values = new[] { high },
+                    Fill = new SolidColorPaint(new SKColor(230, 126, 34)),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)),
+                    DataLabelsSize = 14,
+                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
+                    DataLabelsFormatter = point => point.Coordinate.PrimaryValue > 0 ? $"{point.Coordinate.PrimaryValue}" : ""
+                },
+                new PieSeries<int>
+                {
+                    Name = "中危",
+                    Values = new[] { medium },
+                    Fill = new SolidColorPaint(new SKColor(241, 196, 15)),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)),
+                    DataLabelsSize = 14,
+                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
+                    DataLabelsFormatter = point => point.Coordinate.PrimaryValue > 0 ? $"{point.Coordinate.PrimaryValue}" : ""
+                },
+                new PieSeries<int>
+                {
+                    Name = "低危",
+                    Values = new[] { low },
+                    Fill = new SolidColorPaint(new SKColor(39, 174, 96)),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)),
+                    DataLabelsSize = 14,
+                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
+                    DataLabelsFormatter = point => point.Coordinate.PrimaryValue > 0 ? $"{point.Coordinate.PrimaryValue}" : ""
+                }
+            };
+
+            RiskDistributionChart.Series = series;
+        }
+
+        private void RiskItemsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (RiskItemsDataGrid.SelectedItem is AIRiskItem riskItem)
+            {
+                DisplayRecommendation(riskItem);
+            }
+        }
+
+        /// <summary>
+        /// 双击风险项显示详细信息
+        /// </summary>
+        private void RiskItemsDataGrid_MouseDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (RiskItemsDataGrid.SelectedItem is AIRiskItem riskItem)
+            {
+                ShowRiskItemDetails(riskItem);
+            }
+        }
+
+        /// <summary>
+        /// 显示风险项详细信息弹窗
+        /// </summary>
+        private void ShowRiskItemDetails(AIRiskItem riskItem)
+        {
+            var detailWindow = new Window
+            {
+                Title = $"风险详情 - {riskItem.Title}",
+                Width = 500,
+                Height = 400,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen,
+                Background = new SolidColorBrush(Colors.White)
+            };
+
+            var scrollViewer = new ScrollViewer { Margin = new Thickness(20) };
+            var panel = new StackPanel { Orientation = Orientation.Vertical };
+
+            // 风险等级
+            var levelColor = riskItem.RiskLevel switch
+            {
+                RiskLevel.Critical => "#e74c3c",
+                RiskLevel.High => "#e67e22",
+                RiskLevel.Medium => "#f1c40f",
+                _ => "#27ae60"
+            };
+
+            panel.Children.Add(new Border
+            {
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(levelColor)),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(10, 5, 10, 5),
+                Margin = new Thickness(0, 0, 0, 15),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Child = new TextBlock
+                {
+                    Text = $"风险等级: {riskItem.RiskLevel}",
+                    Foreground = Brushes.White,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 14
+                }
+            });
+
+            // 标题
+            panel.Children.Add(new TextBlock
+            {
+                Text = riskItem.Title,
+                FontSize = 18,
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 0, 0, 10),
+                TextWrapping = TextWrapping.Wrap
+            });
+
+            // 目标
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"目标: {riskItem.Target}",
+                FontSize = 13,
+                Margin = new Thickness(0, 0, 0, 5),
+                Foreground = new SolidColorBrush(Colors.Gray)
+            });
+
+            // 评分
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"风险评分: {riskItem.RiskScore:F1}/10",
+                FontSize = 13,
+                Margin = new Thickness(0, 0, 0, 15),
+                FontWeight = FontWeights.SemiBold
+            });
+
+            // 描述
+            panel.Children.Add(new TextBlock
+            {
+                Text = "风险描述:",
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                Margin = new Thickness(0, 0, 0, 5)
+            });
+            panel.Children.Add(new TextBlock
+            {
+                Text = riskItem.Description,
+                FontSize = 13,
+                Margin = new Thickness(0, 0, 0, 15),
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = new SolidColorBrush(Colors.DarkSlateGray)
+            });
+
+            // 详细信息
+            if (riskItem.Details?.Any() == true)
+            {
+                panel.Children.Add(new TextBlock
+                {
+                    Text = "详细信息:",
+                    FontSize = 14,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 0, 0, 10)
+                });
+
+                foreach (var detail in riskItem.Details)
+                {
+                    var detailPanel = new StackPanel 
+                    { 
+                        Orientation = Orientation.Horizontal, 
+                        Margin = new Thickness(0, 3, 0, 3) 
+                    };
+                    detailPanel.Children.Add(new TextBlock
+                    {
+                        Text = $"{detail.Key}: ",
+                        FontWeight = FontWeights.SemiBold,
+                        FontSize = 12,
+                        Width = 100
+                    });
+                    detailPanel.Children.Add(new TextBlock
+                    {
+                        Text = detail.Value,
+                        FontSize = 12,
+                        TextWrapping = TextWrapping.Wrap
+                    });
+                    panel.Children.Add(detailPanel);
+                }
+            }
+
+            // 查找并显示对应的修复建议
+            var recommendation = _currentReport?.Recommendations.FirstOrDefault(r => r.Target == riskItem.Target);
+            if (recommendation != null)
+            {
+                panel.Children.Add(new Separator { Margin = new Thickness(0, 15, 0, 15) });
+                panel.Children.Add(new TextBlock
+                {
+                    Text = "修复建议:",
+                    FontSize = 14,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 0, 0, 10)
+                });
+                panel.Children.Add(new TextBlock
+                {
+                    Text = recommendation.Title,
+                    FontSize = 13,
+                    FontWeight = FontWeights.SemiBold,
+                    Margin = new Thickness(0, 0, 0, 5)
+                });
+                panel.Children.Add(new TextBlock
+                {
+                    Text = recommendation.Description,
+                    FontSize = 12,
+                    Margin = new Thickness(0, 0, 0, 10),
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = new SolidColorBrush(Colors.DarkSlateGray)
+                });
+
+                if (recommendation.ActionSteps?.Any() == true)
+                {
+                    panel.Children.Add(new TextBlock
+                    {
+                        Text = "操作步骤:",
+                        FontSize = 12,
+                        FontWeight = FontWeights.SemiBold,
+                        Margin = new Thickness(0, 0, 0, 5)
+                    });
+                    int stepNum = 1;
+                    foreach (var step in recommendation.ActionSteps)
+                    {
+                        panel.Children.Add(new TextBlock
+                        {
+                            Text = $"{stepNum}. {step}",
+                            FontSize = 12,
+                            Margin = new Thickness(10, 2, 0, 2),
+                            TextWrapping = TextWrapping.Wrap
+                        });
+                        stepNum++;
+                    }
+                }
+            }
+
+            scrollViewer.Content = panel;
+            detailWindow.Content = scrollViewer;
+            detailWindow.ShowDialog();
+        }
+
+        private void DisplayRecommendation(AIRiskItem riskItem)
+        {
+            RecommendationsPanel.Children.Clear();
+
+            // 查找对应的建议
+            var recommendation = _currentReport?.Recommendations.FirstOrDefault(r => r.Target == riskItem.Target);
+
+            if (recommendation != null)
+            {
+                // 优先级标签
+                var priorityColor = recommendation.Priority switch
+                {
+                    RecommendationPriority.Immediate => "#e74c3c",
+                    RecommendationPriority.High => "#e67e22",
+                    RecommendationPriority.Medium => "#f1c40f",
+                    _ => "#27ae60"
+                };
+
+                RecommendationsPanel.Children.Add(new Border
+                {
+                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(priorityColor)),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(8, 4, 8, 4),
+                    Margin = new Thickness(0, 0, 0, 10),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Child = new TextBlock
+                    {
+                        Text = $"优先级: {recommendation.Priority}",
+                        Foreground = Brushes.White,
+                        FontWeight = FontWeights.Bold,
+                        FontSize = 12
+                    }
+                });
+
+                // 标题
+                RecommendationsPanel.Children.Add(new TextBlock
+                {
+                    Text = recommendation.Title,
+                    FontSize = 16,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 0, 0, 10),
+                    TextWrapping = TextWrapping.Wrap
+                });
+
+                // 描述
+                RecommendationsPanel.Children.Add(new TextBlock
+                {
+                    Text = recommendation.Description,
+                    FontSize = 13,
+                    Margin = new Thickness(0, 0, 0, 15),
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = new SolidColorBrush(Colors.DarkSlateGray)
+                });
+
+                // 操作步骤
+                RecommendationsPanel.Children.Add(new TextBlock
+                {
+                    Text = "操作步骤:",
+                    FontSize = 14,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 0, 0, 8)
+                });
+
+                foreach (var step in recommendation.ActionSteps)
+                {
+                    RecommendationsPanel.Children.Add(new TextBlock
+                    {
+                        Text = step,
+                        FontSize = 12,
+                        Margin = new Thickness(10, 2, 0, 2),
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground = new SolidColorBrush(Colors.DarkSlateGray)
+                    });
+                }
+            }
+            else
+            {
+                // 显示风险项详情
+                RecommendationsPanel.Children.Add(new TextBlock
+                {
+                    Text = riskItem.Title,
+                    FontSize = 16,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(0, 0, 0, 10)
+                });
+
+                RecommendationsPanel.Children.Add(new TextBlock
+                {
+                    Text = riskItem.Description,
+                    FontSize = 13,
+                    Margin = new Thickness(0, 0, 0, 10),
+                    TextWrapping = TextWrapping.Wrap
+                });
+
+                if (riskItem.Details.Any())
+                {
+                    RecommendationsPanel.Children.Add(new TextBlock
+                    {
+                        Text = "详细信息:",
+                        FontSize = 14,
+                        FontWeight = FontWeights.Bold,
+                        Margin = new Thickness(0, 10, 0, 5)
+                    });
+
+                    foreach (var detail in riskItem.Details)
+                    {
+                        var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+                        panel.Children.Add(new TextBlock
+                        {
+                            Text = $"{detail.Key}: ",
+                            FontWeight = FontWeights.SemiBold,
+                            FontSize = 12,
+                            Width = 80
+                        });
+                        panel.Children.Add(new TextBlock
+                        {
+                            Text = detail.Value,
+                            FontSize = 12,
+                            TextWrapping = TextWrapping.Wrap
+                        });
+                        RecommendationsPanel.Children.Add(panel);
+                    }
+                }
+            }
+        }
+
+        private async void RefreshAssessmentButton_Click(object sender, RoutedEventArgs e)
+        {
+            await RunAssessmentAsync();
+        }
+
+        private async void ExportReportButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentReport == null) return;
+
+            try
+            {
+                var dialog = new SaveFileDialog
+                {
+                    Filter = "JSON文件|*.json|HTML文件|*.html|文本文件|*.txt",
+                    FileName = $"AI风险评估报告_{DateTime.Now:yyyyMMdd_HHmmss}",
+                    Title = "导出AI风险评估报告"
+                };
+
+                if (dialog.ShowDialog() != true) return;
+
+                string filePath = dialog.FileName;
+                string extension = Path.GetExtension(filePath).ToLower();
+
+                switch (extension)
+                {
+                    case ".json":
+                        await ExportToJsonAsync(filePath);
+                        break;
+                    case ".html":
+                        await ExportToHtmlAsync(filePath);
+                        break;
+                    case ".txt":
+                        await ExportToTextAsync(filePath);
+                        break;
+                }
+
+                MessageBox.Show($"报告已导出到:\n{filePath}", "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"导出失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task ExportToJsonAsync(string filePath)
+        {
+            var json = JsonSerializer.Serialize(_currentReport, new JsonSerializerOptions { WriteIndented = true });
+            await File.WriteAllTextAsync(filePath, json);
+        }
+
+        private async Task ExportToHtmlAsync(string filePath)
+        {
+            var html = GenerateHtmlReport();
+            await File.WriteAllTextAsync(filePath, html);
+        }
+
+        private async Task ExportToTextAsync(string filePath)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("=".PadRight(60, '='));
+            sb.AppendLine("AI智能风险评估报告");
+            sb.AppendLine("=".PadRight(60, '='));
+            sb.AppendLine();
+            sb.AppendLine($"评估时间: {_currentReport!.AssessmentTime:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine($"目标IP: {_portScanResults.FirstOrDefault()?.TargetIp ?? "未知"}");
+            sb.AppendLine($"风险评分: {_currentReport.RiskScore:F1}/10");
+            sb.AppendLine($"风险等级: {_currentReport.OverallRiskLevel}");
+            sb.AppendLine();
+            sb.AppendLine("-".PadRight(60, '-'));
+            sb.AppendLine("端口扫描统计");
+            sb.AppendLine("-".PadRight(60, '-'));
+            sb.AppendLine($"总扫描端口: {_currentReport.PortStatistics.TotalPortsScanned}");
+            sb.AppendLine($"开放端口数: {_currentReport.PortStatistics.OpenPortsCount}");
+            sb.AppendLine($"关闭端口数: {_currentReport.PortStatistics.TotalPortsScanned - _currentReport.PortStatistics.OpenPortsCount}");
+            sb.AppendLine();
+            sb.AppendLine("-".PadRight(60, '-'));
+            sb.AppendLine("风险统计");
+            sb.AppendLine("-".PadRight(60, '-'));
+            sb.AppendLine($"严重风险: {_currentReport.PortStatistics.CriticalPortsCount}");
+            sb.AppendLine($"高危风险: {_currentReport.PortStatistics.HighRiskPortsCount}");
+            sb.AppendLine($"中危风险: {_currentReport.PortStatistics.MediumRiskPortsCount}");
+            sb.AppendLine($"低危风险: {_currentReport.PortStatistics.LowRiskPortsCount}");
+            sb.AppendLine();
+            sb.AppendLine("-".PadRight(60, '-'));
+            sb.AppendLine("风险项详情");
+            sb.AppendLine("-".PadRight(60, '-'));
+
+            foreach (var item in _currentReport.RiskItems.OrderByDescending(r => r.RiskScore))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"[{item.RiskLevel}] {item.Title}");
+                sb.AppendLine($"  目标: {item.Target}");
+                sb.AppendLine($"  评分: {item.RiskScore:F1}");
+                sb.AppendLine($"  描述: {item.Description}");
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("-".PadRight(60, '-'));
+            sb.AppendLine("修复建议");
+            sb.AppendLine("-".PadRight(60, '-'));
+
+            foreach (var rec in _currentReport.Recommendations)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"[{rec.Priority}] {rec.Title}");
+                sb.AppendLine($"  {rec.Description}");
+                foreach (var step in rec.ActionSteps)
+                {
+                    sb.AppendLine($"  {step}");
+                }
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("=".PadRight(60, '='));
+
+            await File.WriteAllTextAsync(filePath, sb.ToString());
+        }
+
+        private string GenerateHtmlReport()
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("<!DOCTYPE html>");
+            sb.AppendLine("<html><head><meta charset='utf-8'/><title>AI风险评估报告</title>");
+            sb.AppendLine("<style>");
+            sb.AppendLine("body{font-family:Arial,sans-serif;margin:40px;background:#f5f5f5;}");
+            sb.AppendLine(".container{max-width:1000px;margin:0 auto;background:white;padding:30px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);}");
+            sb.AppendLine("h1{color:#667eea;text-align:center;}");
+            sb.AppendLine(".score{font-size:48px;font-weight:bold;text-align:center;color:#667eea;margin:20px 0;}");
+            sb.AppendLine(".stats{display:flex;justify-content:space-around;margin:30px 0;}");
+            sb.AppendLine(".stat-box{text-align:center;padding:20px;border-radius:8px;color:white;min-width:100px;}");
+            sb.AppendLine(".critical{background:#e74c3c;}.high{background:#e67e22;}.medium{background:#f1c40f;}.low{background:#27ae60;}");
+            sb.AppendLine("table{width:100%;border-collapse:collapse;margin:20px 0;}");
+            sb.AppendLine("th,td{padding:12px;text-align:left;border-bottom:1px solid #ddd;}");
+            sb.AppendLine("th{background:#667eea;color:white;}");
+            sb.AppendLine(".critical-text{color:#e74c3c;font-weight:bold;}");
+            sb.AppendLine(".high-text{color:#e67e22;font-weight:bold;}");
+            sb.AppendLine(".medium-text{color:#f1c40f;font-weight:bold;}");
+            sb.AppendLine(".low-text{color:#27ae60;font-weight:bold;}");
+            sb.AppendLine("</style></head><body>");
+            sb.AppendLine("<div class='container'>");
+            sb.AppendLine("<h1>🤖 AI智能风险评估报告</h1>");
+            sb.AppendLine($"<div class='score'>{_currentReport!.RiskScore:F1}/10</div>");
+            sb.AppendLine($"<p style='text-align:center;color:#666;'>评估时间: {_currentReport.AssessmentTime:yyyy-MM-dd HH:mm:ss}</p>");
+            sb.AppendLine($"<p style='text-align:center;color:#666;'>目标IP: {_portScanResults.FirstOrDefault()?.TargetIp ?? "未知"}</p>");
+            
+            sb.AppendLine("<h2>📊 端口扫描统计</h2>");
+            sb.AppendLine("<table><tr><th>统计项</th><th>数量</th></tr>");
+            sb.AppendLine($"<tr><td>总扫描端口</td><td>{_currentReport.PortStatistics.TotalPortsScanned}</td></tr>");
+            sb.AppendLine($"<tr><td>开放端口</td><td style='color:#27ae60;font-weight:bold;'>{_currentReport.PortStatistics.OpenPortsCount}</td></tr>");
+            sb.AppendLine($"<tr><td>关闭/过滤端口</td><td>{_currentReport.PortStatistics.TotalPortsScanned - _currentReport.PortStatistics.OpenPortsCount}</td></tr>");
+            sb.AppendLine("</table>");
+
+            sb.AppendLine("<h2>🎯 风险分布</h2>");
+            sb.AppendLine("<div class='stats'>");
+            sb.AppendLine($"<div class='stat-box critical'><div style='font-size:24px;font-weight:bold;'>{_currentReport.RiskItems.Count(r => r.RiskLevel == RiskLevel.Critical)}</div><div>严重</div></div>");
+            sb.AppendLine($"<div class='stat-box high'><div style='font-size:24px;font-weight:bold;'>{_currentReport.RiskItems.Count(r => r.RiskLevel == RiskLevel.High)}</div><div>高危</div></div>");
+            sb.AppendLine($"<div class='stat-box medium'><div style='font-size:24px;font-weight:bold;'>{_currentReport.RiskItems.Count(r => r.RiskLevel == RiskLevel.Medium)}</div><div>中危</div></div>");
+            sb.AppendLine($"<div class='stat-box low'><div style='font-size:24px;font-weight:bold;'>{_currentReport.RiskItems.Count(r => r.RiskLevel == RiskLevel.Low)}</div><div>低危</div></div>");
+            sb.AppendLine("</div>");
+
+            sb.AppendLine("<h2>风险项列表</h2>");
+            sb.AppendLine("<table><tr><th>风险等级</th><th>目标</th><th>风险项</th><th>评分</th></tr>");
+            foreach (var item in _currentReport.RiskItems.OrderByDescending(r => r.RiskScore))
+            {
+                var cssClass = item.RiskLevel.ToString().ToLower() + "-text";
+                sb.AppendLine($"<tr><td class='{cssClass}'>{item.RiskLevel}</td><td>{item.Target}</td><td>{item.Title}</td><td>{item.RiskScore:F1}</td></tr>");
+            }
+            sb.AppendLine("</table>");
+
+            sb.AppendLine("<h2>修复建议</h2>");
+            foreach (var rec in _currentReport.Recommendations)
+            {
+                sb.AppendLine($"<h3>[{rec.Priority}] {rec.Title}</h3>");
+                sb.AppendLine($"<p>{rec.Description}</p>");
+                sb.AppendLine("<ul>");
+                foreach (var step in rec.ActionSteps)
+                {
+                    sb.AppendLine($"<li>{step}</li>");
+                }
+                sb.AppendLine("</ul>");
+            }
+
+            sb.AppendLine("</div></body></html>");
+            return sb.ToString();
+        }
+
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            Close();
+        }
+    }
+}

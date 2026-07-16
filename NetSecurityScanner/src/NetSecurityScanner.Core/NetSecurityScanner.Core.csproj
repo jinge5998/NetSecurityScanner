@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>NetSecurityScanner</RootNamespace>
+    <NoWarn>$(NoWarn);NETSDK1138;NU1701;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625</NoWarn>
+    <AssemblyVersion>1.0.1.1</AssemblyVersion>
+    <FileVersion>1.0.1.1</FileVersion>
+    <Version>1.0.1.1</Version>
+    <Product>网络安全扫描工具 - 核心库</Product>
+    <Company>NetSecurityScanner</Company>
+    <Copyright>© 2026 NetSecurityScanner</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 摄像头/弱口令等静态库文件：发布时自动 CopyToOutputDirectory=PreserveNewest 拷贝到 bin/Data/ -->
+    <!-- StaticVulnerabilityDatabase.json 已由 Desktop 项目 CopyToOutputDirectory 处理，避免路径冲突 -->
+    <None Include="Data\CameraFingerprintDB.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Data\CameraVulnerabilityDB.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Data\CameraWeakPasswordDict.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- v5 临时禁用：add-app-scanner 任务的预存在编译错误（与插件库无关，待后续修复） -->
+    <Compile Remove="Services/PrivacyComplianceDetector.cs" />
+    <Compile Remove="Services/StorageSecurityDetector.cs" />
+    <Compile Remove="Services/DylibInjectionDetector.cs" />
+    <Compile Remove="Services/ObfuscationDetector.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="7.0.0" />
+    <PackageReference Include="EntityFramework" Version="6.5.1" />
+    <PackageReference Include="System.Data.SQLite" Version="1.0.117" />
+    <PackageReference Include="System.Data.SQLite.EF6" Version="1.0.117" />
+    <PackageReference Include="iTextSharp" Version="5.5.13.5" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="6.0.0" />
+    <PackageReference Include="System.Management" Version="6.0.2" />
+  </ItemGroup>
+
+</Project>
