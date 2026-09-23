@@ -34,6 +34,7 @@ namespace NetSecurityScanner.Views
         public BatchScanWindow()
         {
             InitializeComponent();
+            Title = $"批量扫描 v{VersionHelper.GetVersion()}";
             _batchScanManager = new BatchScanManager();
             _historyService = new ScanHistoryService();
             _parsedTargets = new List<string>();
@@ -200,7 +201,7 @@ namespace NetSecurityScanner.Views
 
             try
             {
-                Dispatcher.BeginInvoke(() =>
+                _ = Dispatcher.BeginInvoke(() =>
                 {
                     _ipItems[index].Status = "扫描中";
                     _ipItems[index].StatusIcon = "-->";
@@ -230,7 +231,7 @@ namespace NetSecurityScanner.Views
 
                 itemStopwatch.Stop();
 
-                Dispatcher.BeginInvoke(() =>
+                _ = Dispatcher.BeginInvoke(() =>
                 {
                     _ipItems[index].Status = "已完成";
                     _ipItems[index].StatusIcon = "OK";
@@ -266,7 +267,7 @@ namespace NetSecurityScanner.Views
             catch (Exception ex)
             {
                 itemStopwatch.Stop();
-                Dispatcher.BeginInvoke(() =>
+                _ = Dispatcher.BeginInvoke(() =>
                 {
                     _ipItems[index].Status = "失败";
                     _ipItems[index].StatusIcon = "X";
@@ -465,7 +466,7 @@ namespace NetSecurityScanner.Views
 
         public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return System.Windows.Data.Binding.DoNothing;
         }
     }
 
@@ -482,7 +483,7 @@ namespace NetSecurityScanner.Views
 
         public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return System.Windows.Data.Binding.DoNothing;
         }
     }
 }

@@ -64,7 +64,7 @@ namespace NetSecurityScanner.Services
         /// <summary>
         /// 初始化所有子服务（v6 4 + v7 6 = 10 个）。重复调用只生效一次。
         /// </summary>
-        public async Task InitializeAsync(PluginManager pluginManager, PluginOrchestrator orchestrator, string coreVersion = "1.0.1.0")
+        public async Task InitializeAsync(PluginManager pluginManager, PluginOrchestrator orchestrator, string coreVersion = "1.0.2.1")
         {
             if (_initialized) return;
             if (_disposed) throw new ObjectDisposedException(nameof(PluginGovernor));

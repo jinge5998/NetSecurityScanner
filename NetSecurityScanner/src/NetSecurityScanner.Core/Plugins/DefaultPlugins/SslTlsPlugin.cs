@@ -139,9 +139,11 @@ namespace NetSecurityScanner.Plugins.DefaultPlugins
                     PluginName = Name
                 });
 
+#pragma warning disable CS0618
                 if (protocol == SslProtocols.Ssl2 ||
                     protocol == SslProtocols.Ssl3 ||
                     protocol == SslProtocols.Tls)
+#pragma warning restore CS0618
                 {
                     results.Add(new VulnerabilityResult
                     {

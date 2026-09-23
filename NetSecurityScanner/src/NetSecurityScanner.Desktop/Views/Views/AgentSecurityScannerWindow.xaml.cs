@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using NetSecurityScanner.Utils;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -33,6 +34,7 @@ namespace NetSecurityScanner.Views
         public AgentSecurityScannerWindow()
         {
             InitializeComponent();
+            Title = $"Agent安全扫描 v{VersionHelper.GetVersion()}";
 
             // 初始化DataGrid数据源
             StaticAnalysisDataGrid.ItemsSource = _staticAnalysisItems;

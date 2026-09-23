@@ -1,11 +1,14 @@
 using LiveChartsCore;
+using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.SkiaSharpView.VisualElements;
 using NetSecurityScanner.Models;
 using NetSecurityScanner.Services;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -17,19 +20,29 @@ namespace NetSecurityScanner.Views
 {
     public partial class ScanVisualizationWindow : Window
     {
-        private readonly ScanHistoryService _historyService;
-        private List<ScanHistory> _scanHistory;
+        private readonly ScanAnalyticsService _analyticsService;
+        private List<ScanHistoryItem> _history;
         private List<PortResult> _currentPortResults;
         private List<VulnerabilityResult> _currentVulnerabilities;
+        private static SKTypeface? _chineseTypeface;
+        private static bool _fontResolverInitialized = false;
+
+        private static readonly SKColor ColorCritical = new(231, 76, 60);
+        private static readonly SKColor ColorHigh = new(230, 126, 34);
+        private static readonly SKColor ColorMedium = new(241, 196, 15);
+        private static readonly SKColor ColorLow = new(46, 204, 113);
+        private static readonly SKColor ColorScan = new(108, 92, 231);
+        private static readonly SKColor ColorVuln = new(231, 76, 60);
+        private static readonly SKColor ColorPort = new(52, 152, 219);
 
         public ScanVisualizationWindow()
         {
+            EnsureChineseFontResolver();
             InitializeComponent();
-            _historyService = new ScanHistoryService();
-            _scanHistory = new List<ScanHistory>();
+            _analyticsService = new ScanAnalyticsService();
+            _history = new List<ScanHistoryItem>();
             _currentPortResults = new List<PortResult>();
             _currentVulnerabilities = new List<VulnerabilityResult>();
-
             Loaded += ScanVisualizationWindow_Loaded;
         }
 
@@ -39,393 +52,465 @@ namespace NetSecurityScanner.Views
             _currentVulnerabilities = vulnerabilities ?? new List<VulnerabilityResult>();
         }
 
-        private async void ScanVisualizationWindow_Loaded(object sender, RoutedEventArgs e)
+        private static void EnsureChineseFontResolver()
         {
-            await LoadDataAsync();
-            UpdateStatisticsCards();
-            InitializeCharts();
+            if (_fontResolverInitialized) return;
+            _fontResolverInitialized = true;
+
+            string[] fontCandidates =
+            {
+                @"C:\Windows\Fonts\msyh.ttc",
+                @"C:\Windows\Fonts\msyh.ttf",
+                @"C:\Windows\Fonts\msyhbd.ttc",
+                @"C:\Windows\Fonts\simhei.ttf",
+                @"C:\Windows\Fonts\simsun.ttc",
+                @"/System/Library/Fonts/PingFang.ttc",
+                @"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                @"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+            };
+            foreach (var p in fontCandidates)
+            {
+                try
+                {
+                    if (File.Exists(p))
+                    {
+                        _chineseTypeface = SKTypeface.FromFile(p);
+                        if (_chineseTypeface != null) break;
+                    }
+                }
+                catch { }
+            }
+
+            if (_chineseTypeface == null)
+            {
+                try
+                {
+                    using var mgr = SKFontManager.Default;
+                    var families = new[] { "Microsoft YaHei", "微软雅黑", "SimHei", "黑体", "SimSun", "宋体", "WenQuanYi Micro Hei", "Noto Sans CJK SC" };
+                    foreach (var f in families)
+                    {
+                        try
+                        {
+                            var tf = mgr?.MatchCharacter(f, 0x4e2d);
+                            if (tf != null) { _chineseTypeface = tf; break; }
+                        }
+                        catch { }
+                    }
+                }
+                catch { }
+            }
+
+            try
+            {
+                var method = typeof(LiveChartsSkiaSharp).GetMethod(
+                    "OverrideSkiaSharpTypefaceResolver",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                if (method != null)
+                {
+                    method.Invoke(null, new object[]
+                    {
+                        new Func<string, SKFontStyleWeight, SKFontStyleSlant, SKTypeface>((text, weight, slant) =>
+                            _chineseTypeface ?? SKTypeface.FromFamilyName(SKTypeface.Default.FamilyName) ?? SKTypeface.Default)
+                    });
+                }
+            }
+            catch { }
         }
 
-        private async Task LoadDataAsync()
+        private static SolidColorPaint MakeLabelPaint(SKColor color)
+        {
+            return new SolidColorPaint(color)
+            {
+                SKTypeface = _chineseTypeface ?? SKTypeface.Default,
+                IsAntialias = true
+            };
+        }
+
+        private static SolidColorPaint MakePaint(SKColor color, float textSize = 12)
+        {
+            return new SolidColorPaint(color)
+            {
+                SKTypeface = _chineseTypeface ?? SKTypeface.Default,
+                IsAntialias = true
+            };
+        }
+
+        private static Axis MakeAxis(string[]? labels = null, string? name = null, bool rotate = false, bool secondAxis = false)
+        {
+            var axis = new Axis();
+            if (labels != null) axis.Labels = labels;
+            if (name != null) axis.Name = name;
+            axis.NamePaint = MakeLabelPaint(new SKColor(50, 50, 50));
+            axis.LabelsPaint = MakeLabelPaint(new SKColor(80, 80, 80));
+            axis.LabelsRotation = rotate ? 35 : 0;
+            axis.SeparatorsPaint = new SolidColorPaint(secondAxis ? new SKColor(180, 180, 180) : new SKColor(230, 230, 230));
+            if (secondAxis) axis.Position = LiveChartsCore.Measure.AxisPosition.End;
+            return axis;
+        }
+
+        private async void ScanVisualizationWindow_Loaded(object sender, RoutedEventArgs e)
         {
             try
             {
-                _scanHistory = await _historyService.GetScanHistoryAsync();
+                await LoadDataAsync(useMockIfEmpty: true);
+                RefreshAll();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"加载数据失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"加载可视化数据失败: {ex.Message}\n\n{ex.StackTrace}", "错误",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private void UpdateStatisticsCards()
+        private async Task LoadDataAsync(bool useMockIfEmpty = false)
         {
-            int criticalCount = _currentVulnerabilities.Count(v => v.RiskLevel == "严重");
-            int highCount = _currentVulnerabilities.Count(v => v.RiskLevel == "高危");
-            int openPorts = _currentPortResults.Count(p => p.Status == "开放");
-            
-            // 计算安全评分 (100 - 扣分)
-            int score = 100;
-            score -= criticalCount * 10;
-            score -= highCount * 5;
-            score -= _currentVulnerabilities.Count(v => v.RiskLevel == "中危") * 2;
-            score = Math.Max(0, score);
+            try
+            {
+                _history = await _analyticsService.GetAllScanHistoryAsync();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"加载历史数据失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
 
-            if (CriticalCountText != null) CriticalCountText.Text = criticalCount.ToString();
-            if (HighCountText != null) HighCountText.Text = highCount.ToString();
-            if (OpenPortsText != null) OpenPortsText.Text = openPorts.ToString();
-            if (SecurityScoreText != null) SecurityScoreText.Text = score.ToString();
+            if ((_history == null || _history.Count == 0) && useMockIfEmpty)
+            {
+                var mock = _analyticsService.GenerateMockDataIfEmpty();
+                _history = (List<ScanHistoryItem>)mock["History"];
+            }
         }
 
-        private void InitializeCharts()
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            InitializeRiskPieChart();
-            InitializeVulnTypePieChart();
-            InitializePortBarChart();
-            InitializeServiceBarChart();
-            InitializeTrendLineChart();
-            InitializeTopLists();
-            InitializeSecuritySuggestions();
+            _ = Task.Run(async () =>
+            {
+                await LoadDataAsync(useMockIfEmpty: false);
+                Dispatcher.Invoke(RefreshAll);
+            });
         }
 
-        private void InitializeRiskPieChart()
+        private async void MockButton_Click(object sender, RoutedEventArgs e)
         {
-            var riskCounts = new Dictionary<string, int>
-            {
-                ["严重"] = _currentVulnerabilities.Count(v => v.RiskLevel == "严重"),
-                ["高危"] = _currentVulnerabilities.Count(v => v.RiskLevel == "高危"),
-                ["中危"] = _currentVulnerabilities.Count(v => v.RiskLevel == "中危"),
-                ["低危"] = _currentVulnerabilities.Count(v => v.RiskLevel == "低危")
-            };
+            var result = MessageBox.Show(
+                "将生成 1 年的模拟扫描数据用于演示，是否继续？\n（不会覆盖真实历史数据）",
+                "生成演示数据", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (result != MessageBoxResult.Yes) return;
 
-            var colors = new[]
-            {
-                new SKColor(231, 76, 60),   // 红色 - 严重
-                new SKColor(230, 126, 34),  // 橙色 - 高危
-                new SKColor(241, 196, 15),  // 黄色 - 中危
-                new SKColor(46, 204, 113)   // 绿色 - 低危
-            };
+            var mock = _analyticsService.GenerateMockDataIfEmpty();
+            _history = (List<ScanHistoryItem>)mock["History"];
+            await Task.Delay(500);
+            RefreshAll();
+            MessageBox.Show($"演示数据加载成功！共 {_history.Count} 条扫描记录，包含 365 天范围。",
+                "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
 
-            var series = new List<ISeries>();
-            int colorIndex = 0;
-            foreach (var kvp in riskCounts.Where(x => x.Value > 0))
+        private void PeriodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!IsLoaded) return;
+            RefreshAll();
+        }
+
+        private TimePeriodType GetSelectedPeriod(out int periods)
+        {
+            var tag = (PeriodComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Weekly";
+            switch (tag)
             {
-                series.Add(new PieSeries<int>
+                case "Daily": periods = 7; return TimePeriodType.Daily;
+                case "Weekly": periods = 12; return TimePeriodType.Weekly;
+                case "Monthly": periods = 12; return TimePeriodType.Monthly;
+                case "Quarterly": periods = 8; return TimePeriodType.Quarterly;
+                case "Yearly": periods = 5; return TimePeriodType.Yearly;
+                default: periods = 12; return TimePeriodType.Weekly;
+            }
+        }
+
+        private void RefreshAll()
+        {
+            try
+            {
+                RefreshPeriodOverviewCards();
+                RefreshCurrentPeriodKpi();
+                RefreshTrendMultiChart();
+                RefreshRiskMixPieChart();
+                RefreshStackedRiskChart();
+                RefreshTopTargetsBarChart();
+                RefreshPortVsVulnChart();
+                RefreshPeriodDetailGrid();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"刷新图表出错: {ex.Message}", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void RefreshPeriodOverviewCards()
+        {
+            var all = _analyticsService.GetAllPeriodSummaries(_history);
+
+            void Apply(string prefix, PeriodStatisticsSummary s)
+            {
+                var scanTb = FindName($"{prefix}ScanText") as TextBlock;
+                var vulnTb = FindName($"{prefix}VulnText") as TextBlock;
+                var trendTb = FindName($"{prefix}TrendText") as TextBlock;
+                if (scanTb != null) scanTb.Text = $"{s.TotalScans} 次";
+                if (vulnTb != null) vulnTb.Text = $"漏洞 {s.TotalVulns}";
+                if (trendTb != null)
                 {
-                    Values = new[] { kvp.Value },
-                    Name = kvp.Key,
-                    Fill = new SolidColorPaint(colors[colorIndex % colors.Length]),
-                    DataLabelsSize = 14,
-                    DataLabelsPaint = new SolidColorPaint(SKColors.White),
-                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
-                    DataLabelsFormatter = point => $"{kvp.Key}\n{point.Coordinate.PrimaryValue}"
+                    bool rising = s.TrendChangePercent > 0;
+                    string arrow = rising ? "📈" : "📉";
+                    trendTb.Text = $"{arrow} {Math.Abs(s.TrendChangePercent)}%";
+                    trendTb.Foreground = rising ? new SolidColorBrush(Colors.DarkRed) : new SolidColorBrush(Colors.ForestGreen);
+                }
+            }
+
+            if (all == null || all.Count == 0) return;
+            Apply("Day", all.FirstOrDefault(s => s.PeriodType == TimePeriodType.Daily) ?? new PeriodStatisticsSummary());
+            Apply("Week", all.FirstOrDefault(s => s.PeriodType == TimePeriodType.Weekly) ?? new PeriodStatisticsSummary());
+            Apply("Month", all.FirstOrDefault(s => s.PeriodType == TimePeriodType.Monthly) ?? new PeriodStatisticsSummary());
+            Apply("Quarter", all.FirstOrDefault(s => s.PeriodType == TimePeriodType.Quarterly) ?? new PeriodStatisticsSummary());
+            Apply("Year", all.FirstOrDefault(s => s.PeriodType == TimePeriodType.Yearly) ?? new PeriodStatisticsSummary());
+        }
+
+        private void RefreshCurrentPeriodKpi()
+        {
+            var period = GetSelectedPeriod(out _);
+            var s = _analyticsService.GetPeriodSummary(_history, period, 0);
+
+            if (CriticalKpiText != null) CriticalKpiText.Text = s.CriticalVulns.ToString();
+            if (HighKpiText != null) HighKpiText.Text = s.HighVulns.ToString();
+            if (MediumKpiText != null) MediumKpiText.Text = s.MediumVulns.ToString();
+            if (TargetsKpiText != null) TargetsKpiText.Text = s.UniqueTargetsScanned.ToString();
+            if (PortsKpiText != null) PortsKpiText.Text = s.TotalOpenPorts.ToString();
+            if (RiskIndexKpiText != null) RiskIndexKpiText.Text = s.AverageRiskIndex.ToString("F0");
+            if (RiskLevelKpiText != null)
+            {
+                RiskLevelKpiText.Text = s.RiskLevel;
+                RiskLevelKpiText.Foreground = new SolidColorBrush(s.RiskLevel switch
+                {
+                    "极高风险" => Colors.Yellow,
+                    "高风险" => Colors.Salmon,
+                    "中风险" => Colors.LightGoldenrodYellow,
+                    "低风险" => Colors.LightCyan,
+                    _ => Colors.LightGreen
                 });
-                colorIndex++;
             }
 
-            if (RiskPieChart != null) RiskPieChart.Series = series;
+            if (PeriodRangeText != null) PeriodRangeText.Text = $"统计周期：{s.PeriodDisplay}  · 共 {s.TotalScans} 次扫描 · 平均 {s.AverageVulnsPerScan} 漏洞/次";
         }
 
-        private void InitializeVulnTypePieChart()
+        private void RefreshTrendMultiChart()
         {
-            // 按漏洞名称分组统计
-            var vulnTypes = _currentVulnerabilities
-                .GroupBy(v => v.Name)
-                .Select(g => new { Name = g.Key, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .Take(8)
-                .ToList();
+            var type = GetSelectedPeriod(out int periods);
+            var data = _analyticsService.GenerateTimeSeriesData(_history, type, periods);
+            var labels = data.Select(d => d.Label).ToArray();
+            bool rotate = periods > 8;
 
-            var colors = new[]
+            var series = new List<ISeries>
             {
-                new SKColor(155, 89, 182),
-                new SKColor(52, 152, 219),
-                new SKColor(26, 188, 156),
-                new SKColor(241, 196, 15),
-                new SKColor(230, 126, 34),
-                new SKColor(231, 76, 60),
-                new SKColor(149, 165, 166),
-                new SKColor(52, 73, 94)
+                new LineSeries<int>
+                {
+                    Values = data.Select(d => d.ScanCount).ToArray(),
+                    Name = "扫描次数",
+                    Stroke = new SolidColorPaint(ColorScan, 3),
+                    Fill = new SolidColorPaint(new SKColor(ColorScan.Red, ColorScan.Green, ColorScan.Blue, 60)),
+                    GeometrySize = 7,
+                    GeometryStroke = new SolidColorPaint(SKColors.White, 2),
+                    DataLabelsPaint = MakePaint(SKColors.DarkSlateGray, 10),
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top
+                },
+                new LineSeries<int>
+                {
+                    Values = data.Select(d => d.TotalVulnerabilities).ToArray(),
+                    Name = "漏洞总数",
+                    Stroke = new SolidColorPaint(ColorVuln, 3),
+                    Fill = new SolidColorPaint(new SKColor(ColorVuln.Red, ColorVuln.Green, ColorVuln.Blue, 40)),
+                    GeometrySize = 7,
+                    GeometryStroke = new SolidColorPaint(SKColors.White, 2),
+                    DataLabelsPaint = MakePaint(SKColors.DarkRed, 10),
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top
+                },
+                new LineSeries<int>
+                {
+                    Values = data.Select(d => d.CriticalCount + d.HighCount).ToArray(),
+                    Name = "严重+高危",
+                    Stroke = new SolidColorPaint(new SKColor(142, 68, 173), 2),
+                    GeometrySize = 5
+                }
+            };
+
+            if (TrendMultiChart != null)
+            {
+                TrendMultiChart.Series = series;
+                TrendMultiChart.XAxes = new[] { MakeAxis(labels, rotate: rotate) };
+                TrendMultiChart.YAxes = new[] { MakeAxis(name: "数量") };
+            }
+        }
+
+        private void RefreshRiskMixPieChart()
+        {
+            var type = GetSelectedPeriod(out int _);
+            var data = _analyticsService.GenerateTimeSeriesData(_history, type, 12);
+            int critical = data.Sum(d => d.CriticalCount);
+            int high = data.Sum(d => d.HighCount);
+            int medium = data.Sum(d => d.MediumCount);
+            int low = data.Sum(d => d.LowCount);
+            int info = Math.Max(0, data.Sum(d => d.TotalVulnerabilities) - critical - high - medium - low);
+
+            var buckets = new (string Name, int Count, SKColor Color)[]
+            {
+                ("严重", critical, ColorCritical),
+                ("高危", high, ColorHigh),
+                ("中危", medium, ColorMedium),
+                ("低危", low, ColorLow),
+                ("信息/其他", info, new SKColor(52, 152, 219))
             };
 
             var series = new List<ISeries>();
-            int colorIndex = 0;
-            foreach (var vuln in vulnTypes)
+            foreach (var b in buckets.Where(x => x.Count > 0))
             {
                 series.Add(new PieSeries<int>
                 {
-                    Values = new[] { vuln.Count },
-                    Name = vuln.Name.Length > 15 ? vuln.Name.Substring(0, 15) + "..." : vuln.Name,
-                    Fill = new SolidColorPaint(colors[colorIndex % colors.Length]),
-                    DataLabelsSize = 12,
-                    DataLabelsPaint = new SolidColorPaint(SKColors.White),
+                    Values = new[] { b.Count },
+                    Name = $"{b.Name} ({b.Count})",
+                    Fill = new SolidColorPaint(b.Color),
+                    DataLabelsPaint = MakePaint(SKColors.White, 13),
                     DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle
                 });
-                colorIndex++;
             }
 
-            if (VulnTypePieChart != null) VulnTypePieChart.Series = series;
+            if (series.Count == 0)
+            {
+                series.Add(new PieSeries<int>
+                {
+                    Values = new[] { 1 },
+                    Name = "暂无数据",
+                    Fill = new SolidColorPaint(new SKColor(189, 195, 199)),
+                    DataLabelsPaint = MakePaint(SKColors.White, 12)
+                });
+            }
+
+            if (RiskMixPieChart != null) RiskMixPieChart.Series = series;
         }
 
-        private void InitializePortBarChart()
+        private void RefreshStackedRiskChart()
         {
-            // 按端口分组统计
-            var portGroups = _currentPortResults
-                .Where(p => p.Status == "开放")
-                .GroupBy(p => p.PortNumber)
-                .Select(g => new { Port = g.Key, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .Take(15)
+            var type = GetSelectedPeriod(out int periods);
+            var data = _analyticsService.GenerateTimeSeriesData(_history, type, periods);
+            var labels = data.Select(d => d.Label).ToArray();
+            bool rotate = periods > 8;
+
+            var series = new List<ISeries>
+            {
+                new StackedColumnSeries<int> { Values = data.Select(d => d.CriticalCount).ToArray(), Name = "严重", Fill = new SolidColorPaint(ColorCritical), Stroke = new SolidColorPaint(SKColors.White, 1) },
+                new StackedColumnSeries<int> { Values = data.Select(d => d.HighCount).ToArray(),     Name = "高危", Fill = new SolidColorPaint(ColorHigh),    Stroke = new SolidColorPaint(SKColors.White, 1) },
+                new StackedColumnSeries<int> { Values = data.Select(d => d.MediumCount).ToArray(),   Name = "中危", Fill = new SolidColorPaint(ColorMedium),  Stroke = new SolidColorPaint(SKColors.White, 1) },
+                new StackedColumnSeries<int> { Values = data.Select(d => d.LowCount).ToArray(),      Name = "低危", Fill = new SolidColorPaint(ColorLow),     Stroke = new SolidColorPaint(SKColors.White, 1) }
+            };
+
+            if (StackedRiskChart != null)
+            {
+                StackedRiskChart.Series = series;
+                StackedRiskChart.XAxes = new[] { MakeAxis(labels, rotate: rotate) };
+                StackedRiskChart.YAxes = new[] { MakeAxis(name: "漏洞数") };
+            }
+        }
+
+        private void RefreshTopTargetsBarChart()
+        {
+            var topTargets = _history
+                .GroupBy(h => h.TargetIp ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .Select(g => new
+                {
+                    Target = string.IsNullOrEmpty(g.Key) ? "(未指定)" : g.Key,
+                    Scans = g.Count(),
+                    Vulns = g.Sum(x => x.VulnerabilitiesCount)
+                })
+                .OrderByDescending(x => x.Scans)
+                .ThenByDescending(x => x.Vulns)
+                .Take(10)
                 .ToList();
+
+            var labels = topTargets.Select(t => t.Target.Length > 15 ? t.Target.Substring(0, 15) + "…" : t.Target).Reverse().ToArray();
+
+            var series = new List<ISeries>
+            {
+                new StackedRowSeries<int>
+                {
+                    Name = "扫描次数",
+                    Values = topTargets.Select(t => t.Scans).Reverse().ToArray(),
+                    Fill = new SolidColorPaint(ColorScan),
+                    DataLabelsPaint = MakePaint(SKColors.DarkSlateBlue, 11),
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.End
+                },
+                new StackedRowSeries<int>
+                {
+                    Name = "漏洞总数",
+                    Values = topTargets.Select(t => t.Vulns).Reverse().ToArray(),
+                    Fill = new SolidColorPaint(ColorVuln)
+                }
+            };
+
+            if (TopTargetsBarChart != null)
+            {
+                TopTargetsBarChart.Series = series;
+                TopTargetsBarChart.YAxes = new[] { MakeAxis(labels) };
+                TopTargetsBarChart.XAxes = new[] { MakeAxis(name: "数量") };
+            }
+        }
+
+        private void RefreshPortVsVulnChart()
+        {
+            var type = GetSelectedPeriod(out int periods);
+            var data = _analyticsService.GenerateTimeSeriesData(_history, type, periods);
+            var labels = data.Select(d => d.Label).ToArray();
+            bool rotate = periods > 8;
 
             var series = new List<ISeries>
             {
                 new ColumnSeries<int>
                 {
-                    Values = portGroups.Select(x => x.Count).ToArray(),
-                    Fill = new SolidColorPaint(new SKColor(108, 92, 231)),
-                    DataLabelsSize = 12,
-                    DataLabelsPaint = new SolidColorPaint(SKColors.Black),
+                    Values = data.Select(d => d.OpenPorts).ToArray(),
+                    Name = "开放端口数",
+                    Fill = new SolidColorPaint(ColorPort),
+                    DataLabelsPaint = MakePaint(SKColors.DarkBlue, 10),
                     DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top
-                }
-            };
-
-            if (PortBarChart != null)
-            {
-                PortBarChart.Series = series;
-                PortBarChart.XAxes = new[]
-                {
-                    new Axis
-                    {
-                        Labels = portGroups.Select(x => x.Port.ToString()).ToArray(),
-                        LabelsRotation = 45,
-                        TextSize = 12
-                    }
-                };
-                PortBarChart.YAxes = new[]
-                {
-                    new Axis
-                    {
-                        Name = "数量",
-                        TextSize = 12
-                    }
-                };
-            }
-        }
-
-        private void InitializeServiceBarChart()
-        {
-            // 按服务类型分组统计
-            var serviceGroups = _currentPortResults
-                .Where(p => (p.Status == "开放") && !string.IsNullOrEmpty(p.Service))
-                .GroupBy(p => p.Service)
-                .Select(g => new { Service = g.Key, Count = g.Count() })
-                .OrderByDescending(x => x.Count)
-                .Take(12)
-                .ToList();
-
-            var series = new List<ISeries>
-            {
-                new RowSeries<int>
-                {
-                    Values = serviceGroups.Select(x => x.Count).ToArray(),
-                    Fill = new SolidColorPaint(new SKColor(0, 184, 148)),
-                    DataLabelsSize = 12,
-                    DataLabelsPaint = new SolidColorPaint(SKColors.White),
-                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Middle
-                }
-            };
-
-            if (ServiceBarChart != null)
-            {
-                ServiceBarChart.Series = series;
-                ServiceBarChart.YAxes = new[]
-                {
-                    new Axis
-                    {
-                        Labels = serviceGroups.Select(x => x.Service).ToArray(),
-                        TextSize = 12
-                    }
-                };
-                ServiceBarChart.XAxes = new[]
-                {
-                    new Axis
-                    {
-                        Name = "数量",
-                        TextSize = 12
-                    }
-                };
-            }
-        }
-
-        private void InitializeTrendLineChart()
-        {
-            // 最近30天的扫描趋势
-            var last30Days = Enumerable.Range(0, 30)
-                .Select(i => DateTime.Now.Date.AddDays(-i))
-                .OrderBy(d => d)
-                .ToList();
-
-            var scanCounts = last30Days.Select(date => 
-                _scanHistory.Count(h => h.ScanTime.Date == date)).ToArray();
-            
-            var vulnCounts = last30Days.Select(date =>
-                _scanHistory.Where(h => h.ScanTime.Date == date).Sum(h => h.TotalVulnerabilities)).ToArray();
-
-            var series = new List<ISeries>
-            {
-                new LineSeries<int>
-                {
-                    Values = scanCounts,
-                    Name = "扫描次数",
-                    Stroke = new SolidColorPaint(new SKColor(108, 92, 231), 3),
-                    Fill = new SolidColorPaint(new SKColor(108, 92, 231, 50)),
-                    GeometrySize = 6,
-                    DataLabelsSize = 10
                 },
-                new LineSeries<int>
+                new ColumnSeries<int>
                 {
-                    Values = vulnCounts,
+                    Values = data.Select(d => d.TotalVulnerabilities).ToArray(),
                     Name = "漏洞数量",
-                    Stroke = new SolidColorPaint(new SKColor(231, 76, 60), 3),
-                    Fill = new SolidColorPaint(new SKColor(231, 76, 60, 50)),
+                    Fill = new SolidColorPaint(ColorHigh),
+                    DataLabelsPaint = MakePaint(SKColors.DarkRed, 10),
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top
+                },
+                new LineSeries<double>
+                {
+                    Values = data.Select(d => d.ScanCount > 0 ? Math.Round((double)d.RiskIndex / d.ScanCount, 0) : 0d).ToArray(),
+                    Name = "平均风险指数",
+                    Stroke = new SolidColorPaint(new SKColor(142, 68, 173), 3),
+                    Fill = new SolidColorPaint(new SKColor(142, 68, 173, 60)),
                     GeometrySize = 6,
-                    DataLabelsSize = 10
+                    ScalesYAt = 1
                 }
             };
 
-            if (TrendLineChart != null)
+            if (PortVsVulnChart != null)
             {
-                TrendLineChart.Series = series;
-                TrendLineChart.XAxes = new[]
+                PortVsVulnChart.Series = series;
+                PortVsVulnChart.XAxes = new[] { MakeAxis(labels, rotate: rotate) };
+                PortVsVulnChart.YAxes = new[]
                 {
-                    new Axis
-                    {
-                        Labels = last30Days.Select(d => d.ToString("MM-dd")).ToArray(),
-                        LabelsRotation = 45,
-                        TextSize = 11
-                    }
+                    MakeAxis(name: "数量（端口/漏洞）"),
+                    MakeAxis(name: "风险指数", secondAxis: true)
                 };
-                TrendLineChart.YAxes = new[]
-                {
-                    new Axis
-                    {
-                        Name = "数量",
-                        TextSize = 12
-                    }
-                };
-                TrendLineChart.LegendPosition = LiveChartsCore.Measure.LegendPosition.Top;
             }
         }
 
-        private void InitializeTopLists()
+        private void RefreshPeriodDetailGrid()
         {
-            // TOP 10 高危端口
-            var topPorts = _currentPortResults
-                .Where(p => p.Status == "开放")
-                .GroupBy(p => new { p.PortNumber, p.Service })
-                .Select(g => new TopPortItem
-                {
-                    Port = g.Key.PortNumber,
-                    Service = g.Key.Service ?? "Unknown",
-                    Count = g.Count()
-                })
-                .OrderByDescending(x => x.Count)
-                .Take(10)
-                .ToList();
-            if (TopPortsDataGrid != null) TopPortsDataGrid.ItemsSource = topPorts;
-
-            // TOP 10 常见漏洞
-            var topVulns = _currentVulnerabilities
-                .GroupBy(v => v.Name)
-                .Select((g, index) => new TopVulnItem
-                {
-                    Rank = index + 1,
-                    Name = g.Key,
-                    Count = g.Count()
-                })
-                .OrderBy(x => x.Rank)
-                .Take(10)
-                .ToList();
-            if (TopVulnsDataGrid != null) TopVulnsDataGrid.ItemsSource = topVulns;
+            var type = GetSelectedPeriod(out int periods);
+            var data = _analyticsService.GenerateTimeSeriesData(_history, type, periods);
+            if (PeriodDetailGrid != null) PeriodDetailGrid.ItemsSource = data;
         }
-
-        private void InitializeSecuritySuggestions()
-        {
-            if (SecuritySuggestionsPanel != null) SecuritySuggestionsPanel.Children.Clear();
-
-            var suggestions = new List<string>();
-
-            // 根据漏洞情况生成建议
-            int criticalCount = _currentVulnerabilities.Count(v => v.RiskLevel == "严重");
-            int highCount = _currentVulnerabilities.Count(v => v.RiskLevel == "高危");
-
-            if (criticalCount > 0)
-            {
-                suggestions.Add($"🔴 发现 {criticalCount} 个严重漏洞，建议立即修复");
-            }
-            if (highCount > 0)
-            {
-                suggestions.Add($"🟠 发现 {highCount} 个高危漏洞，建议尽快修复");
-            }
-
-            // 检查常见服务
-            var hasWeakSsh = _currentVulnerabilities.Any(v => v.Name.Contains("SSH") && v.RiskLevel != "低危");
-            var hasWeakMysql = _currentVulnerabilities.Any(v => v.Name.Contains("MySQL") && v.RiskLevel != "低危");
-            var hasWeakRedis = _currentVulnerabilities.Any(v => v.Name.Contains("Redis") && v.RiskLevel != "低危");
-
-            if (hasWeakSsh)
-            {
-                suggestions.Add("🔧 SSH服务存在安全问题，建议：\n  • 禁用root登录\n  • 使用密钥认证\n  • 修改默认端口");
-            }
-            if (hasWeakMysql)
-            {
-                suggestions.Add("🔧 MySQL数据库存在安全问题，建议：\n  • 删除匿名用户\n  • 设置强密码\n  • 限制网络访问");
-            }
-            if (hasWeakRedis)
-            {
-                suggestions.Add("🔧 Redis存在未授权访问风险，建议：\n  • 设置访问密码\n  • 绑定本地地址\n  • 禁用危险命令");
-            }
-
-            // 通用建议
-            suggestions.Add("🛡️ 安全加固建议：\n  • 定期更新系统和软件\n  • 启用防火墙规则\n  • 实施最小权限原则\n  • 定期备份重要数据");
-
-            foreach (var suggestion in suggestions)
-            {
-                var border = new Border
-                {
-                    Background = new SolidColorBrush(Colors.LightYellow),
-                    BorderBrush = new SolidColorBrush(Colors.Goldenrod),
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(4),
-                    Padding = new Thickness(12),
-                    Margin = new Thickness(0, 0, 0, 10)
-                };
-
-                var textBlock = new TextBlock
-                {
-                    Text = suggestion,
-                    TextWrapping = TextWrapping.Wrap,
-                    FontSize = 13
-                };
-
-                border.Child = textBlock;
-                if (SecuritySuggestionsPanel != null) SecuritySuggestionsPanel.Children.Add(border);
-            }
-        }
-    }
-
-    public class TopPortItem
-    {
-        public int Port { get; set; }
-        public string Service { get; set; } = "";
-        public int Count { get; set; }
-    }
-
-    public class TopVulnItem
-    {
-        public int Rank { get; set; }
-        public string Name { get; set; } = "";
-        public int Count { get; set; }
     }
 }

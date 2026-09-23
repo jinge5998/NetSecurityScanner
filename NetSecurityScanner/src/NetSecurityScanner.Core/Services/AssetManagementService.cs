@@ -4,17 +4,28 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using NetSecurityScanner.Models;
 
 namespace NetSecurityScanner.Services
 {
     /// <summary>
-    /// 资产管理服务
+    /// 资产管理服务（v1.0.1.2：写操作需 operatorName + 服务层权限校验）
     /// </summary>
     public class AssetManagementService
     {
         private readonly string _assetsFilePath;
         private List<Asset> _assets;
         private List<AssetChangeLog> _changeLogs;
+
+        /// <summary>
+        /// JSON 加载失败标记(防止损坏文件被空 list 覆盖)— v1.0.1.4 P0 修复
+        /// </summary>
+        private bool _loadFailed;
+
+        /// <summary>
+        /// 最后一次加载错误信息(供 UI 展示)
+        /// </summary>
+        public string? LastLoadError { get; private set; }
 
         public AssetManagementService()
         {
@@ -41,10 +52,11 @@ namespace NetSecurityScanner.Services
         }
 
         /// <summary>
-        /// 添加资产
+        /// 添加资产（需 Asset:Add 或管理员）
         /// </summary>
-        public async Task<bool> AddAssetAsync(Asset asset)
+        public async Task<bool> AddAssetAsync(Asset asset, string operatorName)
         {
+            var user = ResolveOperator(operatorName, Permission.AssetAdd);
             if (_assets.Any(a => a.IPAddress == asset.IPAddress))
             {
                 return false;
@@ -53,6 +65,8 @@ namespace NetSecurityScanner.Services
             asset.Id = Guid.NewGuid().ToString();
             asset.CreatedAt = DateTime.Now;
             asset.LastModified = DateTime.Now;
+            asset.CreatedBy = user.Username;
+            asset.LastModifiedBy = user.Username;
             _assets.Add(asset);
 
             // 记录变更日志
@@ -62,7 +76,7 @@ namespace NetSecurityScanner.Services
                 ChangeType = ChangeType.Create,
                 FieldName = "Asset",
                 NewValue = $"添加资产: {asset.Name} ({asset.IPAddress})",
-                ChangedBy = "System",
+                ChangedBy = user.Username,
                 ChangedAt = DateTime.Now
             });
 
@@ -71,10 +85,11 @@ namespace NetSecurityScanner.Services
         }
 
         /// <summary>
-        /// 更新资产
+        /// 更新资产（需 Asset:Edit 或管理员）
         /// </summary>
-        public async Task<bool> UpdateAssetAsync(Asset asset)
+        public async Task<bool> UpdateAssetAsync(Asset asset, string operatorName)
         {
+            var user = ResolveOperator(operatorName, Permission.AssetEdit);
             var existingAsset = _assets.FirstOrDefault(a => a.Id == asset.Id);
             if (existingAsset == null)
             {
@@ -92,7 +107,7 @@ namespace NetSecurityScanner.Services
                     FieldName = change.FieldName,
                     OldValue = change.OldValue,
                     NewValue = change.NewValue,
-                    ChangedBy = "System",
+                    ChangedBy = user.Username,
                     ChangedAt = DateTime.Now
                 });
             }
@@ -110,16 +125,18 @@ namespace NetSecurityScanner.Services
             existingAsset.Description = asset.Description;
             existingAsset.Tags = asset.Tags;
             existingAsset.LastModified = DateTime.Now;
+            existingAsset.LastModifiedBy = user.Username;
 
             SaveAssets();
             return true;
         }
 
         /// <summary>
-        /// 删除资产
+        /// 删除资产（需 Asset:Delete 或管理员）
         /// </summary>
-        public async Task<bool> DeleteAssetAsync(string id)
+        public async Task<bool> DeleteAssetAsync(string id, string operatorName)
         {
+            var user = ResolveOperator(operatorName, Permission.AssetDelete);
             var asset = _assets.FirstOrDefault(a => a.Id == id);
             if (asset == null)
             {
@@ -134,7 +151,7 @@ namespace NetSecurityScanner.Services
                 ChangeType = ChangeType.Delete,
                 FieldName = "Asset",
                 OldValue = $"删除资产: {asset.Name} ({asset.IPAddress})",
-                ChangedBy = "System",
+                ChangedBy = user.Username,
                 ChangedAt = DateTime.Now
             });
 
@@ -173,6 +190,14 @@ namespace NetSecurityScanner.Services
         }
 
         /// <summary>
+        /// 按状态筛选资产
+        /// </summary>
+        public List<Asset> GetAssetsByStatus(AssetStatus status)
+        {
+            return _assets.Where(a => a.Status == status).ToList();
+        }
+
+        /// <summary>
         /// 获取资产统计
         /// </summary>
         public AssetStatistics GetStatistics()
@@ -205,10 +230,19 @@ namespace NetSecurityScanner.Services
         }
 
         /// <summary>
-        /// 导入扫描结果为资产
+        /// 获取所有变更日志（v1.0.1.2：变更日志窗口使用）
         /// </summary>
-        public async Task<int> ImportFromScanResultsAsync(List<NetworkDevice> devices)
+        public List<AssetChangeLog> GetAllChangeLogs()
         {
+            return _changeLogs.OrderByDescending(c => c.ChangedAt).ToList();
+        }
+
+        /// <summary>
+        /// 导入扫描结果为资产（需 Asset:Import 或管理员）
+        /// </summary>
+        public async Task<int> ImportFromScanResultsAsync(List<NetworkDevice> devices, string operatorName)
+        {
+            var user = ResolveOperator(operatorName, Permission.AssetImport);
             int importedCount = 0;
 
             foreach (var device in devices)
@@ -228,7 +262,7 @@ namespace NetSecurityScanner.Services
                         LastModified = DateTime.Now
                     };
 
-                    if (await AddAssetAsync(asset))
+                    if (await AddAssetAsync(asset, user.Username))
                     {
                         importedCount++;
                     }
@@ -236,6 +270,43 @@ namespace NetSecurityScanner.Services
             }
 
             return importedCount;
+        }
+
+        /// <summary>
+        /// 解析操作人：校验 operatorName 有效、对应会话存在、并具备所需权限。
+        /// 任何不满足条件都会抛 UnauthorizedAccessException，由 UI 捕获提示。
+        /// </summary>
+        private User ResolveOperator(string operatorName, string requiredPermission)
+        {
+            if (string.IsNullOrWhiteSpace(operatorName))
+            {
+                throw new UnauthorizedAccessException("请先登录后再操作资产。");
+            }
+
+            var current = SessionContext.Instance.Current;
+            if (current == null)
+            {
+                throw new UnauthorizedAccessException("会话已失效，请重新登录。");
+            }
+
+            if (!string.Equals(current.Username, operatorName, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new UnauthorizedAccessException("操作人与当前登录账号不一致，请重新登录。");
+            }
+
+            if (current.IsAdmin)
+            {
+                return current;
+            }
+
+            if (string.IsNullOrEmpty(requiredPermission) ||
+                current.Permissions == null ||
+                !current.Permissions.Contains(requiredPermission))
+            {
+                throw new UnauthorizedAccessException($"需要 {requiredPermission} 权限。");
+            }
+
+            return current;
         }
 
         /// <summary>
@@ -280,7 +351,8 @@ namespace NetSecurityScanner.Services
         }
 
         /// <summary>
-        /// 加载资产
+        /// 加载资产(损坏保护)— v1.0.1.4 P0 修复
+        /// 失败时备份原文件,标记 _loadFailed=true,SaveAssets 会拒绝覆盖
         /// </summary>
         private void LoadAssets()
         {
@@ -289,7 +361,8 @@ namespace NetSecurityScanner.Services
                 if (File.Exists(_assetsFilePath))
                 {
                     var json = File.ReadAllText(_assetsFilePath);
-                    var data = JsonSerializer.Deserialize<AssetData>(json);
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    var data = JsonSerializer.Deserialize<AssetData>(json, options);
                     if (data != null)
                     {
                         _assets = data.Assets ?? new List<Asset>();
@@ -299,15 +372,42 @@ namespace NetSecurityScanner.Services
             }
             catch (Exception ex)
             {
+                // 备份损坏文件
+                try
+                {
+                    var backupPath = _assetsFilePath + ".corrupt-" + DateTime.Now.ToString("yyyyMMdd_HHmmss_fff") + ".bak";
+                    if (File.Exists(_assetsFilePath))
+                    {
+                        File.Copy(_assetsFilePath, backupPath, overwrite: true);
+                        LastLoadError = $"资产文件加载失败,已备份到 {backupPath}。错误: {ex.Message}";
+                    }
+                    else
+                    {
+                        LastLoadError = $"资产文件加载失败: {ex.Message}";
+                    }
+                }
+                catch
+                {
+                    LastLoadError = $"资产文件加载失败,且备份失败: {ex.Message}";
+                }
+
+                _loadFailed = true;
                 System.Diagnostics.Debug.WriteLine($"[AssetManagementService] 加载资产失败: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// 保存资产
+        /// 保存资产(损坏保护)— v1.0.1.4 P0 修复
+        /// _loadFailed=true 时拒绝写文件,避免空 list 覆盖损坏原文件
         /// </summary>
         private void SaveAssets()
         {
+            if (_loadFailed)
+            {
+                System.Diagnostics.Debug.WriteLine($"[AssetManagementService] 拒绝保存:JSON 加载失败,原文件已备份,需人工介入恢复");
+                return;
+            }
+
             try
             {
                 var data = new AssetData
@@ -315,7 +415,8 @@ namespace NetSecurityScanner.Services
                     Assets = _assets,
                     ChangeLogs = _changeLogs
                 };
-                var json = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(data, options);
                 File.WriteAllText(_assetsFilePath, json);
             }
             catch (Exception ex)
@@ -344,6 +445,8 @@ namespace NetSecurityScanner.Services
         public List<string> Tags { get; set; } = new();
         public DateTime CreatedAt { get; set; }
         public DateTime LastModified { get; set; }
+        public string? CreatedBy { get; set; }
+        public string? LastModifiedBy { get; set; }
     }
 
     /// <summary>

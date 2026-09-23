@@ -110,7 +110,7 @@ namespace NetSecurityScanner.Plugins
                 };
             }
 
-            bool gotSlot = true;
+            _ = true; // slot acquired
 
             // 2. 创建 30s 超时 CTS + 链接外部 ct
             using var timeoutCts = new CancellationTokenSource(effectiveTimeout);

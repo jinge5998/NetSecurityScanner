@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using NetSecurityScanner.Models;
 using NetSecurityScanner.Services;
 using System;
 using System.Collections.Generic;
@@ -17,26 +18,145 @@ namespace NetSecurityScanner.Views
     public partial class AssetManagementWindow : Window
     {
         private readonly AssetManagementService _assetService;
+        private readonly AuthService _authService;
 
         public AssetManagementWindow()
         {
             InitializeComponent();
             _assetService = new AssetManagementService();
+            _authService = new AuthService();
             Loaded += AssetManagementWindow_Loaded;
+            // 订阅会话变化，登录/登出后立即刷新按钮可用性
+            SessionContext.Instance.Changed += (_, _) => RefreshUiByPermission();
         }
 
-        private void AssetManagementWindow_Loaded(object sender, RoutedEventArgs e)
+        private async void AssetManagementWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            RefreshAssets();
+            // 先按当前会话刷新一次
+            RefreshUiByPermission();
+
+            // 未登录时强制弹登录窗口；登录成功才进入，否则关闭
+            if (SessionContext.Instance.Current == null)
+            {
+                var login = new LoginWindow { Owner = this };
+                var ok = login.ShowDialog();
+                if (ok != true)
+                {
+                    Close();
+                    return;
+                }
+            }
+
+            // 登录后再次校验是否有 Asset:View 权限
+            var current = SessionContext.Instance.Current;
+            if (current == null ||
+                (!current.IsAdmin &&
+                 (current.Permissions == null || !current.Permissions.Contains(Permission.AssetView))))
+            {
+                MessageBox.Show("无资产管理查看权限", "权限不足", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Close();
+                return;
+            }
+
+            RefreshUiByPermission();
+            await RefreshAssetsAsync();
         }
 
-        private void RefreshAssets()
+        /// <summary>
+        /// 按当前会话的权限刷新所有工具栏/状态栏按钮可用性、角色徽章、用户名显示。
+        /// </summary>
+        private void RefreshUiByPermission()
+        {
+            var current = SessionContext.Instance.Current;
+
+            // 顶部状态栏
+            if (current == null)
+            {
+                RoleBadgeText.Text = "🔒 未登录";
+                RoleBadgeText.Foreground = (Brush)new BrushConverter().ConvertFromString("#636e72")!;
+                CurrentUserText.Text = "请先登录";
+                LoginLogoutButton.Content = "🔑 登录";
+            }
+            else
+            {
+                var display = string.IsNullOrWhiteSpace(current.DisplayName) ? current.Username : current.DisplayName;
+                if (current.IsAdmin)
+                {
+                    RoleBadgeText.Text = "👑 管理员";
+                    RoleBadgeText.Foreground = (Brush)new BrushConverter().ConvertFromString("#e17055")!;
+                }
+                else
+                {
+                    var perms = current.Permissions ?? new List<string>();
+                    if (perms.Contains(Permission.AssetDelete) || perms.Contains(Permission.AssetImport))
+                    {
+                        RoleBadgeText.Text = "🛠 操作员";
+                        RoleBadgeText.Foreground = (Brush)new BrushConverter().ConvertFromString("#0984e3")!;
+                    }
+                    else if (perms.Contains(Permission.AssetAdd) || perms.Contains(Permission.AssetEdit))
+                    {
+                        RoleBadgeText.Text = "🛠 操作员";
+                        RoleBadgeText.Foreground = (Brush)new BrushConverter().ConvertFromString("#0984e3")!;
+                    }
+                    else
+                    {
+                        RoleBadgeText.Text = "👁 查看者";
+                        RoleBadgeText.Foreground = (Brush)new BrushConverter().ConvertFromString("#636e72")!;
+                    }
+                }
+                CurrentUserText.Text = display;
+                LoginLogoutButton.Content = "🚪 登出";
+            }
+
+            // 工具栏权限联动
+            bool loggedIn = current != null;
+            bool isAdmin = loggedIn && current!.IsAdmin;
+            var permissions = current?.Permissions ?? new List<string>();
+            bool Has(string p) => isAdmin || (permissions != null && permissions.Contains(p));
+
+            AddAssetButton.IsEnabled = Has(Permission.AssetAdd);
+            EditAssetButton.IsEnabled = Has(Permission.AssetEdit);
+            DeleteAssetButton.IsEnabled = Has(Permission.AssetDelete);
+            ImportButton.IsEnabled = Has(Permission.AssetImport);
+            ExportButton.IsEnabled = Has(Permission.AssetView);
+            SearchButton.IsEnabled = Has(Permission.AssetView);
+            RefreshButton.IsEnabled = Has(Permission.AssetView);
+            AssetTypeFilter.IsEnabled = Has(Permission.AssetView);
+            AssetStatusFilter.IsEnabled = Has(Permission.AssetView);
+            SearchTextBox.IsEnabled = Has(Permission.AssetView);
+            ViewChangeLogButton.IsEnabled = Has(Permission.AssetView);
+
+            // 权限不足时给禁用按钮加上 ToolTip 提示
+            string toolTip = loggedIn ? "权限不足" : "请先登录";
+            if (!AddAssetButton.IsEnabled) AddAssetButton.ToolTip = toolTip;
+            if (!EditAssetButton.IsEnabled) EditAssetButton.ToolTip = toolTip;
+            if (!DeleteAssetButton.IsEnabled) DeleteAssetButton.ToolTip = toolTip;
+            if (!ImportButton.IsEnabled) ImportButton.ToolTip = toolTip;
+
+            // 选中行按钮联动
+            ApplySelectionButtonState();
+        }
+
+        private void ApplySelectionButtonState()
+        {
+            var current = SessionContext.Instance.Current;
+            bool loggedIn = current != null;
+            bool isAdmin = loggedIn && current!.IsAdmin;
+            var permissions = current?.Permissions ?? new List<string>();
+            bool hasSelection = AssetsDataGrid.SelectedItem != null;
+            bool canEdit = isAdmin || (permissions != null && permissions.Contains(Permission.AssetEdit));
+            bool canDelete = isAdmin || (permissions != null && permissions.Contains(Permission.AssetDelete));
+            EditAssetButton.IsEnabled = hasSelection && canEdit;
+            DeleteAssetButton.IsEnabled = hasSelection && canDelete;
+        }
+
+        private async Task RefreshAssetsAsync()
         {
             try
             {
-                var assets = _assetService.GetAllAssets();
+                var assets = ApplyFilters(_assetService.GetAllAssets()).ToList();
                 AssetsDataGrid.ItemsSource = assets;
-                UpdateStatistics();
+                UpdateStatistics(assets);
             }
             catch (Exception ex)
             {
@@ -44,17 +164,33 @@ namespace NetSecurityScanner.Views
             }
         }
 
-        private void UpdateStatistics()
+        private IEnumerable<Asset> ApplyFilters(IEnumerable<Asset> source)
+        {
+            var typeTag = (AssetTypeFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+            var statusTag = (AssetStatusFilter.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+            IEnumerable<Asset> q = source;
+            if (!string.IsNullOrEmpty(typeTag))
+                q = q.Where(a => string.Equals(a.AssetType, typeTag, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(statusTag) && Enum.TryParse<AssetStatus>(statusTag, out var st))
+                q = q.Where(a => a.Status == st);
+            return q;
+        }
+
+        private void UpdateStatistics(List<Asset> filteredAssets)
         {
             try
             {
                 var stats = _assetService.GetStatistics();
-                if (TotalAssetsText != null) TotalAssetsText.Text = stats.TotalAssets.ToString();
-                if (OnlineAssetsText != null) OnlineAssetsText.Text = stats.OnlineAssets.ToString();
+                if (TotalAssetsText != null) TotalAssetsText.Text = filteredAssets.Count.ToString();
+                if (OnlineAssetsText != null) OnlineAssetsText.Text = filteredAssets.Count(a => a.Status == AssetStatus.Online).ToString();
+                if (OfflineAssetsText != null) OfflineAssetsText.Text = filteredAssets.Count(a => a.Status == AssetStatus.Offline).ToString();
+                if (MaintenanceAssetsText != null) MaintenanceAssetsText.Text = filteredAssets.Count(a => a.Status == AssetStatus.Maintenance).ToString();
 
                 if (ChangeLogListBox != null)
                     ChangeLogListBox.ItemsSource = stats.RecentChanges.Select(c =>
-                        $"{c.ChangedAt:MM-dd HH:mm} - {c.ChangeType}: {c.NewValue}").ToList();
+                        $"{c.ChangedAt:MM-dd HH:mm} - {c.ChangedBy}: {c.NewValue ?? c.OldValue}").ToList();
+
+                RenderTypeDistribution(filteredAssets);
             }
             catch (Exception ex)
             {
@@ -62,15 +198,100 @@ namespace NetSecurityScanner.Views
             }
         }
 
+        private void RenderTypeDistribution(List<Asset> assets)
+        {
+            if (TypeDistributionPanel == null) return;
+            TypeDistributionPanel.Children.Clear();
+
+            var groups = assets.GroupBy(a => a.AssetType)
+                .Select(g => new { Type = string.IsNullOrEmpty(g.Key) ? "未分类" : g.Key, Count = g.Count() })
+                .OrderByDescending(g => g.Count)
+                .ToList();
+
+            int max = groups.Count > 0 ? groups.Max(g => g.Count) : 1;
+            if (max == 0) max = 1;
+            int total = assets.Count == 0 ? 1 : assets.Count;
+
+            foreach (var g in groups)
+            {
+                double pct = (double)g.Count / total * 100.0;
+                var row = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
+
+                var label = new TextBlock
+                {
+                    Text = $"{g.Type}: {g.Count} ({pct:0.0}%)",
+                    FontSize = 11,
+                    Margin = new Thickness(0, 0, 0, 2)
+                };
+                row.Children.Add(label);
+
+                var bar = new ProgressBar
+                {
+                    Height = 8,
+                    Minimum = 0,
+                    Maximum = max,
+                    Value = g.Count,
+                    Foreground = (Brush)new BrushConverter().ConvertFromString("#0984e3")!,
+                    Background = (Brush)new BrushConverter().ConvertFromString("#dfe6e9")!,
+                    BorderThickness = new Thickness(0)
+                };
+                row.Children.Add(bar);
+
+                TypeDistributionPanel.Children.Add(row);
+            }
+
+            if (groups.Count == 0)
+            {
+                TypeDistributionPanel.Children.Add(new TextBlock
+                {
+                    Text = "暂无数据",
+                    FontSize = 11,
+                    Foreground = (Brush)new BrushConverter().ConvertFromString("#b2bec3")!
+                });
+            }
+        }
+
         private void AssetsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            bool hasSelection = AssetsDataGrid.SelectedItem != null;
-            EditAssetButton.IsEnabled = hasSelection;
-            DeleteAssetButton.IsEnabled = hasSelection;
+            ApplySelectionButtonState();
+        }
+
+        private void AssetsDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (AssetsDataGrid.SelectedItem is Asset asset)
+            {
+                var detail = new AssetDetailWindow(asset) { Owner = this };
+                detail.ShowDialog();
+            }
+        }
+
+        private void LoginLogoutButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SessionContext.Instance.Current == null)
+            {
+                var login = new LoginWindow { Owner = this };
+                if (login.ShowDialog() == true)
+                {
+                    RefreshUiByPermission();
+                    _ = RefreshAssetsAsync();
+                }
+            }
+            else
+            {
+                _authService.Logout();
+                RefreshUiByPermission();
+            }
+        }
+
+        private void ViewChangeLogButton_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new AssetChangeLogWindow { Owner = this };
+            win.ShowDialog();
         }
 
         private async void AddAssetButton_Click(object sender, RoutedEventArgs e)
         {
+            var operatorName = SessionContext.Instance.Current?.Username ?? "";
             var dialog = new Window
             {
                 Title = "添加资产",
@@ -152,15 +373,22 @@ namespace NetSecurityScanner.Views
                     Description = fields["描述"].Text.Trim()
                 };
 
-                if (await _assetService.AddAssetAsync(asset))
+                try
                 {
-                    RefreshAssets();
-                    dialog.Close();
-                    MessageBox.Show("资产添加成功！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    if (await _assetService.AddAssetAsync(asset, operatorName))
+                    {
+                        await RefreshAssetsAsync();
+                        dialog.Close();
+                        MessageBox.Show("资产添加成功！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show("资产添加失败，IP地址可能已存在！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
                 }
-                else
+                catch (UnauthorizedAccessException ex)
                 {
-                    MessageBox.Show("资产添加失败，IP地址可能已存在！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"无权限: {ex.Message}", "权限不足", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             };
 
@@ -169,10 +397,11 @@ namespace NetSecurityScanner.Views
             dialog.ShowDialog();
         }
 
-        private void EditAssetButton_Click(object sender, RoutedEventArgs e)
+        private async void EditAssetButton_Click(object sender, RoutedEventArgs e)
         {
             if (AssetsDataGrid.SelectedItem is not Asset asset) return;
 
+            var operatorName = SessionContext.Instance.Current?.Username ?? "";
             var dialog = new Window
             {
                 Title = $"编辑资产 - {asset.Name}",
@@ -266,18 +495,27 @@ namespace NetSecurityScanner.Views
                     Description = fields["描述"].Text.Trim(),
                     Tags = asset.Tags,
                     CreatedAt = asset.CreatedAt,
-                    LastModified = asset.LastModified
+                    CreatedBy = asset.CreatedBy,
+                    LastModified = asset.LastModified,
+                    LastModifiedBy = asset.LastModifiedBy
                 };
 
-                if (await _assetService.UpdateAssetAsync(updatedAsset))
+                try
                 {
-                    RefreshAssets();
-                    dialog.Close();
-                    MessageBox.Show("资产更新成功！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    if (await _assetService.UpdateAssetAsync(updatedAsset, operatorName))
+                    {
+                        await RefreshAssetsAsync();
+                        dialog.Close();
+                        MessageBox.Show("资产更新成功！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show("资产更新失败！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
                 }
-                else
+                catch (UnauthorizedAccessException ex)
                 {
-                    MessageBox.Show("资产更新失败！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show($"无权限: {ex.Message}", "权限不足", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             };
 
@@ -288,37 +526,56 @@ namespace NetSecurityScanner.Views
 
         private async void DeleteAssetButton_Click(object sender, RoutedEventArgs e)
         {
-            if (AssetsDataGrid.SelectedItem is Asset asset)
+            if (AssetsDataGrid.SelectedItem is not Asset asset) return;
+
+            var operatorName = SessionContext.Instance.Current?.Username ?? "";
+            var result = MessageBox.Show($"确定要删除资产 '{asset.Name}' 吗？", "确认删除",
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes) return;
+
+            try
             {
-                var result = MessageBox.Show($"确定要删除资产 '{asset.Name}' 吗？", "确认删除", 
-                    MessageBoxButton.YesNo, MessageBoxImage.Question);
-                
-                if (result == MessageBoxResult.Yes)
+                if (await _assetService.DeleteAssetAsync(asset.Id, operatorName))
                 {
-                    if (await _assetService.DeleteAssetAsync(asset.Id))
-                    {
-                        RefreshAssets();
-                        MessageBox.Show("资产已删除！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                    }
+                    await RefreshAssetsAsync();
+                    MessageBox.Show("资产已删除！", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                MessageBox.Show($"无权限: {ex.Message}", "权限不足", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void AssetTypeFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _ = RefreshAssetsAsync();
+        }
+
+        private void AssetStatusFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _ = RefreshAssetsAsync();
         }
 
         private void SearchButton_Click(object sender, RoutedEventArgs e)
         {
             var keyword = SearchTextBox.Text.Trim();
             var results = _assetService.SearchAssets(keyword);
-            AssetsDataGrid.ItemsSource = results;
+            var filtered = ApplyFilters(results).ToList();
+            AssetsDataGrid.ItemsSource = filtered;
+            UpdateStatistics(filtered);
         }
 
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
-            RefreshAssets();
+            _ = RefreshAssetsAsync();
         }
 
         private async void ImportButton_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new Microsoft.Win32.OpenFileDialog
+            var operatorName = SessionContext.Instance.Current?.Username ?? "";
+            var dialog = new OpenFileDialog
             {
                 Filter = "JSON文件|*.json|CSV文件|*.csv|所有文件|*.*",
                 Title = "导入资产数据"
@@ -328,7 +585,7 @@ namespace NetSecurityScanner.Views
 
             try
             {
-                var ext = System.IO.Path.GetExtension(dialog.FileName).ToLower();
+                var ext = Path.GetExtension(dialog.FileName).ToLower();
                 List<NetworkDevice> devices = new();
 
                 if (ext == ".json")
@@ -375,9 +632,13 @@ namespace NetSecurityScanner.Views
                     return;
                 }
 
-                int imported = await _assetService.ImportFromScanResultsAsync(devices);
-                RefreshAssets();
+                int imported = await _assetService.ImportFromScanResultsAsync(devices, operatorName);
+                await RefreshAssetsAsync();
                 MessageBox.Show($"成功导入 {imported} 个资产！\n（跳过 {devices.Count - imported} 个重复IP）", "导入完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                MessageBox.Show($"无权限: {ex.Message}", "权限不足", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             catch (Exception ex)
             {

@@ -17,7 +17,7 @@ namespace NetSecurityScanner.Plugins.DefaultPlugins
         Version = "1.0.0",
         Description = "检测常见服务的弱密码和默认密码",
         Author = "NetSecurityScanner",
-        SupportedScanTypes = new[] { "SSH", "Telnet", "FTP", "MySQL", "Redis", "MongoDB" }
+        SupportedScanTypes = new[] { "SSH", "Telnet", "FTP", "MySQL", "Redis", "MongoDB", "PostgreSQL", "MSSQL" }
     )]
     public class WeakPasswordPlugin : IVulnerabilityScannerPlugin
     {
@@ -26,7 +26,7 @@ namespace NetSecurityScanner.Plugins.DefaultPlugins
         public string Version => "1.0.0";
         public string Description => "检测常见服务的弱密码和默认密码";
         public string Author => "NetSecurityScanner";
-        public List<string> SupportedScanTypes => new List<string> { "SSH", "Telnet", "FTP", "MySQL", "Redis", "MongoDB" };
+        public List<string> SupportedScanTypes => new List<string> { "SSH", "Telnet", "FTP", "MySQL", "Redis", "MongoDB", "PostgreSQL", "MSSQL" };
 
         public List<PluginConfigParameter> ConfigParameters => new List<PluginConfigParameter>
         {
@@ -60,16 +60,38 @@ namespace NetSecurityScanner.Plugins.DefaultPlugins
 
         private readonly List<string> _commonPasswords = new List<string>
         {
+            // 基础弱密码
             "123456", "password", "12345678", "qwerty", "123456789",
             "letmein", "1234567", "football", "iloveyou", "admin",
             "welcome", "monkey", "login", "abc123", "111111",
-            "123123", "password123", "admin123", "root", "toor"
+            "123123", "password123", "admin123", "root", "toor",
+            // 扩展弱密码（常见 Top 50）
+            "12345", "1234", "1234567890", "000000", "11111111",
+            "1q2w3e4r", "1qaz2wsx", "qazwsx", "passw0rd", "p@ssw0rd",
+            "P@ssw0rd", "Password1", "Password123", "Admin123", "Admin@123",
+            "root123", "root1234", "rootroot", "toor123", "test123",
+            "test1234", "guest", "guest123", "user", "user123",
+            "changeme", "default", "secret", "master", "letmein123",
+            "super", "super123", "supervisor", "manager", "123abc",
+            "access", "access123", "login123", "pass123", "pass1234",
+            "baseball", "dragon", "trustno1", "shadow", "sunshine",
+            "123qwe", "qwe123", "q1w2e3r4", "asdfgh", "asdf1234"
         };
 
         private readonly List<string> _commonUsernames = new List<string>
         {
+            // 基础用户名
             "admin", "root", "user", "test", "guest",
-            "oracle", "postgres", "mysql", "ftp", "www"
+            "oracle", "postgres", "mysql", "ftp", "www",
+            // 扩展用户名
+            "administrator", "Administrator", "ADMIN", "ROOT",
+            "sa", "system", "sys", "dba", "dbadmin", "db2admin",
+            "operator", "manager", "super", "supervisor", "monitor",
+            "ftpuser", "anonymous", "upload", "download", "webmaster",
+            "nginx", "apache", "tomcat", "jenkins", "git", "gitlab",
+            "dev", "devuser", "demo", "temp", "backup", "support",
+            "user1", "user01", "user123", "test1", "test01", "test123",
+            "info", "service", "help", "office", "qwerty", "hp"
         };
 
         public Task<bool> InitializeAsync(Dictionary<string, object> config)
@@ -89,7 +111,7 @@ namespace NetSecurityScanner.Plugins.DefaultPlugins
 
         public async Task<bool> CanScanAsync(string target, int port)
         {
-            var supportedPorts = new[] { 21, 22, 23, 3306, 6379, 27017 };
+            var supportedPorts = new[] { 21, 22, 23, 3306, 5432, 6379, 1433, 27017 };
             await Task.CompletedTask;
             return Array.Exists(supportedPorts, p => p == port);
         }
@@ -241,6 +263,34 @@ namespace NetSecurityScanner.Plugins.DefaultPlugins
                             });
                         }
                     }
+                }
+                else if (context.Port == 5432)
+                {
+                    // PostgreSQL：发送 startup 消息探测是否启用 trust 认证
+                    // 简化检测：仅探测端口开放 + 尝试无密码连接会被拒绝即视为安全
+                    // 这里只做 Banner/协议层探测，避免实际穷举密码
+                    results.Add(new VulnerabilityResult
+                    {
+                        Name = "PostgreSQL 服务暴露检测",
+                        Description = $"PostgreSQL 服务在端口 {context.Port} 上运行且可远程连接。建议：1) 限制 pg_hba.conf 仅允许内网 IP；2) 禁用 trust 认证；3) 为 postgres 用户设置强密码。",
+                        RiskLevel = "中",
+                        Port = context.Port,
+                        PluginId = PluginId,
+                        PluginName = Name
+                    });
+                }
+                else if (context.Port == 1433)
+                {
+                    // MSSQL：探测端口开放（实际登录检测受协议复杂度限制，仅做暴露提示）
+                    results.Add(new VulnerabilityResult
+                    {
+                        Name = "MSSQL 服务暴露检测",
+                        Description = $"MSSQL/SQL Server 服务在端口 {context.Port} 上运行且可远程连接。建议：1) 如非必要禁用远程 TCP 访问；2) 为 sa 账户设置强密码并禁用；3) 启用 Windows 身份验证；4) 限制 1433 端口仅内网访问。",
+                        RiskLevel = "中",
+                        Port = context.Port,
+                        PluginId = PluginId,
+                        PluginName = Name
+                    });
                 }
             }
             catch { }

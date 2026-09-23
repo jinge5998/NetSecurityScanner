@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using NetSecurityScanner.Models;
 using NetSecurityScanner.Core.Models;
-using Models = NetSecurityScanner.Models;
 
 namespace NetSecurityScanner.Services
 {
   public class ObfuscationDetector
   {
-    public async Task<ObfuscationReport> DetectAsync(IpaAnalysisResult ipa, Models.ScanMode mode, CancellationToken token)
+    public async Task<ObfuscationReport> DetectAsync(IpaAnalysisResult ipa, ScanMode mode, CancellationToken token)
     {
       var report = new ObfuscationReport();
       var tasks = new List<Task>();
@@ -35,7 +35,7 @@ namespace NetSecurityScanner.Services
         report.Integrity = DetectIntegrityChecks(ipa);
       }, token));
 
-      if (mode != Models.ScanMode.Lightning)
+      if (mode != ScanMode.Lightning)
       {
         tasks.Add(Task.Run(() =>
         {

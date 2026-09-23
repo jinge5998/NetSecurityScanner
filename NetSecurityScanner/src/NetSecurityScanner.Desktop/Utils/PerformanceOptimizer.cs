@@ -22,12 +22,12 @@ namespace NetSecurityScanner.Utils
         private readonly object _lockObject = new object();
         private int _updateIntervalMs;
         private bool _isDisposed;
-        
+
         /// <summary>
         /// 待处理的操作数量
         /// </summary>
         public int PendingCount => _pendingActions.Count;
-        
+
         /// <summary>
         /// UI更新间隔（毫秒）
         /// </summary>
@@ -43,7 +43,7 @@ namespace NetSecurityScanner.Utils
                 }
             }
         }
-        
+
         /// <summary>
         /// 统计信息：总处理次数
         /// </summary>
@@ -55,7 +55,7 @@ namespace NetSecurityScanner.Utils
         /// </summary>
         private long _mergedUpdates;
         public long MergedUpdates => _mergedUpdates;
-        
+
         /// <summary>
         /// 创建UI更新节流器
         /// </summary>
@@ -66,11 +66,11 @@ namespace NetSecurityScanner.Utils
             _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
             _pendingActions = new ConcurrentQueue<Action>();
             _updateIntervalMs = Math.Max(50, updateIntervalMs); // 最小50ms
-            
+
             // 使用Timer定期触发批量处理
             _timer = new Timer(OnTimerTick, null, _updateIntervalMs, _updateIntervalMs);
         }
-        
+
         /// <summary>
         /// 提交UI更新操作（会被合并处理）
         /// </summary>
@@ -78,16 +78,16 @@ namespace NetSecurityScanner.Utils
         public void Enqueue(Action action)
         {
             if (_isDisposed || action == null) return;
-            
+
             _pendingActions.Enqueue(action);
-            
+
             // 如果队列过大，立即触发一次处理
             if (_pendingActions.Count > 1000)
             {
                 ProcessPendingUpdates();
             }
         }
-        
+
         /// <summary>
         /// 提交带优先级的UI更新操作（高优先级会立即执行）
         /// </summary>
@@ -96,7 +96,7 @@ namespace NetSecurityScanner.Utils
         public void Enqueue(Action action, bool highPriority)
         {
             if (_isDisposed || action == null) return;
-            
+
             if (highPriority)
             {
                 // 高优先级操作直接在UI线程执行
@@ -122,7 +122,7 @@ namespace NetSecurityScanner.Utils
                 Enqueue(action);
             }
         }
-        
+
         /// <summary>
         /// 立即处理所有待处理的更新
         /// </summary>
@@ -130,28 +130,26 @@ namespace NetSecurityScanner.Utils
         {
             ProcessPendingUpdates();
         }
-        
+
         /// <summary>
         /// 定时器回调 - 批量处理待处理的UI更新
         /// </summary>
-        private void OnTimerTick(object state)
+        private void OnTimerTick(object? state)
         {
             ProcessPendingUpdates();
         }
-        
+
         /// <summary>
         /// 处理所有待处理的UI更新
         /// </summary>
         private void ProcessPendingUpdates()
         {
             if (_isDisposed || _pendingActions.IsEmpty) return;
-            
+
             lock (_lockObject)
             {
                 if (_pendingActions.IsEmpty) return;
-                
-                int processedCount = 0;
-                
+
                 try
                 {
                     // 在UI线程中批量执行所有待处理的操作
@@ -162,7 +160,7 @@ namespace NetSecurityScanner.Utils
                             Action currentAction;
                             int batchCount = 0;
                             const int maxBatchSize = 100; // 每批最多处理100个操作
-                            
+
                             while (_pendingActions.TryDequeue(out currentAction) && batchCount < maxBatchSize)
                             {
                                 try
@@ -175,13 +173,13 @@ namespace NetSecurityScanner.Utils
                                     System.Diagnostics.Debug.WriteLine($"[UiThrottler] UI操作执行失败: {ex.Message}");
                                 }
                             }
-                            
+
                             if (batchCount > 1)
                             {
                                 // 记录合并的更新次数
                                 Interlocked.Add(ref _mergedUpdates, batchCount - 1);
                             }
-                            
+
                             Interlocked.Add(ref _totalProcessed, batchCount);
                         }
                         catch (Exception ex)
@@ -196,7 +194,7 @@ namespace NetSecurityScanner.Utils
                 }
             }
         }
-        
+
         /// <summary>
         /// 清空待处理的队列
         /// </summary>
@@ -207,7 +205,7 @@ namespace NetSecurityScanner.Utils
                 _pendingActions.TryDequeue(out _);
             }
         }
-        
+
         /// <summary>
         /// 获取性能统计信息
         /// </summary>
@@ -220,15 +218,15 @@ namespace NetSecurityScanner.Utils
                    $"- 当前队列大小: {_pendingActions.Count}\n" +
                    $"- 节省UI刷新率: {(TotalProcessed > 0 ? (double)MergedUpdates / TotalProcessed * 100 : 0):F1}%";
         }
-        
+
         #region IDisposable Implementation
-        
+
         public void Dispose()
         {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
-        
+
         protected virtual void Dispose(bool disposing)
         {
             if (!_isDisposed)
@@ -241,7 +239,7 @@ namespace NetSecurityScanner.Utils
                 _isDisposed = true;
             }
         }
-        
+
         #endregion
     }
 
@@ -253,37 +251,37 @@ namespace NetSecurityScanner.Utils
         private readonly IList<T> _allData;
         private readonly int _pageSize;
         private int _currentPage;
-        
+
         /// <summary>
         /// 页面大小（每页显示数量）
         /// </summary>
         public int PageSize => _pageSize;
-        
+
         /// <summary>
         /// 当前页码（从0开始）
         /// </summary>
         public int CurrentPage => _currentPage;
-        
+
         /// <summary>
         /// 总页数
         /// </summary>
         public int TotalPages => (int)Math.Ceiling((double)_allData.Count / _pageSize);
-        
+
         /// <summary>
         /// 总数据数量
         /// </summary>
         public int TotalCount => _allData.Count;
-        
+
         /// <summary>
         /// 是否有上一页
         /// </summary>
         public bool HasPreviousPage => _currentPage > 0;
-        
+
         /// <summary>
         /// 是否有下一页
         /// </summary>
         public bool HasNextPage => _currentPage < TotalPages - 1;
-        
+
         /// <summary>
         /// 创建数据分页器
         /// </summary>
@@ -295,7 +293,7 @@ namespace NetSecurityScanner.Utils
             _pageSize = Math.Max(10, Math.Min(pageSize, 1000)); // 限制在10-1000之间
             _currentPage = 0;
         }
-        
+
         /// <summary>
         /// 获取当前页的数据
         /// </summary>
@@ -303,7 +301,7 @@ namespace NetSecurityScanner.Utils
         {
             return GetPage(_currentPage);
         }
-        
+
         /// <summary>
         /// 获取指定页的数据
         /// </summary>
@@ -312,21 +310,21 @@ namespace NetSecurityScanner.Utils
         {
             if (pageIndex < 0 || pageIndex >= TotalPages)
                 throw new ArgumentOutOfRangeException(nameof(pageIndex));
-            
+
             _currentPage = pageIndex;
-            
+
             int startIndex = pageIndex * _pageSize;
             int count = Math.Min(_pageSize, _allData.Count - startIndex);
-            
+
             var pageData = new List<T>(count);
             for (int i = 0; i < count; i++)
             {
                 pageData.Add(_allData[startIndex + i]);
             }
-            
+
             return pageData;
         }
-        
+
         /// <summary>
         /// 跳转到下一页
         /// </summary>
@@ -334,10 +332,10 @@ namespace NetSecurityScanner.Utils
         {
             if (!HasNextPage)
                 throw new InvalidOperationException("已经是最后一页");
-            
+
             return GetPage(_currentPage + 1);
         }
-        
+
         /// <summary>
         /// 跳转到上一页
         /// </summary>
@@ -345,10 +343,10 @@ namespace NetSecurityScanner.Utils
         {
             if (!HasPreviousPage)
                 throw new InvalidOperationException("已经是第一页");
-            
+
             return GetPage(_currentPage - 1);
         }
-        
+
         /// <summary>
         /// 跳转到首页
         /// </summary>
@@ -356,7 +354,7 @@ namespace NetSecurityScanner.Utils
         {
             return GetPage(0);
         }
-        
+
         /// <summary>
         /// 跳转到末页
         /// </summary>
@@ -364,7 +362,7 @@ namespace NetSecurityScanner.Utils
         {
             return GetPage(TotalPages - 1);
         }
-        
+
         /// <summary>
         /// 重置到第一页
         /// </summary>

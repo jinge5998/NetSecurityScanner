@@ -91,6 +91,7 @@
                         <MenuItem Header="🔌  用插件深挖" Click="DeepScanMenuItem_Click"/>
                         <Separator/>
                         <MenuItem Header="👁️ 查看详情" Click="ViewDetailsButton_Click"/>
+                        <MenuItem Header="📊 生成报告" Click="GenerateReportButton_Click"/>
                         <MenuItem Header="🗑️ 删除记录" Click="DeleteButton_Click" Foreground="#E74C3C"/>
                     </ContextMenu>
                 </DataGrid.ContextMenu>
@@ -99,15 +100,18 @@
         
         <!-- 底部按钮 -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
-            <Button Name="ViewDetailsButton" Content="👁️ 查看详情" Width="120" Height="40" 
-                    Margin="5" Background="#9B59B6" Foreground="White" FontWeight="Bold" 
+            <Button Name="ViewDetailsButton" Content="👁️ 查看详情" Width="120" Height="40"
+                    Margin="5" Background="#9B59B6" Foreground="White" FontWeight="Bold"
                     IsEnabled="False" Click="ViewDetailsButton_Click"/>
-            <Button Name="ExportButton" Content="📄 导出记录" Width="120" Height="40" 
+            <Button Name="GenerateReportButton" Content="📊 生成报告" Width="120" Height="40"
+                    Margin="5" Background="#F39C12" Foreground="White" FontWeight="Bold"
+                    IsEnabled="False" Click="GenerateReportButton_Click"/>
+            <Button Name="ExportButton" Content="📄 导出记录" Width="120" Height="40"
                     Margin="5" Background="#27AE60" Foreground="White" FontWeight="Bold" Click="ExportButton_Click"/>
-            <Button Name="DeleteButton" Content="🗑️ 删除记录" Width="120" Height="40" 
-                    Margin="5" Background="#E74C3C" Foreground="White" FontWeight="Bold" 
+            <Button Name="DeleteButton" Content="🗑️ 删除记录" Width="120" Height="40"
+                    Margin="5" Background="#E74C3C" Foreground="White" FontWeight="Bold"
                     IsEnabled="False" Click="DeleteButton_Click"/>
-            <Button Name="CloseButton" Content="❌ 关闭" Width="100" Height="40" 
+            <Button Name="CloseButton" Content="❌ 关闭" Width="100" Height="40"
                     Margin="5" Background="#95A5A6" Foreground="White" Click="CloseButton_Click"/>
         </StackPanel>
     </Grid>

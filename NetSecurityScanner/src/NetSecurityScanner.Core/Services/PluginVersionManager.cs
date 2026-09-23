@@ -50,7 +50,7 @@ namespace NetSecurityScanner.Services
         /// 扫描本地已加载插件 vs 商店目录，填充 PendingUpdates。
         /// 核心版本要求：若 Plugin.MinCoreVersion > 当前 core 版本，则跳过更新（不兼容）。
         /// </summary>
-        public async Task<Dictionary<string, PluginMarketPlugin>> CheckUpdatesAsync(PluginManager pluginManager, string coreVersion = "1.0.1.0")
+        public async Task<Dictionary<string, PluginMarketPlugin>> CheckUpdatesAsync(PluginManager pluginManager, string coreVersion = "1.0.2.1")
         {
             var result = new Dictionary<string, PluginMarketPlugin>();
             try

@@ -5,95 +5,260 @@
         xmlns:utils="clr-namespace:NetSecurityScanner.Utils"
         xmlns:oxy="http://oxyplot.org/wpf"
         xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
-        Title="网络安全扫描工具" Height="700" Width="1050"
+        Title="网络安全扫描工具"
+        Height="700"
+        Width="1050"
         WindowStartupLocation="CenterScreen"
+        TextElement.FontFamily="Microsoft YaHei UI, Microsoft YaHei, SimHei, SimSun, Noto Sans CJK SC, Segoe UI"
         Closing="Window_Closing">
     <Window.Resources>
         <!-- 按钮阴影效果 -->
-        <DropShadowEffect x:Key="ButtonShadow" BlurRadius="3" Color="#80000000" Direction="270" Opacity="0.3" RenderingBias="Quality" ShadowDepth="2"/>
-        
+        <DropShadowEffect x:Key="ButtonShadow"
+                          BlurRadius="3"
+                          Color="#80000000"
+                          Direction="270"
+                          Opacity="0.3"
+                          RenderingBias="Quality"
+                          ShadowDepth="2"/>
+
+        <!-- AI 风险评估仪表盘卡片阴影 -->
+        <DropShadowEffect x:Key="AiCardShadow"
+                          BlurRadius="14"
+                          Color="#80000000"
+                          Direction="270"
+                          Opacity="0.45"
+                          RenderingBias="Quality"
+                          ShadowDepth="3"/>
+
         <!-- 风险等级到颜色的转换器 -->
         <utils:RiskLevelToColorConverter x:Key="RiskLevelToColorConverter"/>
-        
+
         <!-- 风险等级样式 -->
-        <Style x:Key="RiskLevelCellStyle" TargetType="DataGridCell">
-            <Setter Property="Foreground" Value="{Binding RiskLevel, Converter={StaticResource RiskLevelToColorConverter}}"/>
-            <Setter Property="FontWeight" Value="Bold"/>
+        <Style x:Key="RiskLevelCellStyle"
+               TargetType="DataGridCell">
+            <Setter Property="Foreground"
+                    Value="{Binding RiskLevel, Converter={StaticResource RiskLevelToColorConverter}}"/>
+            <Setter Property="FontWeight"
+                    Value="Bold"/>
+        </Style>
+
+        <!-- AI 风险评估：紫蓝渐变画刷（强调色） -->
+        <LinearGradientBrush x:Key="AiAccentGradient"
+                             StartPoint="0,0"
+                             EndPoint="1,1">
+            <GradientStop Color="#2563EB"
+                          Offset="0"/>
+            <GradientStop Color="#3B82F6"
+                          Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- AI 风险评估：白色主题基础画刷 -->
+        <SolidColorBrush x:Key="AiCardBackground"
+                         Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="AiCardBorder"
+                         Color="#E2E8F0"/>
+        <SolidColorBrush x:Key="AiTextPrimary"
+                         Color="#0F172A"/>
+        <SolidColorBrush x:Key="AiTextSecondary"
+                         Color="#64748B"/>
+        <SolidColorBrush x:Key="AiTextTertiary"
+                         Color="#94A3B8"/>
+        <SolidColorBrush x:Key="AiTrackBackground"
+                         Color="#F1F5F9"/>
+        <SolidColorBrush x:Key="AiChartTextColor"
+                         Color="#64748B"/>
+        <SolidColorBrush x:Key="AiChartAxisColor"
+                         Color="#CBD5E1"/>
+        <SolidColorBrush x:Key="AiChartGridColor"
+                         Color="#E2E8F0"/>
+
+        <!-- AI 风险评估：主评分卡片白色渐变（按风险等级动态覆盖） -->
+        <LinearGradientBrush x:Key="AiMainCardGradient"
+                             StartPoint="0,0"
+                             EndPoint="1,1">
+            <GradientStop Color="#FFFFFF"
+                          Offset="0"/>
+            <GradientStop Color="#F8FAFC"
+                          Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- AI 风险评估：状态条进度条样式（蓝色 + 浅灰底） -->
+        <Style x:Key="AiStatusProgressBarStyle"
+               TargetType="ProgressBar">
+            <Setter Property="Foreground"
+                    Value="{StaticResource AiAccentGradient}"/>
+            <Setter Property="Background"
+                    Value="#F1F5F9"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Height"
+                    Value="6"/>
+        </Style>
+
+        <!-- AI 风险评估：重新分析按钮样式（白底蓝边主色按钮） -->
+        <Style x:Key="AiRefreshButtonStyle"
+               TargetType="Button">
+            <Setter Property="Background"
+                    Value="#FFFFFF"/>
+            <Setter Property="Foreground"
+                    Value="#2563EB"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="BorderBrush"
+                    Value="#2563EB"/>
+            <Setter Property="Padding"
+                    Value="14,6"/>
+            <Setter Property="FontSize"
+                    Value="12"/>
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                CornerRadius="6"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="Bd"
+                                        Property="Background"
+                                        Value="#EFF6FF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="Bd"
+                                        Property="Opacity"
+                                        Value="0.45"/>
+                                <Setter Property="Cursor"
+                                        Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- AI 风险评估：白底浅边框卡片通用样式（用于仪表盘所有卡片） -->
+        <Style x:Key="AiCardStyle"
+               TargetType="Border">
+            <Setter Property="Background"
+                    Value="{StaticResource AiCardBackground}"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource AiCardBorder}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="CornerRadius"
+                    Value="10"/>
+            <Setter Property="Padding"
+                    Value="16,14"/>
         </Style>
     </Window.Resources>
     <!-- 主内容网格 -->
     <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-        
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
         <!-- 顶部菜单栏 -->
-        <Menu Grid.Row="0" Background="White" Foreground="Black">
+        <Menu Grid.Row="0"
+              Background="White"
+              Foreground="Black">
             <Menu.Resources>
                 <Style TargetType="MenuItem">
-                    <Setter Property="Foreground" Value="Black"/>
-                    <Setter Property="Background" Value="White"/>
+                    <Setter Property="Foreground"
+                            Value="Black"/>
+                    <Setter Property="Background"
+                            Value="White"/>
                     <Style.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="#F0F0F0"/>
+                        <Trigger Property="IsMouseOver"
+                                 Value="True">
+                            <Setter Property="Background"
+                                    Value="#F0F0F0"/>
                         </Trigger>
-                        <Trigger Property="IsSubmenuOpen" Value="True">
-                            <Setter Property="Background" Value="#F0F0F0"/>
+                        <Trigger Property="IsSubmenuOpen"
+                                 Value="True">
+                            <Setter Property="Background"
+                                    Value="#F0F0F0"/>
                         </Trigger>
                     </Style.Triggers>
                 </Style>
             </Menu.Resources>
             <MenuItem Header="文件">
-                <MenuItem Header="导出报告" Click="ExportReport_Click"/>
+                <MenuItem Header="导出报告"
+                          Click="ExportReport_Click"/>
                 <Separator/>
-                <MenuItem Header="退出" Click="Exit_Click"/>
+                <MenuItem Header="退出"
+                          Click="Exit_Click"/>
             </MenuItem>
             <MenuItem Header="扫描">
-                <MenuItem Header="端口扫描" Click="PortScan_Click"/>
-                <MenuItem Header="漏洞扫描" Click="VulnerabilityScan_Click"/>
-                <MenuItem Header="批量扫描" Click="BatchScan_Click"/>
-                <MenuItem Header="APP扫描" Click="AppScan_Click"/>
-                <MenuItem Header="Agent安全扫描" Click="AgentSecurityScan_Click"/>
-                <MenuItem Header="摄像头安全扫描" Click="CameraSecurityScan_Click"/>
-                <MenuItem Header="开始综合扫描" Click="StartScan_Click"/>
-                <MenuItem x:Name="PluginScanMenuItem" Header="🔌  插件扫描" Click="PluginScanButton_Click"/>
-                <MenuItem Header="停止扫描" Click="StopScan_Click"/>
+                <MenuItem Header="端口扫描"
+                          Click="PortScan_Click"/>
+                <MenuItem Header="漏洞扫描"
+                          Click="VulnerabilityScan_Click"/>
+                <MenuItem Header="批量扫描"
+                          Click="BatchScan_Click"/>
+                <MenuItem Header="开始综合扫描"
+                          Click="StartScan_Click"/>
+                <MenuItem Header="停止扫描"
+                          Click="StopScan_Click"/>
                 <Separator/>
-                <MenuItem Header="专家模式" Click="ExpertMode_Click"/>
+                <MenuItem Header="专家模式"
+                          Click="ExpertMode_Click"/>
             </MenuItem>
             <MenuItem Header="分析">
-                <MenuItem Header="AI风险评估" Click="AIRiskAssessment_Click"/>
-                <MenuItem Header="统计分析" Click="StatisticsDashboard_Click"/>
-                <MenuItem Header="可视化图表" Click="Visualization_Click"/>
-                <MenuItem Header="网络拓扑" Click="NetworkTopology_Click"/>
-                <MenuItem Header="攻击路径分析" Click="ViewAttackPaths_Click"/>
+                <MenuItem Header="统计分析"
+                          Click="StatisticsDashboard_Click"/>
+                <MenuItem Header="可视化图表"
+                          Click="Visualization_Click"/>
+                <MenuItem Header="网络拓扑"
+                          Click="NetworkTopology_Click"/>
+                <MenuItem Header="攻击路径分析"
+                          Click="ViewAttackPaths_Click"/>
                 <Separator/>
-                <MenuItem Header="攻击日志查询" Click="AttackLogQuery_Click"/>
+                <MenuItem Header="攻击日志查询"
+                          Click="AttackLogQuery_Click"/>
             </MenuItem>
             <MenuItem Header="工具">
-                <MenuItem Header="生成端口关闭脚本" Click="GenerateBat_Click"/>
-                <MenuItem Header="更新漏洞库" Click="UpdateVulnerabilityDatabase_Click"/>
-                <MenuItem Header="合规检查" Click="ComplianceCheck_Click"/>
-                <MenuItem Header="漏洞知识库" Click="VulnerabilityKnowledgeBase_Click"/>
+                <MenuItem Header="生成端口关闭脚本"
+                          Click="GenerateBat_Click"/>
+                <MenuItem Header="更新漏洞库"
+                          Click="UpdateVulnerabilityDatabase_Click"/>
+                <MenuItem Header="合规检查"
+                          Click="ComplianceCheck_Click"/>
+                <MenuItem Header="漏洞知识库"
+                          Click="VulnerabilityKnowledgeBase_Click"/>
+                <MenuItem Header="网页后缀追踪"
+                          Click="WebPathTracer_Click"/>
                 <Separator/>
-                <MenuItem Header="网页路径追踪" Click="WebPathTracer_Click"/>
-                <Separator/>
-                <MenuItem Header="插件管理" Click="PluginManager_Click"/>
-                <MenuItem Header="资产管理" Click="AssetManagement_Click"/>
+                <MenuItem Header="🔌 插件扫描"
+                          Click="PluginScanButton_Click"/>
+                <MenuItem Header="插件管理"
+                          Click="PluginManager_Click"/>
+                <MenuItem Header="资产管理"
+                          Click="AssetManagement_Click"/>
             </MenuItem>
             <MenuItem Header="帮助">
-                <MenuItem Header="授权码" Click="LicenseManager_Click"/>
-                <Separator/>
-                <MenuItem Header="检查更新" Click="CheckForUpdates_Click"/>
-                <MenuItem Header="关于" Click="About_Click"/>
+                <MenuItem Header="关于"
+                          Click="About_Click"/>
             </MenuItem>
         </Menu>
-        
+
         <!-- 主内容区域 -->
-        <TabControl Name="MainTabControl" Grid.Row="1" Margin="10">
-                        <!-- 端口扫描 -->
+        <TabControl Name="MainTabControl"
+                    Grid.Row="1"
+                    Margin="10">
+            <!-- 端口扫描 -->
             <TabItem Header="端口扫描">
                 <Grid Margin="10">
                     <Grid.RowDefinitions>
@@ -102,144 +267,272 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    
+
                     <!-- 第一行：目标输入 -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+                    <StackPanel Grid.Row="0"
+                                Orientation="Horizontal"
+                                Margin="5">
                         <!-- 目标IP地址输入 -->
-                        <Label Content="目标IP/域名：" VerticalAlignment="Center"/>
-                        <TextBox Name="TargetIpTextBox" Text="127.0.0.1" Width="180" Margin="5" ToolTip="输入目标IP地址或域名"/>
+                        <Label Content="目标IP/域名："
+                               VerticalAlignment="Center"/>
+                        <TextBox Name="TargetIpTextBox"
+                                 Text="127.0.0.1"
+                                 Width="180"
+                                 Margin="5"
+                                 ToolTip="输入目标IP地址或域名"/>
 
                         <!-- 端口范围输入 -->
-                        <Label Content="端口范围：" VerticalAlignment="Center" Margin="10,0,0,0"/>
-                        <TextBox Name="PortRangeTextBox" Text="1-1000" Width="100" Margin="5" ToolTip="输入端口范围，如：1-1000 或 22,80,443"/>
-                        
+                        <Label Content="端口范围："
+                               VerticalAlignment="Center"
+                               Margin="10,0,0,0"/>
+                        <TextBox Name="PortRangeTextBox"
+                                 Text="1-1000"
+                                 Width="100"
+                                 Margin="5"
+                                 ToolTip="输入端口范围，如：1-1000 或 22,80,443"/>
+
                         <!-- 扫描类型选择 -->
-                        <Label Content="扫描类型：" VerticalAlignment="Center"/>
-                        <ComboBox Name="ScanTypeComboBox" Width="100" Margin="5" SelectedIndex="0">
-                            <ComboBoxItem Content="TCP" ToolTip="使用TCP协议进行端口扫描"/>
-                            <ComboBoxItem Content="UDP" ToolTip="使用UDP协议进行端口扫描"/>
+                        <Label Content="扫描类型："
+                               VerticalAlignment="Center"/>
+                        <ComboBox Name="ScanTypeComboBox"
+                                  Width="100"
+                                  Margin="5"
+                                  SelectedIndex="0">
+                            <ComboBoxItem Content="TCP"
+                                          ToolTip="使用TCP协议进行端口扫描"/>
+                            <ComboBoxItem Content="UDP"
+                                          ToolTip="使用UDP协议进行端口扫描"/>
                         </ComboBox>
 
                         <!-- 开始/停止扫描按钮 -->
-                        <Button Name="StartPortScanButton" Content="开始扫描" Width="80" Height="30" Margin="5" Click="StartPortScan_Click" Background="#3498DB" Foreground="White" FontWeight="Bold"/>
-                        <Button Name="StopPortScanButton" Content="停止扫描" Width="80" Height="30" Margin="5" Click="StopScan_Click" Background="#E74C3C" Foreground="White" FontWeight="Bold" IsEnabled="False"/>
+                        <Button Name="StartPortScanButton"
+                                Content="开始扫描"
+                                Width="80"
+                                Height="30"
+                                Margin="5"
+                                Click="StartPortScan_Click"
+                                Background="#3498DB"
+                                Foreground="White"
+                                FontWeight="Bold"/>
+                        <Button Name="StopPortScanButton"
+                                Content="停止扫描"
+                                Width="80"
+                                Height="30"
+                                Margin="5"
+                                Click="StopScan_Click"
+                                Background="#E74C3C"
+                                Foreground="White"
+                                FontWeight="Bold"
+                                IsEnabled="False"/>
 
                         <!-- 自动扫描复选框 -->
-                        <CheckBox Name="AutoScanCheckBox" Content="自动扫描常用端口" Margin="15,0" VerticalAlignment="Center" ToolTip="扫描常用端口：21,22,23,25,53,80,110,143,443,465,993,995,1433,3306,3389,5432,8080,8443"/>
+                        <CheckBox Name="AutoScanCheckBox"
+                                  Content="自动扫描常用端口"
+                                  Margin="15,0"
+                                  VerticalAlignment="Center"
+                                  ToolTip="扫描常用端口：21,22,23,25,53,80,110,143,443,465,993,995,1433,3306,3389,5432,8080,8443"/>
                     </StackPanel>
 
-                    
-                    <DataGrid Name="PortScanResultsDataGrid" Grid.Row="2" Margin="5" 
-                              AutoGenerateColumns="False" CanUserAddRows="False" 
-                              GridLinesVisibility="All" HeadersVisibility="Column"
+
+                    <DataGrid Name="PortScanResultsDataGrid"
+                              Grid.Row="2"
+                              Margin="5"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              GridLinesVisibility="All"
+                              HeadersVisibility="Column"
                               AlternatingRowBackground="#F5F5F5"
-                              CanUserSortColumns="True" SelectionMode="Single"
-                              CanUserResizeRows="False" RowHeight="35"
+                              CanUserSortColumns="True"
+                              SelectionMode="Single"
+                              CanUserResizeRows="False"
+                              RowHeight="35"
                               SelectionChanged="PortScanResultsDataGrid_SelectionChanged">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="端口号" Binding="{Binding PortNumber}" Width="*" SortMemberPath="PortNumber" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="*" SortMemberPath="Status" IsReadOnly="True">
+                            <DataGridTextColumn Header="端口号"
+                                                Binding="{Binding PortNumber}"
+                                                Width="*"
+                                                SortMemberPath="PortNumber"
+                                                IsReadOnly="True"/>
+                            <DataGridTextColumn Header="状态"
+                                                Binding="{Binding Status}"
+                                                Width="*"
+                                                SortMemberPath="Status"
+                                                IsReadOnly="True">
                                 <DataGridTextColumn.CellStyle>
                                     <Style TargetType="DataGridCell">
-                                        <Setter Property="Foreground" Value="{Binding Status, Converter={StaticResource RiskLevelToColorConverter}}"/>
-                                        <Setter Property="FontWeight" Value="Bold"/>
+                                        <Setter Property="Foreground"
+                                                Value="{Binding Status, Converter={StaticResource RiskLevelToColorConverter}}"/>
+                                        <Setter Property="FontWeight"
+                                                Value="Bold"/>
                                     </Style>
                                 </DataGridTextColumn.CellStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="服务" Binding="{Binding Service}" Width="*" SortMemberPath="Service" IsReadOnly="True"/>
-                            <DataGridTextColumn Header="服务版本" Binding="{Binding ServiceVersion}" Width="2*" SortMemberPath="ServiceVersion" IsReadOnly="True">
+                            <DataGridTextColumn Header="服务"
+                                                Binding="{Binding Service}"
+                                                Width="*"
+                                                SortMemberPath="Service"
+                                                IsReadOnly="True"/>
+                            <DataGridTextColumn Header="服务版本"
+                                                Binding="{Binding ServiceVersion}"
+                                                Width="2*"
+                                                SortMemberPath="ServiceVersion"
+                                                IsReadOnly="True">
                                 <DataGridTextColumn.CellStyle>
                                     <Style TargetType="DataGridCell">
-                                        <Setter Property="ToolTip" Value="{Binding ServiceVersion}"/>
-                                        <Setter Property="TextBlock.TextTrimming" Value="CharacterEllipsis"/>
-                                        <Setter Property="TextBlock.TextWrapping" Value="NoWrap"/>
+                                        <Setter Property="ToolTip"
+                                                Value="{Binding ServiceVersion}"/>
+                                        <Setter Property="TextBlock.TextTrimming"
+                                                Value="CharacterEllipsis"/>
+                                        <Setter Property="TextBlock.TextWrapping"
+                                                Value="NoWrap"/>
                                     </Style>
                                 </DataGridTextColumn.CellStyle>
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="TextWrapping" Value="NoWrap"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="TextWrapping"
+                                                Value="NoWrap"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridCheckBoxColumn Header="选择" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                            <DataGridCheckBoxColumn Header="选择"
+                                                    Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                    Width="*"/>
                         </DataGrid.Columns>
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
-                                <Setter Property="Height" Value="35"/>
+                                <Setter Property="Height"
+                                        Value="35"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Status}" Value="开放">
-                                        <Setter Property="Background" Value="#E8F5E8"/>
+                                    <DataTrigger Binding="{Binding Status}"
+                                                 Value="开放">
+                                        <Setter Property="Background"
+                                                Value="#E8F5E8"/>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding Status}" Value="开放或过滤">
-                                        <Setter Property="Background" Value="#FFF8E1"/>
+                                    <DataTrigger Binding="{Binding Status}"
+                                                 Value="开放或过滤">
+                                        <Setter Property="Background"
+                                                Value="#FFF8E1"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.CellStyle>
                             <Style TargetType="DataGridCell">
-                                <Setter Property="VerticalAlignment" Value="Center"/>
-                                <Setter Property="Padding" Value="5"/>
-                                <Setter Property="TextBlock.TextWrapping" Value="NoWrap"/>
+                                <Setter Property="VerticalAlignment"
+                                        Value="Center"/>
+                                <Setter Property="Padding"
+                                        Value="5"/>
+                                <Setter Property="TextBlock.TextWrapping"
+                                        Value="NoWrap"/>
                             </Style>
                         </DataGrid.CellStyle>
                         <DataGrid.ColumnHeaderStyle>
                             <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="#2C3E50"/>
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="FontWeight" Value="Bold"/>
-                                <Setter Property="Padding" Value="10"/>
-                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="Background"
+                                        Value="#2C3E50"/>
+                                <Setter Property="Foreground"
+                                        Value="White"/>
+                                <Setter Property="FontWeight"
+                                        Value="Bold"/>
+                                <Setter Property="Padding"
+                                        Value="10"/>
+                                <Setter Property="HorizontalContentAlignment"
+                                        Value="Center"/>
                             </Style>
                         </DataGrid.ColumnHeaderStyle>
                     </DataGrid>
-                    
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="5">
-                        <Button Content="全选" Width="60" Height="25" Margin="5" Click="SelectAllPorts_Click" Background="#3498DB" Foreground="White"/>
-                        <Button Content="取消全选" Width="80" Height="25" Margin="5" Click="UnselectAllPorts_Click" Background="#95A5A6" Foreground="White"/>
-                        <Button Name="GeneratePortBatButton" Content="生成关闭端口BAT" Width="140" Height="30" Margin="5" Click="GeneratePortBat_Click" IsEnabled="False" Foreground="White">
+
+                    <StackPanel Grid.Row="3"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Bottom"
+                                Margin="5">
+                        <Button Content="全选"
+                                Width="60"
+                                Height="25"
+                                Margin="5"
+                                Click="SelectAllPorts_Click"
+                                Background="#3498DB"
+                                Foreground="White"/>
+                        <Button Content="取消全选"
+                                Width="80"
+                                Height="25"
+                                Margin="5"
+                                Click="UnselectAllPorts_Click"
+                                Background="#95A5A6"
+                                Foreground="White"/>
+                        <Button Name="GeneratePortBatButton"
+                                Content="生成关闭端口BAT"
+                                Width="140"
+                                Height="30"
+                                Margin="5"
+                                Click="GeneratePortBat_Click"
+                                IsEnabled="False"
+                                Foreground="White">
                             <Button.Style>
                                 <Style TargetType="Button">
-                                    <Setter Property="Background" Value="#E74C3C"/>
-                                    <Setter Property="Foreground" Value="White"/>
-                                    <Setter Property="FontWeight" Value="Bold"/>
-                                    <Setter Property="FontSize" Value="12"/>
-                                    <Setter Property="BorderBrush" Value="#C0392B"/>
-                                    <Setter Property="BorderThickness" Value="1"/>
-                                    <Setter Property="Padding" Value="10,5"/>
-                                    <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                    <Setter Property="VerticalContentAlignment" Value="Center"/>
-                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="Background"
+                                            Value="#E74C3C"/>
+                                    <Setter Property="Foreground"
+                                            Value="White"/>
+                                    <Setter Property="FontWeight"
+                                            Value="Bold"/>
+                                    <Setter Property="FontSize"
+                                            Value="12"/>
+                                    <Setter Property="BorderBrush"
+                                            Value="#C0392B"/>
+                                    <Setter Property="BorderThickness"
+                                            Value="1"/>
+                                    <Setter Property="Padding"
+                                            Value="10,5"/>
+                                    <Setter Property="HorizontalContentAlignment"
+                                            Value="Center"/>
+                                    <Setter Property="VerticalContentAlignment"
+                                            Value="Center"/>
+                                    <Setter Property="Cursor"
+                                            Value="Hand"/>
                                     <Setter Property="Template">
                                         <Setter.Value>
                                             <ControlTemplate TargetType="Button">
-                                                <Border Background="{TemplateBinding Background}" 
-                                                        BorderBrush="{TemplateBinding BorderBrush}" 
-                                                        BorderThickness="{TemplateBinding BorderThickness}" 
-                                                        CornerRadius="4" 
+                                                <Border Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="4"
                                                         Effect="{StaticResource ButtonShadow}">
-                                                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" 
-                                                                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}" 
-                                                                    Margin="{TemplateBinding Padding}" 
-                                                                    Content="{TemplateBinding Content}" 
-                                                                    ContentTemplate="{TemplateBinding ContentTemplate}" 
-                                                                    RecognizesAccessKey="True"/>
+                                                    <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                                      Margin="{TemplateBinding Padding}"
+                                                                      Content="{TemplateBinding Content}"
+                                                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                                      RecognizesAccessKey="True"/>
                                                 </Border>
                                                 <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="Background" Value="#C0392B"/>
-                                                        <Setter Property="BorderBrush" Value="#A93226"/>
+                                                    <Trigger Property="IsMouseOver"
+                                                             Value="True">
+                                                        <Setter Property="Background"
+                                                                Value="#C0392B"/>
+                                                        <Setter Property="BorderBrush"
+                                                                Value="#A93226"/>
                                                     </Trigger>
-                                                    <Trigger Property="IsPressed" Value="True">
-                                                        <Setter Property="Background" Value="#A93226"/>
-                                                        <Setter Property="BorderBrush" Value="#8E24AA"/>
+                                                    <Trigger Property="IsPressed"
+                                                             Value="True">
+                                                        <Setter Property="Background"
+                                                                Value="#A93226"/>
+                                                        <Setter Property="BorderBrush"
+                                                                Value="#8E24AA"/>
                                                     </Trigger>
-                                                    <Trigger Property="IsEnabled" Value="False">
-                                                        <Setter Property="Background" Value="#BDC3C7"/>
-                                                        <Setter Property="BorderBrush" Value="#95A5A6"/>
-                                                        <Setter Property="Foreground" Value="#7F8C8D"/>
-                                                        <Setter Property="Cursor" Value="No"/>
+                                                    <Trigger Property="IsEnabled"
+                                                             Value="False">
+                                                        <Setter Property="Background"
+                                                                Value="#BDC3C7"/>
+                                                        <Setter Property="BorderBrush"
+                                                                Value="#95A5A6"/>
+                                                        <Setter Property="Foreground"
+                                                                Value="#7F8C8D"/>
+                                                        <Setter Property="Cursor"
+                                                                Value="No"/>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -248,12 +541,22 @@
                                 </Style>
                             </Button.Style>
                         </Button>
-                        <TextBlock Name="ScanProgressText" Text="就绪" VerticalAlignment="Center" Margin="10,0" FontWeight="Bold"/>
-                        <ProgressBar Name="ScanProgressBar" Width="150" Height="20" Margin="10,0" Minimum="0" Maximum="100" Visibility="Collapsed"/>
+                        <TextBlock Name="ScanProgressText"
+                                   Text="就绪"
+                                   VerticalAlignment="Center"
+                                   Margin="10,0"
+                                   FontWeight="Bold"/>
+                        <ProgressBar Name="ScanProgressBar"
+                                     Width="150"
+                                     Height="20"
+                                     Margin="10,0"
+                                     Minimum="0"
+                                     Maximum="100"
+                                     Visibility="Collapsed"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
-            
+
             <!-- 漏洞扫描 -->
             <TabItem Header="漏洞扫描">
                 <Grid Margin="10">
@@ -262,539 +565,1186 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
-                    
-                    <StackPanel Grid.Row="0" Orientation="Vertical" Margin="5">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+
+                    <StackPanel Grid.Row="0"
+                                Orientation="Vertical"
+                                Margin="5">
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,5">
                             <!-- 目标输入（同样添加智能验证） -->
-                            <Label Content="扫描目标：" VerticalAlignment="Center"/>
-                            <TextBox Name="VulnTargetTextBox" Text="127.0.0.1" Width="200" Margin="5" ToolTip="输入要进行漏洞扫描的目标IP地址或域名"/>
-                            <Button Name="StartVulnScanButton" Content="开始漏洞扫描" Width="120" Height="25" Margin="5" Click="StartVulnScan_Click" Background="#3498DB" Foreground="White"/>
-                            <Button Name="StopVulnScanButton" Content="停止扫描" Width="80" Height="25" Margin="5" Click="StopScan_Click" Background="#E74C3C" Foreground="White" IsEnabled="False"/>
+                            <Label Content="扫描目标："
+                                   VerticalAlignment="Center"/>
+                            <TextBox Name="VulnTargetTextBox"
+                                     Text="127.0.0.1"
+                                     Width="200"
+                                     Margin="5"
+                                     ToolTip="输入要进行漏洞扫描的目标IP地址或域名"/>
+                            <Button Name="StartVulnScanButton"
+                                    Content="开始漏洞扫描"
+                                    Width="120"
+                                    Height="25"
+                                    Margin="5"
+                                    Click="StartVulnScan_Click"
+                                    Background="#3498DB"
+                                    Foreground="White"/>
+                            <Button Name="StopVulnScanButton"
+                                    Content="停止扫描"
+                                    Width="80"
+                                    Height="25"
+                                    Margin="5"
+                                    Click="StopScan_Click"
+                                    Background="#E74C3C"
+                                    Foreground="White"
+                                    IsEnabled="False"/>
                         </StackPanel>
-                        
+
                         <!-- 漏洞扫描进度指示器（保持原有设计） -->
-                        <Border BorderThickness="1" BorderBrush="#3498DB" Background="#E8F4FC" CornerRadius="8" Padding="10" Margin="0,5,0,0">
+                        <Border BorderThickness="1"
+                                BorderBrush="#3498DB"
+                                Background="#E8F4FC"
+                                CornerRadius="8"
+                                Padding="10"
+                                Margin="0,5,0,0">
                             <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                    <TextBlock Name="VulnScanProgressText" Text="准备就绪" FontSize="12" Foreground="#2C3E50" FontWeight="SemiBold"/>
-                                    <TextBlock Name="VulnScanProgressPercent" Text="0%" FontSize="12" Foreground="#7F8C8D" Margin="10,0,0,0" HorizontalAlignment="Right"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,5">
+                                    <TextBlock Name="VulnScanProgressText"
+                                               Text="准备就绪"
+                                               FontSize="12"
+                                               Foreground="#2C3E50"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Name="VulnScanProgressPercent"
+                                               Text="0%"
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"
+                                               Margin="10,0,0,0"
+                                               HorizontalAlignment="Right"/>
                                 </StackPanel>
-                                <ProgressBar Name="VulnScanProgressBar" Height="15" Maximum="100" Minimum="0" Value="0" Background="#BDC3C7" Foreground="#3498DB" BorderThickness="0" Margin="0,2,0,0"/>
-                                <TextBlock Name="VulnScanCurrentStage" Text="等待开始扫描..." FontSize="11" Foreground="#7F8C8D" FontStyle="Italic" Margin="0,5,0,0"/>
+                                <ProgressBar Name="VulnScanProgressBar"
+                                             Height="15"
+                                             Maximum="100"
+                                             Minimum="0"
+                                             Value="0"
+                                             Background="#BDC3C7"
+                                             Foreground="#3498DB"
+                                             BorderThickness="0"
+                                             Margin="0,2,0,0"/>
+                                <TextBlock Name="VulnScanCurrentStage"
+                                           Text="等待开始扫描..."
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"
+                                           FontStyle="Italic"
+                                           Margin="0,5,0,0"/>
                             </StackPanel>
                         </Border>
                     </StackPanel>
-                    
-                    <DataGrid Name="VulnerabilityResultsDataGrid" Grid.Row="2" Margin="5" 
-                              AutoGenerateColumns="False" CanUserAddRows="False"
-                              GridLinesVisibility="All" HeadersVisibility="Column"
-                              AlternatingRowBackground="#F5F5F5" IsReadOnly="True"
-                              CanUserSortColumns="True" SelectionMode="Single"
-                              CanUserResizeRows="False" RowHeight="35">
+
+                    <DataGrid Name="VulnerabilityResultsDataGrid"
+                              Grid.Row="2"
+                              Margin="5"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              GridLinesVisibility="All"
+                              HeadersVisibility="Column"
+                              AlternatingRowBackground="#F5F5F5"
+                              IsReadOnly="True"
+                              CanUserSortColumns="True"
+                              SelectionMode="Single"
+                              CanUserResizeRows="False"
+                              RowHeight="35">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="序号" Binding="{Binding Id}" Width="0.6*" 
+                            <DataGridTextColumn Header="序号"
+                                                Binding="{Binding Id}"
+                                                Width="0.6*"
                                                 SortMemberPath="Id">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
+                                        <Setter Property="HorizontalAlignment"
+                                                Value="Center"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="漏洞名称" Binding="{Binding Name}" Width="1.8*" 
+                            <DataGridTextColumn Header="漏洞名称"
+                                                Binding="{Binding Name}"
+                                                Width="1.8*"
                                                 SortMemberPath="Name">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="TextTrimming"
+                                                Value="CharacterEllipsis"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="风险等级" Binding="{Binding RiskLevel}" Width="0.8*" 
-                                                CellStyle="{StaticResource RiskLevelCellStyle}" 
+                            <DataGridTextColumn Header="风险等级"
+                                                Binding="{Binding RiskLevel}"
+                                                Width="0.8*"
+                                                CellStyle="{StaticResource RiskLevelCellStyle}"
                                                 SortMemberPath="RiskLevel">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="FontSize" Value="12"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
+                                        <Setter Property="FontSize"
+                                                Value="12"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="端口" Binding="{Binding Port}" Width="0.7*" 
+                            <DataGridTextColumn Header="端口"
+                                                Binding="{Binding Port}"
+                                                Width="0.7*"
                                                 SortMemberPath="Port">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="HorizontalAlignment" Value="Center"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
+                                        <Setter Property="HorizontalAlignment"
+                                                Value="Center"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="服务" Binding="{Binding Service}" Width="1.2*" 
+                            <DataGridTextColumn Header="服务"
+                                                Binding="{Binding Service}"
+                                                Width="1.2*"
                                                 SortMemberPath="Service">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="CVE编号" Binding="{Binding CveId}" Width="1.3*" 
+                            <DataGridTextColumn Header="CVE编号"
+                                                Binding="{Binding CveId}"
+                                                Width="1.3*"
                                                 SortMemberPath="CveId">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
+                                        <Setter Property="TextTrimming"
+                                                Value="CharacterEllipsis"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="检测方法" Binding="{Binding DetectionMethod}" Width="1.0*" 
+                            <DataGridTextColumn Header="检测方法"
+                                                Binding="{Binding DetectionMethod}"
+                                                Width="1.0*"
                                                 SortMemberPath="DetectionMethod">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
+                                        <Setter Property="TextTrimming"
+                                                Value="CharacterEllipsis"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="描述" Binding="{Binding Description}" Width="2.0*" 
+                            <DataGridTextColumn Header="描述"
+                                                Binding="{Binding Description}"
+                                                Width="2.0*"
                                                 SortMemberPath="Description">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="TextWrapping" Value="Wrap"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="TextWrapping"
+                                                Value="Wrap"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="解决方案" Binding="{Binding Solution}" Width="2.0*" 
+                            <DataGridTextColumn Header="解决方案"
+                                                Binding="{Binding Solution}"
+                                                Width="2.0*"
                                                 SortMemberPath="Solution">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="TextWrapping" Value="Wrap"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="TextWrapping"
+                                                Value="Wrap"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
-                            <DataGridTextColumn Header="参考链接" Binding="{Binding References}" Width="1.6*" 
+                            <DataGridTextColumn Header="参考链接"
+                                                Binding="{Binding References}"
+                                                Width="1.6*"
                                                 SortMemberPath="References">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
-                                        <Setter Property="TextWrapping" Value="Wrap"/>
-                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                        <Setter Property="VerticalAlignment" Value="Center"/>
+                                        <Setter Property="TextWrapping"
+                                                Value="Wrap"/>
+                                        <Setter Property="TextTrimming"
+                                                Value="CharacterEllipsis"/>
+                                        <Setter Property="VerticalAlignment"
+                                                Value="Center"/>
                                     </Style>
                                 </DataGridTextColumn.ElementStyle>
                             </DataGridTextColumn>
                         </DataGrid.Columns>
                         <DataGrid.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="🔌  用插件深挖" Click="DeepScanMenuItem_Click"/>
+                                <MenuItem Header="复制漏洞详情"
+                                          Click="CopyVulnerabilityDetails_Click"/>
+                                <MenuItem Header="导出选中项"
+                                          Click="ExportSelectedVulnerabilities_Click"/>
                                 <Separator/>
-                                <MenuItem Header="复制漏洞详情" Click="CopyVulnerabilityDetails_Click"/>
-                                <MenuItem Header="导出选中项" Click="ExportSelectedVulnerabilities_Click"/>
+                                <MenuItem Header="查看CVE详情"
+                                          Click="ViewCveDetails_Click"/>
+                                <MenuItem Header="复制CVE编号"
+                                          Click="CopyCveId_Click"/>
                                 <Separator/>
-                                <MenuItem Header="查看CVE详情" Click="ViewCveDetails_Click"/>
-                                <MenuItem Header="复制CVE编号" Click="CopyCveId_Click"/>
+                                <MenuItem Header="标记为已处理"
+                                          Click="MarkAsResolved_Click"/>
+                                <MenuItem Header="添加备注"
+                                          Click="AddRemark_Click"/>
                                 <Separator/>
-                                <MenuItem Header="标记为已处理" Click="MarkAsResolved_Click"/>
-                                <MenuItem Header="添加备注" Click="AddRemark_Click"/>
+                                <MenuItem Header="🔌 用插件深挖"
+                                          Click="DeepScanWithPlugins_Click"/>
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow">
-                                <Setter Property="Height" Value="35"/>
+                                <Setter Property="Height"
+                                        Value="35"/>
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding RiskLevel}" Value="严重">
-                                        <Setter Property="Background" Value="#FFF0F0"/>
-                                        <Setter Property="BorderThickness" Value="1,0,1,0"/>
-                                        <Setter Property="BorderBrush" Value="#FFCDD2"/>
+                                    <DataTrigger Binding="{Binding RiskLevel}"
+                                                 Value="严重">
+                                        <Setter Property="Background"
+                                                Value="#FFF0F0"/>
+                                        <Setter Property="BorderThickness"
+                                                Value="1,0,1,0"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="#FFCDD2"/>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding RiskLevel}" Value="高">
-                                        <Setter Property="Background" Value="#FFF5E6"/>
-                                        <Setter Property="BorderThickness" Value="1,0,1,0"/>
-                                        <Setter Property="BorderBrush" Value="#FFE0B2"/>
+                                    <DataTrigger Binding="{Binding RiskLevel}"
+                                                 Value="高">
+                                        <Setter Property="Background"
+                                                Value="#FFF5E6"/>
+                                        <Setter Property="BorderThickness"
+                                                Value="1,0,1,0"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="#FFE0B2"/>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding RiskLevel}" Value="中">
-                                        <Setter Property="Background" Value="#FFF8E1"/>
-                                        <Setter Property="BorderThickness" Value="1,0,1,0"/>
-                                        <Setter Property="BorderBrush" Value="#FFF3E0"/>
+                                    <DataTrigger Binding="{Binding RiskLevel}"
+                                                 Value="中">
+                                        <Setter Property="Background"
+                                                Value="#FFF8E1"/>
+                                        <Setter Property="BorderThickness"
+                                                Value="1,0,1,0"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="#FFF3E0"/>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding RiskLevel}" Value="低">
-                                        <Setter Property="Background" Value="#F1F8E9"/>
-                                        <Setter Property="BorderThickness" Value="1,0,1,0"/>
-                                        <Setter Property="BorderBrush" Value="#E8F5E8"/>
+                                    <DataTrigger Binding="{Binding RiskLevel}"
+                                                 Value="低">
+                                        <Setter Property="Background"
+                                                Value="#F1F8E9"/>
+                                        <Setter Property="BorderThickness"
+                                                Value="1,0,1,0"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="#E8F5E8"/>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding RiskLevel}" Value="严重风险">
-                                        <Setter Property="Background" Value="#FFF0F0"/>
-                                        <Setter Property="BorderThickness" Value="1,0,1,0"/>
-                                        <Setter Property="BorderBrush" Value="#FFCDD2"/>
+                                    <DataTrigger Binding="{Binding RiskLevel}"
+                                                 Value="严重风险">
+                                        <Setter Property="Background"
+                                                Value="#FFF0F0"/>
+                                        <Setter Property="BorderThickness"
+                                                Value="1,0,1,0"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="#FFCDD2"/>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding RiskLevel}" Value="高风险">
-                                        <Setter Property="Background" Value="#FFF5E6"/>
-                                        <Setter Property="BorderThickness" Value="1,0,1,0"/>
-                                        <Setter Property="BorderBrush" Value="#FFE0B2"/>
+                                    <DataTrigger Binding="{Binding RiskLevel}"
+                                                 Value="高风险">
+                                        <Setter Property="Background"
+                                                Value="#FFF5E6"/>
+                                        <Setter Property="BorderThickness"
+                                                Value="1,0,1,0"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="#FFE0B2"/>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding RiskLevel}" Value="中风险">
-                                        <Setter Property="Background" Value="#FFF8E1"/>
-                                        <Setter Property="BorderThickness" Value="1,0,1,0"/>
-                                        <Setter Property="BorderBrush" Value="#FFF3E0"/>
+                                    <DataTrigger Binding="{Binding RiskLevel}"
+                                                 Value="中风险">
+                                        <Setter Property="Background"
+                                                Value="#FFF8E1"/>
+                                        <Setter Property="BorderThickness"
+                                                Value="1,0,1,0"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="#FFF3E0"/>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding RiskLevel}" Value="低风险">
-                                        <Setter Property="Background" Value="#F1F8E9"/>
-                                        <Setter Property="BorderThickness" Value="1,0,1,0"/>
-                                        <Setter Property="BorderBrush" Value="#E8F5E8"/>
+                                    <DataTrigger Binding="{Binding RiskLevel}"
+                                                 Value="低风险">
+                                        <Setter Property="Background"
+                                                Value="#F1F8E9"/>
+                                        <Setter Property="BorderThickness"
+                                                Value="1,0,1,0"/>
+                                        <Setter Property="BorderBrush"
+                                                Value="#E8F5E8"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.CellStyle>
                             <Style TargetType="DataGridCell">
-                                <Setter Property="VerticalAlignment" Value="Center"/>
-                                <Setter Property="Padding" Value="5"/>
-                                <Setter Property="TextBlock.TextWrapping" Value="NoWrap"/>
-                                <Setter Property="Height" Value="35"/>
+                                <Setter Property="VerticalAlignment"
+                                        Value="Center"/>
+                                <Setter Property="Padding"
+                                        Value="5"/>
+                                <Setter Property="TextBlock.TextWrapping"
+                                        Value="NoWrap"/>
+                                <Setter Property="Height"
+                                        Value="35"/>
                             </Style>
                         </DataGrid.CellStyle>
                         <DataGrid.ColumnHeaderStyle>
                             <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="#2C3E50"/>
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="FontWeight" Value="Bold"/>
-                                <Setter Property="Padding" Value="10"/>
-                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                <Setter Property="Background"
+                                        Value="#2C3E50"/>
+                                <Setter Property="Foreground"
+                                        Value="White"/>
+                                <Setter Property="FontWeight"
+                                        Value="Bold"/>
+                                <Setter Property="Padding"
+                                        Value="10"/>
+                                <Setter Property="HorizontalContentAlignment"
+                                        Value="Center"/>
+                                <Setter Property="VerticalContentAlignment"
+                                        Value="Center"/>
                             </Style>
                         </DataGrid.ColumnHeaderStyle>
                     </DataGrid>
                 </Grid>
             </TabItem>
-            
-            <!-- AI风险评估 -->
+
+            <!-- AI风险评估（v3 专业 SOC 仪表盘 · 白色主题） -->
             <TabItem Header="AI风险评估">
-                <ScrollViewer Margin="10" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" 
-                              Background="#F5F7FA">
-                    <StackPanel Margin="10">
-                        <!-- 标题和状态区域 -->
-                        <Grid Margin="0,0,0,15">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            
-                            <StackPanel Grid.Column="0">
-                                <TextBlock Text="AI Risk Assessment Report" FontSize="24" FontWeight="Bold" Foreground="#2C3E50"/>
-                                <TextBlock Name="AssessmentDateText" Text="-" FontSize="13" Foreground="#7F8C8D" Margin="0,5,0,0"/>
-                            </StackPanel>
-                            
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                                <!-- 分析进度 -->
-                                <ProgressBar Name="AiAnalysisProgressBar" Value="0" Width="150" Height="8" Margin="0,0,10,0" 
-                                             Foreground="#3498DB" Background="#E0E0E0" BorderThickness="0"/>
-                                <TextBlock Name="AiAnalysisStatusText" Text="AI分析就绪" FontSize="12" Foreground="#3498DB" 
-                                           VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                <Button Name="RefreshAiAnalysisButton" Content="🔄 重新分析" Width="120" Height="35" 
-                                        Background="#3498DB" Foreground="White" FontWeight="Bold" BorderThickness="0"
-                                        Click="RefreshAiAnalysis_Click"/>
-                            </StackPanel>
-                        </Grid>
-                        
-                        <!-- AI分析状态条 -->
-                        <Border Background="#E8F4FC" CornerRadius="8" Padding="15" Margin="0,0,0,15" BorderBrush="#B8D4E8" BorderThickness="1">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="🤖" FontSize="24" Margin="0,0,12,0"/>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Name="AiAnalysisSubStatusText" Text="等待扫描结果..." FontSize="14" Foreground="#2C3E50"/>
-                                </StackPanel>
-                            </StackPanel>
-                        </Border>
-                        
-                        <!-- 顶部统计卡片 (4列) -->
-                        <Grid Margin="0,0,0,15">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            
-                            <!-- 总体风险等级 -->
-                            <Border Grid.Column="0" Background="White" CornerRadius="10" Padding="20" Margin="5" Effect="{StaticResource ButtonShadow}">
-                                <StackPanel>
-                                    <TextBlock Text="总体风险等级" FontSize="12" Foreground="#7F8C8D" Margin="0,0,0,8"/>
-                                    <TextBlock Name="OverallRiskText" Text="无风险" FontSize="28" FontWeight="Bold" Foreground="#27AE60"/>
-                                    <TextBlock Name="RiskScoreText" Text="0.0 分" FontSize="16" Foreground="#7F8C8D" Margin="0,5,0,0"/>
-                                    <ProgressBar Value="0" Height="6" Margin="0,10,0,0" Foreground="#27AE60" Background="#E0E0E0" BorderThickness="0"/>
-                                </StackPanel>
-                            </Border>
-                            
-                            <!-- 目标信息 -->
-                            <Border Grid.Column="1" Background="White" CornerRadius="10" Padding="20" Margin="5" Effect="{StaticResource ButtonShadow}">
-                                <StackPanel>
-                                    <TextBlock Text="目标IP地址" FontSize="12" Foreground="#7F8C8D" Margin="0,0,0,8"/>
-                                    <TextBlock Name="TargetIpText" Text="-" FontSize="24" FontWeight="Bold" Foreground="#2C3E50"/>
-                                    <TextBlock Name="AssessmentTimeText" Text="-" FontSize="12" Foreground="#7F8C8D" Margin="0,8,0,0"/>
-                                </StackPanel>
-                            </Border>
-                            
-                            <!-- 漏洞统计 -->
-                            <Border Grid.Column="2" Background="White" CornerRadius="10" Padding="20" Margin="5" Effect="{StaticResource ButtonShadow}">
-                                <StackPanel>
-                                    <TextBlock Text="漏洞总数" FontSize="12" Foreground="#7F8C8D" Margin="0,0,0,8"/>
-                                    <TextBlock Name="TotalVulnerabilitiesText" Text="0" FontSize="28" FontWeight="Bold" Foreground="#E74C3C"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                        <TextBlock Text="高风险: " FontSize="12" Foreground="#7F8C8D"/>
-                                        <TextBlock Name="HighRiskCountText" Text="0" FontSize="12" FontWeight="Bold" Foreground="#E74C3C"/>
+                <Grid Name="AiRiskDashboardRoot"
+                      Margin="12"
+                      Background="#F1F5F9">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- ROW_STATUS_BAR_START -->
+                            <Border Grid.Row="0"
+                                    Style="{StaticResource AiCardStyle}"
+                                    Margin="0,0,0,10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- AI 徽章 -->
+                                    <Border Grid.Column="0"
+                                            Width="40"
+                                            Height="40"
+                                            CornerRadius="8"
+                                            Background="{StaticResource AiAccentGradient}"
+                                            Margin="0,0,12,0">
+                                        <TextBlock Text="AI"
+                                                   Foreground="White"
+                                                   FontSize="14"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+
+                                    <!-- 状态文字 -->
+                                    <StackPanel Grid.Column="1"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,16,0">
+                                        <TextBlock x:Name="AiRiskStatusText"
+                                                   Text="就绪"
+                                                   Foreground="#0F172A"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="AiRiskStatusSubText"
+                                                   Text="等待扫描数据"
+                                                   Foreground="#64748B"
+                                                   FontSize="11"
+                                                   Margin="0,2,0,0"/>
                                     </StackPanel>
-                                </StackPanel>
-                            </Border>
-                            
-                            <!-- 开放端口 -->
-                            <Border Grid.Column="3" Background="White" CornerRadius="10" Padding="20" Margin="5" Effect="{StaticResource ButtonShadow}">
-                                <StackPanel>
-                                    <TextBlock Text="开放端口" FontSize="12" Foreground="#7F8C8D" Margin="0,0,0,8"/>
-                                    <TextBlock Name="OpenPortsCountText" Text="0" FontSize="28" FontWeight="Bold" Foreground="#3498DB"/>
-                                    <TextBlock Name="SensitivePortsText" Text="0 个敏感端口" FontSize="12" Foreground="#7F8C8D" Margin="0,8,0,0"/>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                        
-                        <!-- 图表区域 (2列) -->
-                        <Grid Margin="0,0,0,15">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            
-                            <!-- 风险分布饼图 -->
-                            <Border Grid.Column="0" Background="White" CornerRadius="10" Padding="20" Margin="5" Effect="{StaticResource ButtonShadow}">
-                                <StackPanel>
-                                    <TextBlock Text="📊 风险等级分布" FontSize="16" FontWeight="Bold" Foreground="#2C3E50" Margin="0,0,0,12"/>
-                                    <lvc:PieChart Name="RiskDistributionPieChart" LegendPosition="Bottom" Height="220"/>
-                                </StackPanel>
-                            </Border>
-                            
-                            <!-- 风险等级柱状图 -->
-                            <Border Grid.Column="1" Background="White" CornerRadius="10" Padding="20" Margin="5" Effect="{StaticResource ButtonShadow}">
-                                <StackPanel>
-                                    <TextBlock Text="📈 风险分布统计" FontSize="16" FontWeight="Bold" Foreground="#2C3E50" Margin="0,0,0,12"/>
-                                    <lvc:CartesianChart Name="RiskDistributionBarChart" Height="220"/>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                        
-                        <!-- 漏洞详情区域 -->
-                        <Border Background="White" CornerRadius="10" Padding="20" Margin="0,0,0,15" Effect="{StaticResource ButtonShadow}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
-                                    <TextBlock Text="⚠️ 漏洞详情" FontSize="16" FontWeight="Bold" Foreground="#2C3E50"/>
-                                    <TextBlock Text="- 详细的漏洞信息和风险评估" FontSize="13" Foreground="#7F8C8D" Margin="8,2,0,0"/>
-                                </StackPanel>
-                                <DataGrid Name="VulnerabilityDetailsDataGrid" AutoGenerateColumns="False" CanUserAddRows="False" 
-                                          GridLinesVisibility="Horizontal" HeadersVisibility="Column" AlternatingRowBackground="#F8F9FA" 
-                                          CanUserSortColumns="True" SelectionMode="Single" IsReadOnly="True" MaxHeight="350">
-                                    <DataGrid.Columns>
-                                        <DataGridTextColumn Header="漏洞名称" Binding="{Binding VulnerabilityName}" Width="2*" SortMemberPath="VulnerabilityName">
-                                            <DataGridTextColumn.ElementStyle>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                                </Style>
-                                            </DataGridTextColumn.ElementStyle>
-                                        </DataGridTextColumn>
-                                        <DataGridTextColumn Header="风险等级" Binding="{Binding RiskLevel}" Width="*" SortMemberPath="RiskLevel">
-                                            <DataGridTextColumn.CellStyle>
-                                                <Style TargetType="DataGridCell">
-                                                    <Setter Property="Foreground" Value="{Binding RiskLevel, Converter={StaticResource RiskLevelToColorConverter}}"/>
-                                                    <Setter Property="FontWeight" Value="Bold"/>
-                                                    <Setter Property="HorizontalAlignment" Value="Center"/>
-                                                </Style>
-                                            </DataGridTextColumn.CellStyle>
-                                        </DataGridTextColumn>
-                                        <DataGridTextColumn Header="CVSS评分" Binding="{Binding CvssScore}" Width="*" SortMemberPath="CvssScore">
-                                            <DataGridTextColumn.CellStyle>
-                                                <Style TargetType="DataGridCell">
-                                                    <Setter Property="HorizontalAlignment" Value="Center"/>
-                                                    <Setter Property="FontWeight" Value="Bold"/>
-                                                </Style>
-                                            </DataGridTextColumn.CellStyle>
-                                        </DataGridTextColumn>
-                                        <DataGridTextColumn Header="端口" Binding="{Binding Port}" Width="*" SortMemberPath="Port">
-                                            <DataGridTextColumn.CellStyle>
-                                                <Style TargetType="DataGridCell">
-                                                    <Setter Property="HorizontalAlignment" Value="Center"/>
-                                                </Style>
-                                            </DataGridTextColumn.CellStyle>
-                                        </DataGridTextColumn>
-                                        <DataGridTextColumn Header="服务" Binding="{Binding Service}" Width="*" SortMemberPath="Service">
-                                            <DataGridTextColumn.ElementStyle>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                                </Style>
-                                            </DataGridTextColumn.ElementStyle>
-                                        </DataGridTextColumn>
-                                        <DataGridTextColumn Header="CVE编号" Binding="{Binding CveId}" Width="*" SortMemberPath="CveId">
-                                            <DataGridTextColumn.ElementStyle>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                                    <Setter Property="VerticalAlignment" Value="Center"/>
-                                                </Style>
-                                            </DataGridTextColumn.ElementStyle>
-                                        </DataGridTextColumn>
-                                    </DataGrid.Columns>
-                                    <DataGrid.CellStyle>
-                                        <Style TargetType="DataGridCell">
-                                            <Setter Property="VerticalAlignment" Value="Center"/>
-                                            <Setter Property="Padding" Value="8"/>
-                                            <Setter Property="Height" Value="40"/>
-                                        </Style>
-                                    </DataGrid.CellStyle>
-                                    <DataGrid.RowStyle>
-                                        <Style TargetType="DataGridRow">
-                                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                            <Setter Property="BorderBrush" Value="#E0E0E0"/>
-                                        </Style>
-                                    </DataGrid.RowStyle>
-                                    <DataGrid.ColumnHeaderStyle>
-                                        <Style TargetType="DataGridColumnHeader">
-                                            <Setter Property="Background" Value="#2C3E50"/>
-                                            <Setter Property="Foreground" Value="White"/>
-                                            <Setter Property="FontWeight" Value="Bold"/>
-                                            <Setter Property="Padding" Value="10"/>
-                                            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                            <Setter Property="Height" Value="35"/>
-                                        </Style>
-                                    </DataGrid.ColumnHeaderStyle>
-                                </DataGrid>
-                            </StackPanel>
-                        </Border>
-                        
-                        <!-- 底部信息 (2列) -->
-                        <Grid Margin="0,0,0,15">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="1*"/>
-                                <ColumnDefinition Width="2*"/>
-                            </Grid.ColumnDefinitions>
-                            
-                            <!-- 开放端口信息 -->
-                            <Border Grid.Column="0" Background="White" CornerRadius="10" Padding="20" Margin="5" Effect="{StaticResource ButtonShadow}">
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
-                                        <TextBlock Text="🔓 开放端口信息" FontSize="16" FontWeight="Bold" Foreground="#2C3E50"/>
-                                        <Button Name="GeneratePortBatFromAiButton" Content="🛡️ 生成关闭脚本" Width="130" Height="30" Margin="10,0,0,0" 
-                                                Click="GeneratePortBatFromAi_Click" Background="#E74C3C" Foreground="White" 
-                                                FontWeight="Bold" BorderThickness="0" IsEnabled="False">
-                                            <Button.Style>
-                                                <Style TargetType="Button">
-                                                    <Setter Property="Cursor" Value="Hand"/>
-                                                    <Setter Property="Template">
-                                                        <Setter.Value>
-                                                            <ControlTemplate TargetType="Button">
-                                                                <Border Background="{TemplateBinding Background}" 
-                                                                        CornerRadius="4" 
-                                                                        Effect="{StaticResource ButtonShadow}">
-                                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                                </Border>
-                                                                <ControlTemplate.Triggers>
-                                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                                        <Setter Property="Background" Value="#C0392B"/>
-                                                                    </Trigger>
-                                                                    <Trigger Property="IsEnabled" Value="False">
-                                                                        <Setter Property="Background" Value="#BDC3C7"/>
-                                                                        <Setter Property="Cursor" Value="No"/>
-                                                                    </Trigger>
-                                                                </ControlTemplate.Triggers>
-                                                            </ControlTemplate>
-                                                        </Setter.Value>
-                                                    </Setter>
-                                                </Style>
-                                            </Button.Style>
-                                        </Button>
+
+                                    <!-- 进度条 -->
+                                    <ProgressBar Grid.Column="2"
+                                                 x:Name="AiRiskProgressBar"
+                                                 Minimum="0"
+                                                 Maximum="100"
+                                                 Value="0"
+                                                 Style="{StaticResource AiStatusProgressBarStyle}"
+                                                 VerticalAlignment="Center"
+                                                 Margin="8,0,16,0"/>
+
+                                    <!-- 评估时间戳 -->
+                                    <StackPanel Grid.Column="3"
+                                                VerticalAlignment="Center"
+                                                Margin="0,0,12,0">
+                                        <TextBlock Text="评估时间"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Right"/>
+                                        <TextBlock x:Name="AiRiskAssessmentTimeText"
+                                                   Text="--"
+                                                   Foreground="#0F172A"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Right"
+                                                   Margin="0,2,0,0"/>
                                     </StackPanel>
-                                    <DataGrid Name="OpenPortsDataGrid" AutoGenerateColumns="False" CanUserAddRows="False" 
-                                              GridLinesVisibility="None" HeadersVisibility="Column" AlternatingRowBackground="#F8F9FA" 
-                                              CanUserSortColumns="True" SelectionMode="Extended" IsReadOnly="True" MaxHeight="200"
-                                              SelectionChanged="OpenPortsDataGrid_SelectionChanged">
-                                        <DataGrid.Columns>
-                                            <DataGridCheckBoxColumn Header="选择" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
-                                            <DataGridTextColumn Header="端口号" Binding="{Binding PortNumber}" Width="*" SortMemberPath="PortNumber">
-                                                <DataGridTextColumn.CellStyle>
-                                                    <Style TargetType="DataGridCell">
-                                                        <Setter Property="FontWeight" Value="Bold"/>
-                                                    </Style>
-                                                </DataGridTextColumn.CellStyle>
-                                            </DataGridTextColumn>
-                                            <DataGridTextColumn Header="服务" Binding="{Binding Service}" Width="*" SortMemberPath="Service">
-                                                <DataGridTextColumn.ElementStyle>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                                    </Style>
-                                                </DataGridTextColumn.ElementStyle>
-                                            </DataGridTextColumn>
-                                            <DataGridTextColumn Header="服务版本" Binding="{Binding ServiceVersion}" Width="2*" SortMemberPath="ServiceVersion">
-                                                <DataGridTextColumn.ElementStyle>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                                                        <Setter Property="ToolTip" Value="{Binding ServiceVersion}"/>
-                                                    </Style>
-                                                </DataGridTextColumn.ElementStyle>
-                                            </DataGridTextColumn>
-                                            <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="*" SortMemberPath="Status">
-                                                <DataGridTextColumn.CellStyle>
-                                                    <Style TargetType="DataGridCell">
-                                                        <Setter Property="Foreground" Value="Green"/>
-                                                        <Setter Property="FontWeight" Value="Bold"/>
-                                                    </Style>
-                                                </DataGridTextColumn.CellStyle>
-                                            </DataGridTextColumn>
-                                        </DataGrid.Columns>
-                                        <DataGrid.CellStyle>
-                                            <Style TargetType="DataGridCell">
-                                                <Setter Property="VerticalAlignment" Value="Center"/>
-                                                <Setter Property="Padding" Value="8"/>
-                                                <Setter Property="BorderThickness" Value="0"/>
-                                                <Setter Property="Height" Value="35"/>
-                                            </Style>
-                                        </DataGrid.CellStyle>
-                                        <DataGrid.ColumnHeaderStyle>
-                                            <Style TargetType="DataGridColumnHeader">
-                                                <Setter Property="Background" Value="#ECF0F1"/>
-                                                <Setter Property="Foreground" Value="#2C3E50"/>
-                                                <Setter Property="FontWeight" Value="Bold"/>
-                                                <Setter Property="Padding" Value="8"/>
-                                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
-                                                <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                                <Setter Property="BorderBrush" Value="#E0E0E0"/>
-                                                <Setter Property="Height" Value="30"/>
-                                            </Style>
-                                        </DataGrid.ColumnHeaderStyle>
-                                    </DataGrid>
-                                </StackPanel>
+
+                                    <!-- 重新分析按钮 -->
+                                    <Button Grid.Column="4"
+                                            x:Name="AiRiskRefreshButton"
+                                            Content="重新分析"
+                                            Style="{StaticResource AiRefreshButtonStyle}"
+                                            Click="RefreshAiRiskDashboard_Click"/>
+                                </Grid>
                             </Border>
-                            
-                            <!-- 安全建议 -->
-                            <Border Grid.Column="1" Background="White" CornerRadius="10" Padding="20" Margin="5" Effect="{StaticResource ButtonShadow}">
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
-                                        <TextBlock Text="✅ 安全建议" FontSize="16" FontWeight="Bold" Foreground="#2C3E50"/>
-                                        <TextBlock Text="- 基于风险评估的安全加固建议" FontSize="13" Foreground="#7F8C8D" Margin="8,2,0,0"/>
+                            <!-- ROW_STATUS_BAR_END -->
+
+                            <!-- ROW_METRICS_START -->
+                            <Grid Grid.Row="1"
+                                  Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 卡片 1：综合风险评分（含小仪表盘） -->
+                                <Border Grid.Column="0"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="16,12">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="80"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="综合风险评分"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Margin="0,0,0,4"/>
+                                            <StackPanel Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <TextBlock x:Name="AiRiskMainScoreText"
+                                                           Text="0.0"
+                                                           Foreground="#16A34A"
+                                                           FontSize="30"
+                                                           FontWeight="Bold"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Text="/10"
+                                                           Foreground="#94A3B8"
+                                                           FontSize="12"
+                                                           FontWeight="Medium"
+                                                           VerticalAlignment="Bottom"
+                                                           Margin="2,0,0,6"/>
+                                            </StackPanel>
+                                            <Border x:Name="AiRiskLevelBadge"
+                                                    Background="#F0FDF4"
+                                                    CornerRadius="10"
+                                                    Padding="8,3"
+                                                    HorizontalAlignment="Left"
+                                                    Margin="0,4,0,0">
+                                                <TextBlock x:Name="AiRiskLevelText"
+                                                           Text="无风险"
+                                                           Foreground="#16A34A"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <lvc:PieChart Grid.Column="1"
+                                                      x:Name="AiRiskGaugeChart"
+                                                      LegendPosition="Hidden"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 卡片 2：开放端口数 -->
+                                <Border Grid.Column="2"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="16,12">
+                                    <StackPanel>
+                                        <TextBlock Text="开放端口数"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="AiRiskOpenPortsCountText"
+                                                   Text="0"
+                                                   Foreground="#0F172A"
+                                                   FontSize="24"
+                                                   FontWeight="Bold"
+                                                   Margin="0,6,0,0"/>
+                                        <ProgressBar x:Name="AiRiskOpenPortsBar"
+                                                     Minimum="0"
+                                                     Maximum="100"
+                                                     Value="0"
+                                                     Foreground="#2563EB"
+                                                     Background="#F1F5F9"
+                                                     BorderThickness="0"
+                                                     Height="4"
+                                                     Margin="0,10,0,0"/>
                                     </StackPanel>
-                                    <TextBlock Name="SecurityAdviceText" Text="系统安全状况良好，建议定期进行安全扫描和端口检查" 
-                                               TextWrapping="Wrap" Foreground="#2C3E50" LineHeight="22" FontSize="13" MaxHeight="200" VerticalAlignment="Top"/>
-                                </StackPanel>
-                            </Border>
+                                </Border>
+
+                                <!-- 卡片 3：漏洞总数 -->
+                                <Border Grid.Column="4"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="16,12">
+                                    <StackPanel>
+                                        <TextBlock Text="漏洞总数"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="AiRiskVulnCountText"
+                                                   Text="0"
+                                                   Foreground="#0F172A"
+                                                   FontSize="24"
+                                                   FontWeight="Bold"
+                                                   Margin="0,6,0,0"/>
+                                        <ProgressBar x:Name="AiRiskVulnCountBar"
+                                                     Minimum="0"
+                                                     Maximum="100"
+                                                     Value="0"
+                                                     Foreground="#D97706"
+                                                     Background="#F1F5F9"
+                                                     BorderThickness="0"
+                                                     Height="4"
+                                                     Margin="0,10,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 卡片 4：高危 CVE 数 -->
+                                <Border Grid.Column="6"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="16,12">
+                                    <StackPanel>
+                                        <TextBlock Text="高危 CVE 数"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="AiRiskHighRiskCountText"
+                                                   Text="0"
+                                                   Foreground="#DC2626"
+                                                   FontSize="24"
+                                                   FontWeight="Bold"
+                                                   Margin="0,6,0,0"/>
+                                        <ProgressBar x:Name="AiRiskHighRiskBar"
+                                                     Minimum="0"
+                                                     Maximum="100"
+                                                     Value="0"
+                                                     Foreground="#DC2626"
+                                                     Background="#F1F5F9"
+                                                     BorderThickness="0"
+                                                     Height="4"
+                                                     Margin="0,10,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 卡片 5：CVE 关联数 -->
+                                <Border Grid.Column="8"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="16,12">
+                                    <StackPanel>
+                                        <TextBlock Text="CVE 关联数"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock x:Name="AiRiskCveCountText"
+                                                   Text="0"
+                                                   Foreground="#0F172A"
+                                                   FontSize="24"
+                                                   FontWeight="Bold"
+                                                   Margin="0,6,0,0"/>
+                                        <ProgressBar x:Name="AiRiskCveCountBar"
+                                                     Minimum="0"
+                                                     Maximum="100"
+                                                     Value="0"
+                                                     Foreground="#2563EB"
+                                                     Background="#F1F5F9"
+                                                     BorderThickness="0"
+                                                     Height="4"
+                                                     Margin="0,10,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                            <!-- ROW_METRICS_END -->
+
+                            <!-- ROW_CHARTS_START -->
+                            <Grid Grid.Row="2"
+                                  Margin="0,0,0,10"
+                                  MinHeight="320">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="10"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 左上：CVE 严重度分布柱状图 -->
+                                <Border Grid.Row="0"
+                                        Grid.Column="0"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0"
+                                                    Orientation="Horizontal"
+                                                    Margin="0,0,0,4">
+                                            <TextBlock Text="CVE 严重度分布"
+                                                       Foreground="#0F172A"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text=" · 按 CVSS 等级"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="11"
+                                                       Margin="0,2,0,0"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <lvc:CartesianChart Grid.Row="1"
+                                                            x:Name="AiRiskCveSeverityChart"
+                                                            LegendPosition="Hidden"
+                                                            ZoomMode="X"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 右上：服务类型分布饼图 -->
+                                <Border Grid.Row="0"
+                                        Grid.Column="2"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0"
+                                                    Orientation="Horizontal"
+                                                    Margin="0,0,0,4">
+                                            <TextBlock Text="服务类型分布"
+                                                       Foreground="#0F172A"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text=" · 按端口服务"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="11"
+                                                       Margin="0,2,0,0"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <lvc:PieChart Grid.Row="1"
+                                                      x:Name="AiRiskServiceTypeChart"
+                                                      LegendPosition="Right"
+                                                      InitialRotation="-90"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 左下：10 维评分雷达图 -->
+                                <Border Grid.Row="2"
+                                        Grid.Column="0"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0"
+                                                    Orientation="Horizontal"
+                                                    Margin="0,0,0,4">
+                                            <TextBlock Text="10 维安全评分雷达"
+                                                       Foreground="#0F172A"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text=" · 0-10 分"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="11"
+                                                       Margin="0,2,0,0"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <lvc:PolarChart Grid.Row="1"
+                                                        x:Name="AiRiskDimensionalChart"
+                                                        LegendPosition="Hidden"
+                                                        TotalAngle="360"
+                                                        InnerRadius="20"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 右下：修复优先级柱状图 -->
+                                <Border Grid.Row="2"
+                                        Grid.Column="2"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0"
+                                                    Orientation="Horizontal"
+                                                    Margin="0,0,0,4">
+                                            <TextBlock Text="修复优先级分布"
+                                                       Foreground="#0F172A"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text=" · P0-P4"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="11"
+                                                       Margin="0,2,0,0"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <lvc:CartesianChart Grid.Row="1"
+                                                            x:Name="AiRiskRemediationChart"
+                                                            LegendPosition="Hidden"
+                                                            ZoomMode="X"/>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                            <!-- ROW_CHARTS_END -->
+
+                            <!-- ROW_SECONDARY_START -->
+                            <Grid Grid.Row="3"
+                                  Margin="0,0,0,10"
+                                  MinHeight="200">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="1.4*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 风险类别分布饼图 -->
+                                <Border Grid.Column="0"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0"
+                                                    Orientation="Horizontal"
+                                                    Margin="0,0,0,4">
+                                            <TextBlock Text="风险类别分布"
+                                                       Foreground="#0F172A"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text=" · RiskItem 分类"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="11"
+                                                       Margin="0,2,0,0"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <lvc:PieChart Grid.Row="1"
+                                                      x:Name="AiRiskCategoryChart"
+                                                      LegendPosition="Right"
+                                                      InitialRotation="-90"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 杀伤链覆盖度雷达 -->
+                                <Border Grid.Column="2"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0"
+                                                    Orientation="Horizontal"
+                                                    Margin="0,0,0,4">
+                                            <TextBlock Text="杀伤链覆盖度"
+                                                       Foreground="#0F172A"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text=" · KillChain"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="11"
+                                                       Margin="0,2,0,0"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <lvc:PolarChart Grid.Row="1"
+                                                        x:Name="AiRiskKillChainChart"
+                                                        LegendPosition="Hidden"
+                                                        TotalAngle="360"
+                                                        InnerRadius="15"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- 关键发现列表 -->
+                                <Border Grid.Column="4"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="14,12">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0"
+                                                   Text="关键发现"
+                                                   Foreground="#0F172A"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,8"/>
+                                        <ScrollViewer Grid.Row="1"
+                                                      VerticalScrollBarVisibility="Auto">
+                                            <ItemsControl x:Name="AiRiskKeyFindingsList"
+                                                          TextElement.FontFamily="Microsoft YaHei UI, Microsoft YaHei, SimHei, SimSun, Noto Sans CJK SC, Segoe UI">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Background="#F8FAFC"
+                                                                CornerRadius="6"
+                                                                Padding="10,8"
+                                                                Margin="0,0,0,6"
+                                                                BorderBrush="#E2E8F0"
+                                                                BorderThickness="1">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border Grid.Column="0"
+                                                                        Width="6"
+                                                                        Height="6"
+                                                                        CornerRadius="3"
+                                                                        Background="#2563EB"
+                                                                        VerticalAlignment="Top"
+                                                                        Margin="0,5,8,0"/>
+                                                                <TextBlock Grid.Column="1"
+                                                                           Text="{Binding}"
+                                                                           Foreground="#0F172A"
+                                                                           FontSize="12"
+                                                                           TextWrapping="Wrap"
+                                                                           LineHeight="18"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                            <!-- ROW_SECONDARY_END -->
+
+                            <!-- ROW_FOOTER_START -->
+                            <Grid Grid.Row="4"
+                                  MinHeight="160">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="260"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- 风险等级分布条形图（兼容旧字段引用） -->
+                                <Border x:Name="AiRiskDistributionPanel"
+                                        Grid.Column="0"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="14,12">
+                                    <StackPanel>
+                                        <TextBlock Text="风险等级分布"
+                                                   Foreground="#0F172A"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,12"/>
+
+                                        <!-- 严重 -->
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="60"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <Border Width="10"
+                                                        Height="10"
+                                                        CornerRadius="5"
+                                                        Background="#DC2626"
+                                                        Margin="0,0,8,0"/>
+                                                <TextBlock Text="严重"
+                                                           Foreground="#0F172A"
+                                                           FontSize="12"
+                                                           FontWeight="Medium"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <ProgressBar Grid.Column="1"
+                                                         x:Name="AiRiskCriticalBar"
+                                                         Minimum="0"
+                                                         Maximum="100"
+                                                         Value="0"
+                                                         Background="#F1F5F9"
+                                                         BorderThickness="0"
+                                                         Height="14"
+                                                         Margin="0,0,12,0"
+                                                         Foreground="#DC2626"/>
+                                            <TextBlock Grid.Column="2"
+                                                       x:Name="AiRiskCriticalCountText"
+                                                       Text="0"
+                                                       Foreground="#0F172A"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right"/>
+                                        </Grid>
+
+                                        <!-- 高危 -->
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="60"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <Border Width="10"
+                                                        Height="10"
+                                                        CornerRadius="5"
+                                                        Background="#EA580C"
+                                                        Margin="0,0,8,0"/>
+                                                <TextBlock Text="高危"
+                                                           Foreground="#0F172A"
+                                                           FontSize="12"
+                                                           FontWeight="Medium"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <ProgressBar Grid.Column="1"
+                                                         x:Name="AiRiskHighBar"
+                                                         Minimum="0"
+                                                         Maximum="100"
+                                                         Value="0"
+                                                         Background="#F1F5F9"
+                                                         BorderThickness="0"
+                                                         Height="14"
+                                                         Margin="0,0,12,0"
+                                                         Foreground="#EA580C"/>
+                                            <TextBlock Grid.Column="2"
+                                                       x:Name="AiRiskHighCountText"
+                                                       Text="0"
+                                                       Foreground="#0F172A"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right"/>
+                                        </Grid>
+
+                                        <!-- 中危 -->
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="60"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <Border Width="10"
+                                                        Height="10"
+                                                        CornerRadius="5"
+                                                        Background="#D97706"
+                                                        Margin="0,0,8,0"/>
+                                                <TextBlock Text="中危"
+                                                           Foreground="#0F172A"
+                                                           FontSize="12"
+                                                           FontWeight="Medium"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <ProgressBar Grid.Column="1"
+                                                         x:Name="AiRiskMediumBar"
+                                                         Minimum="0"
+                                                         Maximum="100"
+                                                         Value="0"
+                                                         Background="#F1F5F9"
+                                                         BorderThickness="0"
+                                                         Height="14"
+                                                         Margin="0,0,12,0"
+                                                         Foreground="#D97706"/>
+                                            <TextBlock Grid.Column="2"
+                                                       x:Name="AiRiskMediumCountText"
+                                                       Text="0"
+                                                       Foreground="#0F172A"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right"/>
+                                        </Grid>
+
+                                        <!-- 低危 -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="80"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="60"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0"
+                                                        Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <Border Width="10"
+                                                        Height="10"
+                                                        CornerRadius="5"
+                                                        Background="#65A30D"
+                                                        Margin="0,0,8,0"/>
+                                                <TextBlock Text="低危"
+                                                           Foreground="#0F172A"
+                                                           FontSize="12"
+                                                           FontWeight="Medium"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <ProgressBar Grid.Column="1"
+                                                         x:Name="AiRiskLowBar"
+                                                         Minimum="0"
+                                                         Maximum="100"
+                                                         Value="0"
+                                                         Background="#F1F5F9"
+                                                         BorderThickness="0"
+                                                         Height="14"
+                                                         Margin="0,0,12,0"
+                                                         Foreground="#65A30D"/>
+                                            <TextBlock Grid.Column="2"
+                                                       x:Name="AiRiskLowCountText"
+                                                       Text="0"
+                                                       Foreground="#0F172A"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 右侧目标信息卡 -->
+                                <Border Grid.Column="2"
+                                        Style="{StaticResource AiCardStyle}"
+                                        Padding="14,12">
+                                    <StackPanel>
+                                        <TextBlock Text="评估目标"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock x:Name="AiRiskTargetIpText"
+                                                   Text="--"
+                                                   Foreground="#0F172A"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,12"/>
+                                        <TextBlock Text="置信度"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock x:Name="AiRiskConfidenceText"
+                                                   Text="--"
+                                                   Foreground="#0F172A"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,12"/>
+                                        <TextBlock Text="安全态势评分"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock x:Name="AiRiskPostureText"
+                                                   Text="--"
+                                                   Foreground="#0F172A"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,12"/>
+                                        <TextBlock Text="就绪度"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,4"/>
+                                        <TextBlock x:Name="AiRiskReadinessText"
+                                                   Text="--"
+                                                   Foreground="#0F172A"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- 空状态提示卡片（覆盖在最上层） -->
+                                <Border x:Name="AiRiskEmptyStatePanel"
+                                        Visibility="Visible"
+                                        Grid.ColumnSpan="3"
+                                        Background="#FFFFFF"
+                                        CornerRadius="10"
+                                        BorderBrush="#E2E8F0"
+                                        BorderThickness="1"
+                                        Padding="40,60">
+                                    <StackPanel HorizontalAlignment="Center"
+                                                VerticalAlignment="Center">
+                                        <Border Width="64"
+                                                Height="64"
+                                                CornerRadius="32"
+                                                Background="#EFF6FF"
+                                                Margin="0,0,0,16">
+                                            <TextBlock Text="AI"
+                                                       Foreground="#2563EB"
+                                                       FontSize="22"
+                                                       FontWeight="Bold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <TextBlock Text="暂无扫描数据"
+                                                   Foreground="#0F172A"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,0,0,8"/>
+                                        <TextBlock Text="请先执行端口扫描或漏洞扫描，AI 风险评估将在扫描完成后自动生成。"
+                                                   Foreground="#64748B"
+                                                   FontSize="12"
+                                                   HorizontalAlignment="Center"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   MaxWidth="380"
+                                                   Margin="0,0,0,8"/>
+                                        <TextBlock Text="或在完成扫描后点击「重新分析」手动刷新。"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="11"
+                                                   HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                            <!-- ROW_FOOTER_END -->
+
                         </Grid>
-                        
-                        <!-- 风险评估总结 -->
-                        <Border Background="White" CornerRadius="10" Padding="20" Margin="0,0,0,15" Effect="{StaticResource ButtonShadow}">
-                            <StackPanel>
-                                <TextBlock Text="📋 风险评估总结" FontSize="16" FontWeight="Bold" Foreground="#2C3E50" Margin="0,0,0,12"/>
-                                <TextBlock Name="RiskAssessmentSummaryText" Text="系统目前安全状况良好，未发现高风险漏洞。建议定期进行安全扫描，及时更新系统和应用程序补丁，关闭不必要的开放端口，加强网络访问控制。" 
-                                           TextWrapping="Wrap" Foreground="#2C3E50" LineHeight="24" FontSize="14"/>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </ScrollViewer>
+                    </ScrollViewer>
+                </Grid>
             </TabItem>
-            
+
             <!-- 扫描历史记录 -->
             <TabItem Header="扫描历史记录">
                 <Grid Margin="10">
@@ -804,136 +1754,273 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    
+
                     <!-- 搜索和过滤控件 -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" VerticalAlignment="Center">
-                        <TextBox Name="SearchTextBox" Width="200" Margin="5" 
-                                 TextChanged="SearchTextBox_TextChanged" VerticalAlignment="Center" 
+                    <StackPanel Grid.Row="0"
+                                Orientation="Horizontal"
+                                Margin="5"
+                                VerticalAlignment="Center">
+                        <TextBox Name="SearchTextBox"
+                                 Width="200"
+                                 Margin="5"
+                                 TextChanged="SearchTextBox_TextChanged"
+                                 VerticalAlignment="Center"
                                  ToolTip="搜索：IP、类型、扫描ID"/>
-                        <Button Content="搜索" Width="60" Height="25" Margin="5" Click="SearchScanHistory_Click" 
-                                Background="#3498DB" Foreground="White" VerticalAlignment="Center"/>
-                        <Button Content="刷新历史记录" Width="120" Height="25" Margin="5" Click="RefreshScanHistory_Click" 
-                                Background="#3498DB" Foreground="White" VerticalAlignment="Center"/>
-                        <Button Content="清空历史记录" Width="120" Height="25" Margin="5" Click="ClearScanHistory_Click" 
-                                Background="#E74C3C" Foreground="White" VerticalAlignment="Center"/>
+                        <Button Content="搜索"
+                                Width="60"
+                                Height="25"
+                                Margin="5"
+                                Click="SearchScanHistory_Click"
+                                Background="#3498DB"
+                                Foreground="White"
+                                VerticalAlignment="Center"/>
+                        <Button Content="刷新历史记录"
+                                Width="120"
+                                Height="25"
+                                Margin="5"
+                                Click="RefreshScanHistory_Click"
+                                Background="#3498DB"
+                                Foreground="White"
+                                VerticalAlignment="Center"/>
+                        <Button Content="清空历史记录"
+                                Width="120"
+                                Height="25"
+                                Margin="5"
+                                Click="ClearScanHistory_Click"
+                                Background="#E74C3C"
+                                Foreground="White"
+                                VerticalAlignment="Center"/>
                     </StackPanel>
-                    
+
                     <!-- 过滤选项 -->
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="5" VerticalAlignment="Center">
-                        <TextBlock Text="风险等级：" Margin="5" VerticalAlignment="Center"/>
-                        <ComboBox Name="RiskLevelFilterComboBox" Width="100" Margin="5" SelectionChanged="RiskLevelFilterComboBox_SelectionChanged" VerticalAlignment="Center">
-                            <ComboBoxItem Content="全部" IsSelected="True"/>
+                    <StackPanel Grid.Row="1"
+                                Orientation="Horizontal"
+                                Margin="5"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="风险等级："
+                                   Margin="5"
+                                   VerticalAlignment="Center"/>
+                        <ComboBox Name="RiskLevelFilterComboBox"
+                                  Width="100"
+                                  Margin="5"
+                                  SelectionChanged="RiskLevelFilterComboBox_SelectionChanged"
+                                  VerticalAlignment="Center">
+                            <ComboBoxItem Content="全部"
+                                          IsSelected="True"/>
                             <ComboBoxItem Content="严重风险"/>
                             <ComboBoxItem Content="高风险"/>
                             <ComboBoxItem Content="中风险"/>
                             <ComboBoxItem Content="低风险"/>
                         </ComboBox>
-                        <TextBlock Text="扫描类型：" Margin="5" VerticalAlignment="Center"/>
-                        <ComboBox Name="ScanTypeFilterComboBox" Width="120" Margin="5" SelectionChanged="ScanTypeFilterComboBox_SelectionChanged" VerticalAlignment="Center">
-                            <ComboBoxItem Content="全部" IsSelected="True"/>
+                        <TextBlock Text="扫描类型："
+                                   Margin="5"
+                                   VerticalAlignment="Center"/>
+                        <ComboBox Name="ScanTypeFilterComboBox"
+                                  Width="120"
+                                  Margin="5"
+                                  SelectionChanged="ScanTypeFilterComboBox_SelectionChanged"
+                                  VerticalAlignment="Center">
+                            <ComboBoxItem Content="全部"
+                                          IsSelected="True"/>
                             <ComboBoxItem Content="TCP端口扫描"/>
                             <ComboBoxItem Content="UDP端口扫描"/>
                             <ComboBoxItem Content="漏洞扫描"/>
-                            <ComboBoxItem Content="专家模式"/>
                         </ComboBox>
-                        <Button Content="重置过滤" Width="80" Height="25" Margin="5" Click="ResetFilters_Click" 
-                                Background="#95A5A6" Foreground="White" VerticalAlignment="Center"/>
-                        <Button Name="GenerateReportFromHistoryButton" Content="生成报告" Width="120" Height="25" Margin="5" Click="GenerateReportFromHistory_Click" 
-                                Background="#3498DB" Foreground="White" VerticalAlignment="Center" IsEnabled="False"/>
+                        <Button Content="重置过滤"
+                                Width="80"
+                                Height="25"
+                                Margin="5"
+                                Click="ResetFilters_Click"
+                                Background="#95A5A6"
+                                Foreground="White"
+                                VerticalAlignment="Center"/>
+                        <Button Name="GenerateReportFromHistoryButton"
+                                Content="生成报告"
+                                Width="120"
+                                Height="25"
+                                Margin="5"
+                                Click="GenerateReportFromHistory_Click"
+                                Background="#3498DB"
+                                Foreground="White"
+                                VerticalAlignment="Center"
+                                IsEnabled="False"/>
                     </StackPanel>
-                    
+
                     <!-- 扫描历史记录列表 -->
-                    <DataGrid Name="ScanHistoryDataGrid" Grid.Row="2" Margin="5" 
-                              AutoGenerateColumns="False" CanUserAddRows="False"
-                              GridLinesVisibility="All" HeadersVisibility="Column"
-                              AlternatingRowBackground="#F5F5F5" SelectionMode="Single"
+                    <DataGrid Name="ScanHistoryDataGrid"
+                              Grid.Row="2"
+                              Margin="5"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              GridLinesVisibility="All"
+                              HeadersVisibility="Column"
+                              AlternatingRowBackground="#F5F5F5"
+                              SelectionMode="Single"
                               MouseDoubleClick="ScanHistoryDataGrid_MouseDoubleClick"
-                              CanUserSortColumns="True" IsReadOnly="False">
+                              CanUserSortColumns="True"
+                              IsReadOnly="False">
                         <DataGrid.Columns>
-                        <DataGridCheckBoxColumn Header="" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="40" 
-                                               CanUserSort="False" IsReadOnly="False"/>
-                        <DataGridTextColumn Header="扫描ID" Binding="{Binding ScanId}" Width="2*" 
-                                            SortMemberPath="ScanId"/>
-                        <DataGridTextColumn Header="目标IP" Binding="{Binding TargetIp}" Width="*" 
-                                            SortMemberPath="TargetIp"/>
-                        <DataGridTextColumn Header="扫描类型" Binding="{Binding ScanType}" Width="*" 
-                                            SortMemberPath="ScanType"/>
-                        <DataGridTextColumn Header="扫描时间" Binding="{Binding ScanTime}" Width="2*" 
-                                            SortMemberPath="ScanTime"/>
-                        <DataGridTextColumn Header="开放端口数" Binding="{Binding OpenPortsCount}" Width="*" 
-                                            SortMemberPath="OpenPortsCount"/>
-                        <DataGridTextColumn Header="漏洞数" Binding="{Binding VulnerabilitiesCount}" Width="*" 
-                                            SortMemberPath="VulnerabilitiesCount"/>
-                        <DataGridTextColumn Header="风险等级" Binding="{Binding RiskLevel}" Width="*" 
-                                            CellStyle="{StaticResource RiskLevelCellStyle}" 
-                                            SortMemberPath="RiskLevel"/>
-                        <DataGridTemplateColumn Header="操作" Width="1.5*">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                        <Button Content="查看" Width="50" Height="20" Click="ViewScanHistory_Click" 
-                                                Tag="{Binding ScanId}" Background="#3498DB" Foreground="White" FontSize="12" Margin="2"/>
-                                        <Button Content="删除" Width="50" Height="20" Click="DeleteScanHistory_Click" 
-                                                Tag="{Binding ScanId}" Background="#E74C3C" Foreground="White" FontSize="12" Margin="2"/>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                    </DataGrid.Columns>
+                            <DataGridCheckBoxColumn Header=""
+                                                    Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}"
+                                                    Width="40"
+                                                    CanUserSort="False"
+                                                    IsReadOnly="False"/>
+                            <DataGridTextColumn Header="扫描ID"
+                                                Binding="{Binding ScanId}"
+                                                Width="2*"
+                                                SortMemberPath="ScanId"/>
+                            <DataGridTextColumn Header="目标IP"
+                                                Binding="{Binding TargetIp}"
+                                                Width="*"
+                                                SortMemberPath="TargetIp"/>
+                            <DataGridTextColumn Header="扫描类型"
+                                                Binding="{Binding ScanType}"
+                                                Width="*"
+                                                SortMemberPath="ScanType"/>
+                            <DataGridTextColumn Header="扫描时间"
+                                                Binding="{Binding ScanTime}"
+                                                Width="2*"
+                                                SortMemberPath="ScanTime"/>
+                            <DataGridTextColumn Header="开放端口数"
+                                                Binding="{Binding OpenPortsCount}"
+                                                Width="*"
+                                                SortMemberPath="OpenPortsCount"/>
+                            <DataGridTextColumn Header="漏洞数"
+                                                Binding="{Binding VulnerabilitiesCount}"
+                                                Width="*"
+                                                SortMemberPath="VulnerabilitiesCount"/>
+                            <DataGridTextColumn Header="风险等级"
+                                                Binding="{Binding RiskLevel}"
+                                                Width="*"
+                                                CellStyle="{StaticResource RiskLevelCellStyle}"
+                                                SortMemberPath="RiskLevel"/>
+                            <DataGridTemplateColumn Header="操作"
+                                                    Width="1.5*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal"
+                                                    HorizontalAlignment="Center">
+                                            <Button Content="查看"
+                                                    Width="50"
+                                                    Height="20"
+                                                    Click="ViewScanHistory_Click"
+                                                    Tag="{Binding ScanId}"
+                                                    Background="#3498DB"
+                                                    Foreground="White"
+                                                    FontSize="12"
+                                                    Margin="2"/>
+                                            <Button Content="删除"
+                                                    Width="50"
+                                                    Height="20"
+                                                    Click="DeleteScanHistory_Click"
+                                                    Tag="{Binding ScanId}"
+                                                    Background="#E74C3C"
+                                                    Foreground="White"
+                                                    FontSize="12"
+                                                    Margin="2"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="🔍 查看详情"
+                                        Click="ViewScanHistory_Click"/>
+                                <MenuItem Header="🗑 删除记录"
+                                        Click="DeleteScanHistory_Click"/>
+                                <Separator/>
+                                <MenuItem Header="🔌 用插件深挖"
+                                        Click="DeepScanHistoryWithPlugins_Click"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
                         <DataGrid.CellStyle>
                             <Style TargetType="DataGridCell">
-                                <Setter Property="VerticalAlignment" Value="Center"/>
-                                <Setter Property="Padding" Value="5"/>
+                                <Setter Property="VerticalAlignment"
+                                        Value="Center"/>
+                                <Setter Property="Padding"
+                                        Value="5"/>
                             </Style>
                         </DataGrid.CellStyle>
                         <DataGrid.ColumnHeaderStyle>
                             <Style TargetType="DataGridColumnHeader">
-                                <Setter Property="Background" Value="#2C3E50"/>
-                                <Setter Property="Foreground" Value="White"/>
-                                <Setter Property="FontWeight" Value="Bold"/>
-                                <Setter Property="Padding" Value="10"/>
-                                <Setter Property="HorizontalContentAlignment" Value="Center"/>
+                                <Setter Property="Background"
+                                        Value="#2C3E50"/>
+                                <Setter Property="Foreground"
+                                        Value="White"/>
+                                <Setter Property="FontWeight"
+                                        Value="Bold"/>
+                                <Setter Property="Padding"
+                                        Value="10"/>
+                                <Setter Property="HorizontalContentAlignment"
+                                        Value="Center"/>
                             </Style>
                         </DataGrid.ColumnHeaderStyle>
                     </DataGrid>
-                    
+
                     <!-- 统计信息 -->
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="5">
-                        <TextBlock Name="ScanHistoryStats" Text="共 0 条记录" VerticalAlignment="Center" FontWeight="Bold"/>
-                        <TextBlock Name="ScanHistorySummary" Text="" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    <StackPanel Grid.Row="3"
+                                Orientation="Horizontal"
+                                Margin="5">
+                        <TextBlock Name="ScanHistoryStats"
+                                   Text="共 0 条记录"
+                                   VerticalAlignment="Center"
+                                   FontWeight="Bold"/>
+                        <TextBlock Name="ScanHistorySummary"
+                                   Text=""
+                                   Margin="10,0,0,0"
+                                   VerticalAlignment="Center"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
         </TabControl>
-        
+
         <!-- 状态栏 -->
-        <StatusBar Grid.Row="2" Background="#ECF0F1">
+        <StatusBar Grid.Row="2"
+                   Background="#ECF0F1">
             <StatusBarItem>
-                <TextBlock Name="LicenseStatusBarText" Text="授权状态：未授权" FontSize="11" Foreground="#95A5A6"/>
-            </StatusBarItem>
-            <Separator/>
-            <StatusBarItem>
-                <TextBlock Name="StatusTextBlock" Text="就绪" FontWeight="Bold"/>
-            </StatusBarItem>
-            <StatusBarItem>
-                <TextBlock Name="SystemUptimeText" Text="运行时间: 00:00:00" Margin="10,0"/>
+                <TextBlock Name="StatusTextBlock"
+                           Text="就绪"
+                           FontWeight="Bold"/>
             </StatusBarItem>
             <StatusBarItem>
-                <TextBlock Name="CpuUsageTextBlock" Text="CPU: 0%" Margin="10,0"/>
+                <TextBlock Name="LicenseStatusBarText"
+                           Text="授权状态: 检测中..."
+                           Margin="10,0"/>
             </StatusBarItem>
             <StatusBarItem>
-                <TextBlock Name="RamUsageTextBlock" Text="内存: 0%" Margin="0,0,10,0"/>
+                <TextBlock Name="SystemUptimeText"
+                           Text="运行时间: 00:00:00"
+                           Margin="10,0"/>
             </StatusBarItem>
             <StatusBarItem>
-                <TextBlock Name="DiskUsageTextBlock" Text="磁盘: 0%" Margin="0,0,10,0"/>
+                <TextBlock Name="CpuUsageTextBlock"
+                           Text="CPU: 0%"
+                           Margin="10,0"/>
             </StatusBarItem>
             <StatusBarItem>
-                <TextBlock Name="NetworkConnectionsTextBlock" Text="网络连接: 0" Margin="0,0,10,0"/>
+                <TextBlock Name="RamUsageTextBlock"
+                           Text="内存: 0%"
+                           Margin="0,0,10,0"/>
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock Name="DiskUsageTextBlock"
+                           Text="磁盘: 0%"
+                           Margin="0,0,10,0"/>
+            </StatusBarItem>
+            <StatusBarItem>
+                <TextBlock Name="NetworkConnectionsTextBlock"
+                           Text="网络连接: 0"
+                           Margin="0,0,10,0"/>
             </StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Name="SystemHealthText" Text="系统: 正常" Margin="0,0,10,0"/>
-                    <TextBlock Name="StatusVersionText" Text="NetSecurityScanner v1.0.0.0" Foreground="#7F8C8D"/>
+                    <TextBlock Name="SystemHealthText"
+                               Text="系统: 正常"
+                               Margin="0,0,10,0"/>
+                    <TextBlock Name="StatusVersionText"
+                               Text="NetSecurityScanner v1.0"
+                               Foreground="#7F8C8D"/>
                 </StackPanel>
             </StatusBarItem>
         </StatusBar>

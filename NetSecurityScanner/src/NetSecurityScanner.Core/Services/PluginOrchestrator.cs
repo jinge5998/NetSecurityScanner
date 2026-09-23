@@ -19,7 +19,7 @@ namespace NetSecurityScanner.Services
     /// - 本类不直接调用 _sandbox / _logger，所有真实执行委托给 PluginManager。
     /// - 本类不修改 PluginManager 的任何已有方法签名，最大限度保持兼容。
     /// </summary>
-    public class PluginOrchestrator
+    public class PluginOrchestrator : IPluginOrchestrator
     {
         private static readonly Lazy<PluginOrchestrator> _instance =
             new Lazy<PluginOrchestrator>(() => new PluginOrchestrator(), isThreadSafe: true);

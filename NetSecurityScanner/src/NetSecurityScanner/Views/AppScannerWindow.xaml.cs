@@ -630,7 +630,7 @@ namespace NetSecurityScanner.Views
                 ("评估日期", DateTime.Now.ToString("yyyy-MM-dd")),
                 ("报告版本", "V1.0"),
                 ("密级标识", "仅供内部使用"),
-                ("扫描引擎", "NetSecurity Scanner v1.0.0.6"),
+                ("扫描引擎", "NetSecurity Scanner v1.0.2.1"),
                 ("扫描模式", GetScanModeText(_lastResult?.ScanMode ?? ScanMode.Full)),
                 ("文件大小", FormatFileSize(_lastResult?.FileSize ?? 0))
             };
@@ -856,7 +856,7 @@ namespace NetSecurityScanner.Views
                 ("扫描开始时间", DateTime.Now.AddMinutes(-5).ToString("yyyy-MM-dd HH:mm:ss")),
                 ("扫描完成时间", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),
                 ("扫描耗时", scanDuration),
-                ("扫描引擎版本", "NetSecurity Scanner v1.0.0.6"),
+                ("扫描引擎版本", "NetSecurity Scanner v1.0.2.1"),
                 ("检测规则版本", "MASVS v2.0 / OWASP Mobile Top 10 2024 / CVSS v3.1")
             };
 
@@ -2123,7 +2123,7 @@ namespace NetSecurityScanner.Views
             footerLine.Alignment = Alignment.center;
             footerLine.FontSize(10).Color(MidGray);
 
-            var footerP = doc.InsertParagraph($"本报告由 NetSecurity Scanner v1.0.0.6 自动生成 | 徐州鸿高电子科技有限公司 | {DateTime.Now:yyyy年MM月dd日}");
+            var footerP = doc.InsertParagraph($"本报告由 NetSecurity Scanner v1.0.2.1 自动生成 | 徐州鸿高电子科技有限公司 | {DateTime.Now:yyyy年MM月dd日}");
             footerP.Alignment = Alignment.center;
             footerP.FontSize(9).Color(MidGray);
         }
@@ -2198,7 +2198,7 @@ namespace NetSecurityScanner.Views
 
             var metaRows = new (string, string)[]
             {
-                ("扫描引擎版本", "NetSecurity Scanner v1.0.0.6"),
+                ("扫描引擎版本", "NetSecurity Scanner v1.0.2.1"),
                 ("扫描时间", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),
                 ("应用包名", _lastResult?.FileName ?? "未知"),
                 ("文件大小", FormatFileSize(_lastResult?.FileSize ?? 0)),

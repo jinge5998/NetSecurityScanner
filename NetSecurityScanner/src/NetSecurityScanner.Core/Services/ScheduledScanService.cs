@@ -53,7 +53,7 @@ namespace NetSecurityScanner.Services
             _schedulerTimer.Stop();
         }
 
-        private async void SchedulerTimer_Elapsed(object sender, ElapsedEventArgs e)
+        private async void SchedulerTimer_Elapsed(object? sender, ElapsedEventArgs e)
         {
             var now = DateTime.Now;
 

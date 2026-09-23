@@ -7,10 +7,10 @@
     <UseWPF>true</UseWPF>
     <UseWindowsDesktopSdk>true</UseWindowsDesktopSdk>
     <UseWindowsForms>true</UseWindowsForms>
-    <NoWarn>$(NoWarn);NETSDK1138;NU1701;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625</NoWarn>
-    <AssemblyVersion>1.0.1.1</AssemblyVersion>
-    <FileVersion>1.0.1.1</FileVersion>
-    <Version>1.0.1.1</Version>
+    <NoWarn>$(NoWarn);NETSDK1138;NU1701;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS1998</NoWarn>
+    <AssemblyVersion>1.0.2.1</AssemblyVersion>
+    <FileVersion>1.0.2.1</FileVersion>
+    <Version>1.0.2.1</Version>
     <Product>网络安全扫描工具</Product>
     <Company>NetSecurityScanner</Company>
     <Copyright>© 2026 NetSecurityScanner</Copyright>

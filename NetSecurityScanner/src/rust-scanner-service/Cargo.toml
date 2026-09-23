@@ -1,9 +1,9 @@
 [package]
 name = "rust-scanner-service"
-version = "1.0.8"
+version = "1.0.19"
 edition = "2021"
 authors = ["徐州鸿高电子科技有限公司"]
-description = "高性能网络安全扫描服务 - Rust实现 v1.0.0.8"
+description = "高性能网络安全扫描服务 - Rust实现 v1.0.2.1"
 
 [dependencies]
 # 异步运行时

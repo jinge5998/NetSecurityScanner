@@ -7,7 +7,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 $projectPath = "$PSScriptRoot\src\NetSecurityScanner.Desktop\NetSecurityScanner.Desktop.csproj"
-$outputPath = "$PSScriptRoot\publish\NetSecurityScanner-v1.0.0.2"
+$outputPath = "$PSScriptRoot\publish\NetSecurityScanner-v1.0.2.1"
 
 # 清理旧输出
 Write-Host "[1/5] 清理旧输出..." -ForegroundColor Yellow

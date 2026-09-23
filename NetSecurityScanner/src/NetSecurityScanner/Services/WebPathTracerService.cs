@@ -555,24 +555,22 @@ namespace NetSecurityScanner.Services
                 OnLog?.Invoke($"▶ 第三层：敏感文件泄露检测 → {currentUrl}");
                 OnLog?.Invoke($"{'─',60}");
 
-                var layer3Task = CheckSensitiveFilesAsync(currentUrl, ct).ContinueWith(t =>
+                var layer3Task = Task.Run(async () =>
                 {
-                    if (t.IsCompletedSuccessfully)
+                    var layer3Result = await CheckSensitiveFilesAsync(currentUrl, ct);
+                    result.Layer3Results = layer3Result;
+                    foreach (var url in layer3Result.FoundUrls)
                     {
-                        result.Layer3Results = t.Result;
-                        foreach (var url in t.Result.FoundUrls)
+                        if (!visitedUrls.Contains(url))
                         {
-                            if (!visitedUrls.Contains(url))
+                            traceChain.Add(new TraceChainStep
                             {
-                                traceChain.Add(new TraceChainStep
-                                {
-                                    Layer = 3,
-                                    Method = "敏感文件",
-                                    FromUrl = currentUrl,
-                                    ToUrl = url,
-                                    Description = $"敏感文件 → {url}"
-                                });
-                            }
+                                Layer = 3,
+                                Method = "敏感文件",
+                                FromUrl = currentUrl,
+                                ToUrl = url,
+                                Description = $"敏感文件 → {url}"
+                            });
                         }
                     }
                 }, ct);

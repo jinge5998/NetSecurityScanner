@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using NetSecurityScanner.Models;
 using NetSecurityScanner.Core.Models;
-using Models = NetSecurityScanner.Models;
 
 namespace NetSecurityScanner.Services
 {
   public class DylibInjectionDetector
   {
-    public async Task<DylibInjectionReport> DetectAsync(IpaAnalysisResult ipa, Models.ScanMode mode, CancellationToken token)
+    public async Task<DylibInjectionReport> DetectAsync(IpaAnalysisResult ipa, ScanMode mode, CancellationToken token)
     {
       var report = new DylibInjectionReport();
       var tasks = new List<Task>();

@@ -1,0 +1,2 @@
+MSBuild version 17.3.4+a400405ba for .NET
+MSBUILD : error MSB1003: 请指定项目或解决方案文件。当前工作目录中未包含项目或解决方案文件。

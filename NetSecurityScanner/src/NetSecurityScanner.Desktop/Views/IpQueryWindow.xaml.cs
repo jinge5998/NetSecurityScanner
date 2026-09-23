@@ -23,8 +23,10 @@ namespace NetSecurityScanner.Views
         private readonly IpInfoService _ipInfoService;
         private readonly List<HistoryRecord> _historyRecords = new();
         private readonly List<DnsResult> _currentDnsResults = new();
+#pragma warning disable CS0414
         private int _pingSequence = 0;
         private int _recordIndex = 0;
+#pragma warning restore CS0414
 
         public IpQueryWindow()
         {

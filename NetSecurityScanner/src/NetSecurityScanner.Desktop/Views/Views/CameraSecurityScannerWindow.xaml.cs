@@ -16,6 +16,7 @@ using System.Windows.Media;
 using NetSecurityScanner.Core;
 using NetSecurityScanner.Models;
 using NetSecurityScanner.Services;
+using NetSecurityScanner.Utils;
 
 namespace NetSecurityScanner.Views
 {
@@ -40,6 +41,7 @@ namespace NetSecurityScanner.Views
       try
       {
         InitializeComponent();
+        Title = $"摄像头安全扫描 v{VersionHelper.GetVersion()}";
         LoadPresets();
         ApplyPreset(1);
         LoadTemplates();
@@ -1817,7 +1819,7 @@ namespace NetSecurityScanner.Views
             sb.AppendLine("</ol>");
           }
         }
-        sb.AppendLine("<hr><p style='color:#888'>生成自 NetSecurityScanner v1.0.1.0 摄像头安全扫描模块</p>");
+        sb.AppendLine("<hr><p style='color:#888'>生成自 NetSecurityScanner v1.0.2.1 摄像头安全扫描模块</p>");
         sb.AppendLine("</body></html>");
       }
       else if (filePath.EndsWith(".csv", StringComparison.OrdinalIgnoreCase))

@@ -1,4 +1,4 @@
-//! 高性能端口扫描模块 v1.0.0.8
+//! 高性能端口扫描模块 v1.0.2.1
 //! 使用 Tokio 异步运行时实现并发扫描
 //! 性能优化: 信号量限流、零拷贝、批量IO
 
@@ -774,6 +774,9 @@ impl PortScanner {
         // 读取当前自适应超时（ms），并转换为 Duration
         let timeout = Duration::from_millis(timeout_ms.load(Ordering::Relaxed));
 
+        // 记录扫描开始时间
+        let scan_start = Instant::now();
+
         // 第一次连接探测
         let first_connect = tokio::time::timeout(
             timeout,
@@ -851,6 +854,9 @@ impl PortScanner {
             (String::new(), String::new())
         };
 
+        // 计算扫描耗时
+        let scan_time_ms = scan_start.elapsed().as_millis() as u64;
+
         PortScanResult {
             target_ip: target,
             port,
@@ -859,7 +865,7 @@ impl PortScanner {
             service,
             version,
             banner,
-            scan_time_ms: 0,
+            scan_time_ms,
         }
     }
 
@@ -876,6 +882,9 @@ impl PortScanner {
         // 读取当前自适应超时
         let timeout = Duration::from_millis(timeout_ms.load(Ordering::Relaxed));
 
+        // 记录扫描开始时间
+        let scan_start = Instant::now();
+
         // UDP 扫描: 发送空数据包并等待响应
         let result = tokio::time::timeout(timeout, async {
             let socket = tokio::net::UdpSocket::bind("0.0.0.0:0").await?;
@@ -889,6 +898,9 @@ impl PortScanner {
             }
         }).await;
 
+        // 计算扫描耗时
+        let scan_time_ms = scan_start.elapsed().as_millis() as u64;
+
         match result {
             Ok(Ok(Some(_))) => {
                 // 收到响应 - 端口开放
@@ -900,7 +912,7 @@ impl PortScanner {
                     service,
                     version: String::new(),
                     banner: String::new(),
-                    scan_time_ms: 0,
+                    scan_time_ms,
                 }
             }
             Ok(Ok(None)) | Ok(Err(_)) => {
@@ -913,7 +925,7 @@ impl PortScanner {
                     service: String::new(),
                     version: String::new(),
                     banner: String::new(),
-                    scan_time_ms: 0,
+                    scan_time_ms,
                 }
             }
             Err(_) => {
@@ -926,7 +938,7 @@ impl PortScanner {
                     service: String::new(),
                     version: String::new(),
                     banner: String::new(),
-                    scan_time_ms: 0,
+                    scan_time_ms,
                 }
             }
         }

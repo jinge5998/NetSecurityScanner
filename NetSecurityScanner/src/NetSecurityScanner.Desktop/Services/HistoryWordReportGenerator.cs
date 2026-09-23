@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Diagnostics;
 using NetSecurityScanner.Models;
+using NetSecurityScanner.Services;
 using NetSecurityScanner.Utils;
 using Xceed.Words.NET;
 using Xceed.Document.NET;
@@ -131,41 +132,36 @@ namespace NetSecurityScanner
                 if (!string.IsNullOrEmpty(directoryPath) && !Directory.Exists(directoryPath))
                     Directory.CreateDirectory(directoryPath);
 
-                using (var ms = new MemoryStream())
+                // 使用临时文件路径创建文档，避免 MemoryStream 在 DocX v5.0.0 中的兼容性问题
+                // DocX.Create(stream) 在旧版本中 Save() 后可能关闭底层流，导致后续读取失败
+                using (var doc = DocX.Create(savePath))
                 {
-                    using (var doc = DocX.Create(ms))
-                    {
-                        GenerateCoverPage(doc, targetIp, safePorts, safeVulns, false, 0, record.ScanType);
-                        AddPageBreak(doc);
-                        GenerateTableOfContents(doc);
-                        AddPageBreak(doc);
-                        GenerateExecutiveSummary(doc, safePorts, safeVulns, targetIp, record.ScanType);
-                        AddPageBreak(doc);
-                        GenerateScanScopeSection(doc, targetIp, safePorts, safeVulns, record.ScanType);
-                        AddPageBreak(doc);
-                        GeneratePortScanSection(doc, safePorts);
-                        AddPageBreak(doc);
-                        GenerateVulnerabilitySection(doc, safeVulns);
-                        AddPageBreak(doc);
-                        GenerateRiskAssessment(doc, safeVulns, safePorts);
-                        AddPageBreak(doc);
-                        GenerateRemediationSection(doc, safeVulns);
-                        AddPageBreak(doc);
-                        GenerateThreatIntelligenceSection(doc, safeVulns, safePorts);
-                        AddPageBreak(doc);
-                        GenerateComplianceSection(doc, safeVulns, safePorts);
-                        AddPageBreak(doc);
-                        GenerateConclusionSection(doc, safeVulns, safePorts);
-                        AddPageBreak(doc);
-                        GenerateCveAppendix(doc, safeVulns);
-                        doc.Save();
-                    }
-                    using (var fs = new FileStream(savePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough | FileOptions.SequentialScan))
-                    {
-                        ms.Position = 0;
-                        ms.CopyTo(fs);
-                        fs.Flush();
-                    }
+                    GenerateCoverPage(doc, targetIp, safePorts, safeVulns, false, 0, record.ScanType);
+                    AddPageBreak(doc);
+                    GenerateTableOfContents(doc);
+                    AddPageBreak(doc);
+                    GenerateExecutiveSummary(doc, safePorts, safeVulns, targetIp, record.ScanType);
+                    AddPageBreak(doc);
+                    GenerateScanScopeSection(doc, targetIp, safePorts, safeVulns, record.ScanType);
+                    AddPageBreak(doc);
+                    GeneratePortScanSection(doc, safePorts);
+                    AddPageBreak(doc);
+                    GenerateVulnerabilitySection(doc, safeVulns);
+                    AddPageBreak(doc);
+                    GenerateRiskAssessment(doc, safeVulns, safePorts);
+                    AddPageBreak(doc);
+                    GenerateRemediationSection(doc, safeVulns);
+                    AddPageBreak(doc);
+                    GenerateThreatIntelligenceSection(doc, safeVulns, safePorts);
+                    AddPageBreak(doc);
+                    GenerateComplianceSection(doc, safeVulns, safePorts);
+                    AddPageBreak(doc);
+                    GenerateConclusionSection(doc, safeVulns, safePorts);
+                    AddPageBreak(doc);
+                    GenerateCveAppendix(doc, safeVulns);
+                    AddPageBreak(doc);
+                    GenerateAppendixB(doc);
+                    doc.Save();
                 }
 
                 WriteLog($"[WordReport] Word报告生成成功：{savePath}");
@@ -211,41 +207,34 @@ namespace NetSecurityScanner
                 if (!string.IsNullOrEmpty(directoryPath) && !Directory.Exists(directoryPath))
                     Directory.CreateDirectory(directoryPath);
 
-                using (var ms = new MemoryStream())
+                using (var doc = DocX.Create(savePath))
                 {
-                    using (var doc = DocX.Create(ms))
-                    {
-                        GenerateCoverPage(doc, targetIp, mergedPorts, mergedVulns, true, records.Count, BuildScanTypesString(records));
-                        AddPageBreak(doc);
-                        GenerateTableOfContents(doc);
-                        AddPageBreak(doc);
-                        GenerateExecutiveSummary(doc, mergedPorts, mergedVulns, targetIp, BuildScanTypesString(records));
-                        AddPageBreak(doc);
-                        GenerateScanScopeSection(doc, targetIp, mergedPorts, mergedVulns, BuildScanTypesString(records));
-                        AddPageBreak(doc);
-                        GeneratePortScanSection(doc, mergedPorts);
-                        AddPageBreak(doc);
-                        GenerateVulnerabilitySection(doc, mergedVulns);
-                        AddPageBreak(doc);
-                        GenerateRiskAssessment(doc, mergedVulns, mergedPorts);
-                        AddPageBreak(doc);
-                        GenerateRemediationSection(doc, mergedVulns);
-                        AddPageBreak(doc);
-                        GenerateThreatIntelligenceSection(doc, mergedVulns, mergedPorts);
-                        AddPageBreak(doc);
-                        GenerateComplianceSection(doc, mergedVulns, mergedPorts);
-                        AddPageBreak(doc);
-                        GenerateConclusionSection(doc, mergedVulns, mergedPorts);
-                        AddPageBreak(doc);
-                        GenerateCveAppendix(doc, mergedVulns);
-                        doc.Save();
-                    }
-                    using (var fs = new FileStream(savePath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough | FileOptions.SequentialScan))
-                    {
-                        ms.Position = 0;
-                        ms.CopyTo(fs);
-                        fs.Flush();
-                    }
+                    GenerateCoverPage(doc, targetIp, mergedPorts, mergedVulns, true, records.Count, BuildScanTypesString(records));
+                    AddPageBreak(doc);
+                    GenerateTableOfContents(doc);
+                    AddPageBreak(doc);
+                    GenerateExecutiveSummary(doc, mergedPorts, mergedVulns, targetIp, BuildScanTypesString(records));
+                    AddPageBreak(doc);
+                    GenerateScanScopeSection(doc, targetIp, mergedPorts, mergedVulns, BuildScanTypesString(records));
+                    AddPageBreak(doc);
+                    GeneratePortScanSection(doc, mergedPorts);
+                    AddPageBreak(doc);
+                    GenerateVulnerabilitySection(doc, mergedVulns);
+                    AddPageBreak(doc);
+                    GenerateRiskAssessment(doc, mergedVulns, mergedPorts);
+                    AddPageBreak(doc);
+                    GenerateRemediationSection(doc, mergedVulns);
+                    AddPageBreak(doc);
+                    GenerateThreatIntelligenceSection(doc, mergedVulns, mergedPorts);
+                    AddPageBreak(doc);
+                    GenerateComplianceSection(doc, mergedVulns, mergedPorts);
+                    AddPageBreak(doc);
+                    GenerateConclusionSection(doc, mergedVulns, mergedPorts);
+                    AddPageBreak(doc);
+                    GenerateCveAppendix(doc, mergedVulns);
+                    AddPageBreak(doc);
+                    GenerateAppendixB(doc);
+                    doc.Save();
                 }
 
                 WriteLog($"[WordReport] 综合Word报告生成成功：{savePath} (合并{records.Count}条记录)");
@@ -395,6 +384,67 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(40);
 
+            // 封面底部元数据区块（任务1：报告编号/扫描工程师/审核签发/密级/版本）
+            var metaBlockTitle = doc.InsertParagraph("报 告 文 档 信 息");
+            metaBlockTitle.Alignment = Alignment.center;
+            metaBlockTitle.FontSize(11).Bold();
+            metaBlockTitle.Color(DeepBlue);
+            metaBlockTitle.SpacingBefore(8);
+            metaBlockTitle.SpacingAfter(8);
+
+            var metaInfoTable = doc.AddTable(7, 2);
+            metaInfoTable.Design = TableDesign.TableGrid;
+            metaInfoTable.Alignment = Alignment.center;
+
+            var metaInfoHeaders = new[] { "属性", "内容" };
+            StyleTableHeader(metaInfoTable, metaInfoHeaders);
+
+            // 任务：auto-save-vulnerability-json-library 注入漏洞库元数据
+            string libraryVersion = "未挂接本地库";
+            string librarySyncTime = "-";
+            string librarySource = "-";
+            int libraryTotal = 0;
+            try
+            {
+                var lib = LocalVulnerabilityLibrary.Instance;
+                if (lib != null && lib.IsLoaded)
+                {
+                    var meta = lib.GetMeta();
+                    if (meta != null)
+                    {
+                        libraryVersion = string.IsNullOrEmpty(meta.Version) ? "1.0" : meta.Version;
+                        libraryTotal = meta.TotalCount;
+                        librarySyncTime = meta.LastSyncTime.HasValue ? meta.LastSyncTime.Value.ToString("yyyy-MM-dd HH:mm:ss") : "未同步";
+                        if (meta.Sources != null && meta.Sources.Count > 0)
+                        {
+                            librarySource = string.Join(" / ", meta.Sources.Select(kv => $"{kv.Key} {kv.Value}"));
+                        }
+                    }
+                }
+            }
+            catch { /* 忽略报告注入异常 */ }
+
+            var metaInfoRows = new[]
+            {
+                ("报告编号", $"NSS-{DateTime.Now:yyyyMMdd-HHmmss}"),
+                ("扫描工程师", "NetSecurityScanner 自动扫描引擎"),
+                ("审核签发", "安全运营中心（SOC）审核"),
+                ("密级", "内部使用 ★ Confidential"),
+                ("文档版本", "V2.0（章节规范化重构版）"),
+                ("漏洞库版本", $"v{libraryVersion}  |  库总数 {libraryTotal}  |  最近同步 {librarySyncTime}  |  来源 {librarySource}")
+            };
+
+            for (int r = 0; r < metaInfoRows.Length; r++)
+            {
+                metaInfoTable.Rows[r + 1].Cells[0].Paragraphs[0].Append(metaInfoRows[r].Item1).FontSize(9).Bold();
+                metaInfoTable.Rows[r + 1].Cells[0].Paragraphs[0].Alignment = Alignment.center;
+                metaInfoTable.Rows[r + 1].Cells[1].Paragraphs[0].Append(metaInfoRows[r].Item2).FontSize(9);
+                metaInfoTable.Rows[r + 1].Cells[1].Paragraphs[0].Alignment = Alignment.left;
+                try { metaInfoTable.Rows[r + 1].Cells[1].FillColor = Xceed.Drawing.Color.WhiteSmoke; } catch { }
+            }
+
+            doc.InsertParagraph().SpacingAfter(15);
+
             var bottomLine = doc.InsertParagraph(new string('─', 50));
             bottomLine.Alignment = Alignment.center;
             bottomLine.FontSize(7);
@@ -435,55 +485,63 @@ namespace NetSecurityScanner
 
             var entries = new[]
             {
-                "一、执行摘要",
+                "第一章 执行摘要",
                 "      1.1 核心统计数据",
                 "      1.2 风险仪表盘",
                 "      1.3 服务分布图表",
                 "      1.4 Top 5 高危漏洞",
-                "二、端口扫描结果",
-                "      2.1 扫描方法说明",
-                "      2.2 端口扫描概况",
-                "      2.3 高危端口安全警示",
-                "      2.4 所有端口详情",
-                "      2.5 服务分布统计",
-                "三、漏洞详情分析",
-                "      3.1 漏洞风险分布",
-                "      3.2 受影响服务分布",
-                "      3.3 漏洞类型分类统计",
-                "      3.4 漏洞概览表",
-                "      3.5 漏洞详细信息",
-                "四、风险评估",
-                "      4.1 风险评估项目",
-                "      4.2 风险等级矩阵",
-                "      4.3 风险分布图表",
-                "      4.4 安全建议概述",
-                "五、修复建议",
-                "      5.1 修复优先级矩阵",
-                "      5.2 通用安全加固建议",
-                "      5.3 高危漏洞专项修复方案",
-                "      5.4 风险处理跟踪表",
-                "六、威胁情报分析",
-                "      6.1 活跃威胁向量",
-                "      6.2 行业威胁趋势",
-                "      6.3 攻击面评估",
-                "      6.4 威胁情报总结",
-                "七、合规参考",
-                "      7.1 合规标准对照评估",
-                "      7.2 合规差距分析",
-                "      7.3 合规改进建议",
-                "      7.4 合规总结",
-                "八、结论与建议",
-                "      8.1 总体安全评级",
-                "      8.2 合规雷达图",
-                "      8.3 核心结论",
-                "      8.4 长期安全建议",
-                "      8.5 报告文档信息",
-                "1.5 扫描范围与限制",
-                "      S.1 扫描对象",
-                "      S.2 扫描范围外",
-                "      S.3 已知限制",
-                "      S.4 使用声明",
-                "附录一、CVE漏洞参考信息"
+                "      1.5 扫描结论概览",
+                "第二章 扫描范围与方法",
+                "      2.1 扫描对象",
+                "      2.2 扫描范围外",
+                "      2.3 已知限制",
+                "      2.4 使用声明",
+                "第三章 端口扫描结果",
+                "      3.1 扫描方法说明",
+                "      3.2 端口扫描概况",
+                "      3.3 高危端口安全警示",
+                "      3.4 所有端口详情",
+                "      3.5 服务分布统计",
+                "第四章 漏洞详情分析",
+                "      4.1 漏洞风险分布",
+                "      4.2 受影响服务分布",
+                "      4.3 漏洞类型分类统计",
+                "      4.4 漏洞概览表",
+                "      4.5 漏洞详细信息",
+                "第五章 风险评估",
+                "      5.1 风险评估项目",
+                "      5.2 风险等级矩阵",
+                "      5.3 风险分布图表",
+                "      5.4 安全建议概述",
+                "第六章 修复建议",
+                "      6.1 修复优先级矩阵",
+                "      6.2 通用安全加固建议",
+                "      6.3 高危漏洞专项修复方案",
+                "      6.4 风险处理跟踪表",
+                "第七章 威胁情报分析",
+                "      7.1 活跃威胁向量",
+                "      7.2 行业威胁趋势",
+                "      7.3 攻击面评估",
+                "      7.4 威胁情报总结",
+                "第八章 合规参考",
+                "      8.1 合规标准对照评估",
+                "      8.2 合规差距分析",
+                "      8.3 合规改进建议",
+                "      8.4 合规总结",
+                "第九章 结论与建议",
+                "      9.1 总体安全评级",
+                "      9.2 合规雷达图",
+                "      9.3 核心结论",
+                "      9.4 长期安全建议",
+                "      9.5 报告文档信息",
+                "附录A CVE漏洞参考信息",
+                "附录B 报告使用与法律声明",
+                "      B.1 报告使用范围",
+                "      B.2 数据来源说明",
+                "      B.3 修复建议限制",
+                "      B.4 责任限制",
+                "      B.5 保密声明",
+                "      B.6 版本与修订记录"
             };
 
             foreach (var entry in entries)
@@ -504,22 +562,62 @@ namespace NetSecurityScanner
                 }
             }
 
-            doc.InsertParagraph().SpacingAfter(35);
+            doc.InsertParagraph().SpacingAfter(20);
+
+            // 任务2：增加"本报告使用说明"导言段落（≥120字）
+            var usageGuideTitle = doc.InsertParagraph("本报告使用说明");
+            usageGuideTitle.FontSize(12).Bold();
+            usageGuideTitle.Color(DeepBlue);
+            usageGuideTitle.SpacingBefore(8);
+            usageGuideTitle.SpacingAfter(8);
+
+            var usageGuide1 = doc.InsertParagraph("本报告采用统一的章节编号体系：第一章至第九章为主报告，分别对应执行摘要、扫描范围与方法、端口扫描结果、漏洞详情分析、风险评估、修复建议、威胁情报分析、合规参考以及结论与建议；附录A提供CVE漏洞参考信息，附录B列示报告使用与法律声明。子章节采用 x.y 标准编号体系（如 1.1、1.5、6.3）。如某个子章节无对应数据，将显示占位说明。");
+            usageGuide1.FontSize(10);
+            usageGuide1.SpacingAfter(6);
+
+            var usageGuide2 = doc.InsertParagraph("建议阅读顺序：先看「第一章 执行摘要」快速建立对目标系统整体安全态势的认知，再看「第九章 结论与建议」了解总体评级与处置策略；中间章节（端口扫描/漏洞详情/风险评估/修复建议等）可按需查阅，用于深入了解具体风险项的检测方法、影响范围与修复路径。本报告适合安全运营团队、运维团队、合规审计人员及管理层等多角色协同使用。");
+            usageGuide2.FontSize(10);
+            usageGuide2.SpacingAfter(6);
+
+            var usageGuide3 = doc.InsertParagraph("风险等级标识图例：");
+            usageGuide3.FontSize(10).Bold();
+            usageGuide3.SpacingAfter(4);
+
+            var legendTable = doc.AddTable(1, 5);
+            legendTable.Design = TableDesign.TableGrid;
+            legendTable.Alignment = Alignment.center;
+            var legendLabels = new[] { "严重（Critical）", "高危（High）", "中危（Medium）", "低危（Low）", "信息（Info）" };
+            var legendColors = new[] { Xceed.Drawing.Color.Firebrick, Xceed.Drawing.Color.OrangeRed, Xceed.Drawing.Color.DarkOrange, Xceed.Drawing.Color.SeaGreen, Xceed.Drawing.Color.SlateGray };
+            for (int c = 0; c < 5; c++)
+            {
+                var lc = legendTable.Rows[0].Cells[c];
+                lc.Paragraphs[0].Append(legendLabels[c]).FontSize(9).Bold();
+                lc.Paragraphs[0].Color(legendColors[c]);
+                lc.Paragraphs[0].Alignment = Alignment.center;
+            }
+
+            doc.InsertParagraph().SpacingAfter(12);
 
             var disclaimer = doc.InsertParagraph("免责声明：本报告由自动化安全扫描工具生成，结果仅供参考。对于关键安全问题，建议进行人工验证和深度安全分析。");
             disclaimer.Alignment = Alignment.center;
             disclaimer.FontSize(9);
             disclaimer.Color(MidGray);
+            disclaimer.SpacingAfter(10);
+
+            var tocNote = doc.InsertParagraph("注：报告章节编号与正文严格对应。如某个子章节无对应数据，将显示占位说明。");
+            tocNote.Alignment = Alignment.center;
+            tocNote.FontSize(8);
+            tocNote.Color(MidGray);
         }
 
         #endregion
 
-        #region 执行摘要
+        #region 第一章 执行摘要
 
         private static void GenerateExecutiveSummary(DocX doc, List<PortScanResult> ports,
             List<VulnerabilityResult> vulns, string targetIp, string scanTypeInfo = null)
         {
-            var chapterTitle = doc.InsertParagraph("一、执行摘要");
+            var chapterTitle = doc.InsertParagraph("第一章 执行摘要");
             chapterTitle.FontSize(16).Bold();
             chapterTitle.Color(DeepBlue);
             chapterTitle.SpacingBefore(15);
@@ -530,7 +628,7 @@ namespace NetSecurityScanner
             titleLine.Color(AccentBlue);
             titleLine.SpacingAfter(12);
 
-            var intro = doc.InsertParagraph("本节提供本次安全扫描的核心发现和统计概览，帮助快速了解目标系统的整体安全态势。");
+            var intro = doc.InsertParagraph("本章提供本次安全扫描的核心发现和统计概览，帮助快速了解目标系统的整体安全态势，并给出定性结论。");
             intro.FontSize(10);
             intro.SpacingBefore(8);
             intro.SpacingAfter(12);
@@ -669,34 +767,85 @@ namespace NetSecurityScanner
                 }
             }
 
+            // 任务3：在 statsTable 表格后插入"扫描结果快读"结论段（2-3 句总结）
+            doc.InsertParagraph().SpacingAfter(10);
+            var quickRead = doc.InsertParagraph();
+            quickRead.FontSize(10);
+            quickRead.SpacingAfter(14);
+            if (safeVulns.Any())
+            {
+                var highAndCritical = criticalCount + highCount;
+                quickRead.Append("扫描结果快读：").Bold().FontSize(10).Color(DeepBlue);
+                quickRead.Append($"本次扫描共发现 {safeVulns.Count} 个安全漏洞（其中 {criticalCount} 个严重、{highCount} 个高危），{openPorts.Count} 个开放端口，");
+                if (highAndCritical > 0)
+                {
+                    quickRead.Append($"高危占比 {highPct}%，安全评级为「").FontSize(10);
+                    quickRead.Append($"{riskLevel}").FontSize(10).Bold().Color(GetRiskColor(riskLevel));
+                    quickRead.Append("」，系统当前面临显著的安全风险。").FontSize(10);
+                }
+                else
+                {
+                    quickRead.Append("以中低危漏洞为主，安全状况处于可控范围。").FontSize(10);
+                }
+            }
+            else
+            {
+                quickRead.Append("扫描结果快读：").Bold().FontSize(10).Color(DeepBlue);
+                quickRead.Append($"本次扫描共检测到 {openPorts.Count} 个开放端口，未在已知漏洞库中匹配到安全漏洞，系统安全状况良好。");
+            }
+
             doc.InsertParagraph().SpacingAfter(18);
 
-            var gaugeImage = ReportChartGenerator.GenerateRiskGaugeChart(riskLevel, securityScore);
-            if (gaugeImage != null)
+            // 1.2 风险仪表盘 - 始终存在
             {
                 var gaugeTitle = doc.InsertParagraph("1.2 风险仪表盘");
                 gaugeTitle.FontSize(13).Bold();
                 gaugeTitle.Color(DeepBlue);
                 gaugeTitle.SpacingBefore(18);
                 gaugeTitle.SpacingAfter(8);
-                AddChartImage(doc, gaugeImage, 280, 280);
+                var gaugeImage = ReportChartGenerator.GenerateRiskGaugeChart(riskLevel, securityScore);
+                if (gaugeImage != null)
+                {
+                    AddChartImage(doc, gaugeImage, 280, 280);
+                }
+                else
+                {
+                    var placeholder = doc.InsertParagraph($"当前系统安全等级为「{riskLevel}」，安全评分为 {securityScore}/100。");
+                    placeholder.FontSize(10);
+                    placeholder.Alignment = Alignment.center;
+                    placeholder.SpacingAfter(10);
+                }
             }
 
-            var svcGroups = openPorts.Where(p => !string.IsNullOrEmpty(p?.Service))
-                .GroupBy(p => p.Service).OrderByDescending(g => g.Count()).Take(6).ToList();
-            if (svcGroups.Any())
+            // 1.3 服务分布图表 - 始终存在标题，根据数据显示图表或占位
             {
                 var svcTitle = doc.InsertParagraph("1.3 服务分布图表");
                 svcTitle.FontSize(13).Bold();
                 svcTitle.Color(DeepBlue);
                 svcTitle.SpacingBefore(18);
                 svcTitle.SpacingAfter(8);
-                var svcData = svcGroups.Select(g => (g.Key, g.Count())).ToList();
-                var svcChart = ReportChartGenerator.GeneratePortServiceBarChart(svcData);
-                AddChartImage(doc, svcChart, 450, 190);
+                var svcGroups = openPorts.Where(p => !string.IsNullOrEmpty(p?.Service))
+                    .GroupBy(p => p.Service).OrderByDescending(g => g.Count()).Take(6).ToList();
+                if (svcGroups.Any())
+                {
+                    var svcData = svcGroups.Select(g => (g.Key, g.Count())).ToList();
+                    var svcChart = ReportChartGenerator.GeneratePortServiceBarChart(svcData);
+                    AddChartImage(doc, svcChart, 450, 190);
+                    var svcNote = doc.InsertParagraph($"本次扫描共识别 {svcGroups.Count} 种主要服务类型，{svcGroups.First().Key} 服务最为活跃（{svcGroups.First().Count()} 个端口）。");
+                    svcNote.FontSize(9);
+                    svcNote.Color(MidGray);
+                    svcNote.Alignment = Alignment.center;
+                }
+                else
+                {
+                    var placeholder = doc.InsertParagraph("未识别到具体服务类型（扫描结果中未包含服务指纹信息）。建议结合主动服务探测工具（如 Nmap -sV）进行更深入的服务识别。");
+                    placeholder.FontSize(10);
+                    placeholder.Alignment = Alignment.center;
+                    placeholder.SpacingAfter(8);
+                }
             }
 
-            if (safeVulns.Any())
+            // 1.4 Top 5 高危漏洞 - 始终存在标题，根据数据显示表格或占位
             {
                 var topTitle = doc.InsertParagraph("1.4 Top 5 高危漏洞");
                 topTitle.FontSize(13).Bold();
@@ -704,38 +853,136 @@ namespace NetSecurityScanner
                 topTitle.SpacingBefore(22);
                 topTitle.SpacingAfter(10);
 
-                var topVulns = safeVulns.OrderByDescending(v => GetRiskPriority(v?.RiskLevel)).Take(5).ToList();
-                var topTable = doc.AddTable(topVulns.Count + 1, 4);
-                topTable.Design = TableDesign.TableGrid;
-                topTable.Alignment = Alignment.center;
-
-                var topHeaders = new[] { "序号", "漏洞名称", "风险等级", "CVE编号" };
-                StyleTableHeader(topTable, topHeaders);
-
-                int idx = 1;
-                foreach (var vuln in topVulns)
+                if (safeVulns.Any())
                 {
-                    var row = topTable.Rows[idx];
-                    var rl = string.IsNullOrWhiteSpace(vuln?.RiskLevel) ? "未分类" : vuln.RiskLevel;
-                    row.Cells[0].Paragraphs[0].Append((idx).ToString()).FontSize(9);
-                    row.Cells[0].Paragraphs[0].Alignment = Alignment.center;
-                    row.Cells[1].Paragraphs[0].Append(string.IsNullOrWhiteSpace(vuln?.Name) ? "未知漏洞" : vuln.Name).FontSize(9);
-                    row.Cells[2].Paragraphs[0].Append(rl).FontSize(9).Bold().Color(GetRiskColor(rl));
-                    row.Cells[2].Paragraphs[0].Alignment = Alignment.center;
-                    row.Cells[3].Paragraphs[0].Append(string.IsNullOrWhiteSpace(vuln?.CveId) ? "-" : vuln.CveId).FontSize(9);
-                    idx++;
+                    var topVulns = safeVulns.OrderByDescending(v => GetRiskPriority(v?.RiskLevel)).Take(5).ToList();
+                    var topTable = doc.AddTable(topVulns.Count + 1, 4);
+                    topTable.Design = TableDesign.TableGrid;
+                    topTable.Alignment = Alignment.center;
+
+                    var topHeaders = new[] { "序号", "漏洞名称", "风险等级", "CVE编号" };
+                    StyleTableHeader(topTable, topHeaders);
+
+                    int idx = 1;
+                    foreach (var vuln in topVulns)
+                    {
+                        var row = topTable.Rows[idx];
+                        var rl = string.IsNullOrWhiteSpace(vuln?.RiskLevel) ? "未分类" : vuln.RiskLevel;
+                        row.Cells[0].Paragraphs[0].Append((idx).ToString()).FontSize(9);
+                        row.Cells[0].Paragraphs[0].Alignment = Alignment.center;
+                        row.Cells[1].Paragraphs[0].Append(string.IsNullOrWhiteSpace(vuln?.Name) ? "未知漏洞" : vuln.Name).FontSize(9);
+                        row.Cells[2].Paragraphs[0].Append(rl).FontSize(9).Bold().Color(GetRiskColor(rl));
+                        row.Cells[2].Paragraphs[0].Alignment = Alignment.center;
+                        row.Cells[3].Paragraphs[0].Append(string.IsNullOrWhiteSpace(vuln?.CveId) ? "-" : vuln.CveId).FontSize(9);
+                        idx++;
+                    }
+                    ApplyTableRowShading(topTable);
                 }
-                ApplyTableRowShading(topTable);
+                else
+                {
+                    var placeholder = doc.InsertParagraph("本次扫描未发现安全漏洞，系统在已知漏洞库中处于良好状态。建议持续保持漏洞管理流程，定期执行安全扫描。");
+                    placeholder.FontSize(10);
+                    placeholder.Alignment = Alignment.center;
+                    placeholder.SpacingAfter(8);
+                }
+            }
+
+            // 1.5 扫描结论概览 - 始终存在，给出整体定性总结（任务4：扩展为 5 个维度）
+            {
+                var concTitle = doc.InsertParagraph("1.5 扫描结论概览");
+                concTitle.FontSize(13).Bold();
+                concTitle.Color(DeepBlue);
+                concTitle.SpacingBefore(22);
+                concTitle.SpacingAfter(10);
+
+                var critCount = safeVulns.Count(v => IsCritical(v?.RiskLevel));
+                var highCnt = safeVulns.Count(v => IsHigh(v?.RiskLevel));
+                var medCount = safeVulns.Count(v => IsMedium(v?.RiskLevel));
+                var lowCount = safeVulns.Count(v => IsLow(v?.RiskLevel));
+                var highRiskPortCount = openPorts.Count(p => p?.PortNumber == 445 || p?.PortNumber == 135 || p?.PortNumber == 3389 || p?.PortNumber == 23 || p?.PortNumber == 21 || p?.PortNumber == 3306 || p?.PortNumber == 1433 || p?.PortNumber == 6379);
+
+                // 维度一：总体态势
+                var para1 = doc.InsertParagraph();
+                para1.Append("【总体态势】").Bold().FontSize(10).Color(DeepBlue);
+                para1.Append($"本次对 {targetIp} 的安全扫描共发现 {safeVulns.Count} 个漏洞、{openPorts.Count} 个开放端口；系统整体安全评级为「").FontSize(10);
+                para1.Append($"{riskLevel}").Bold().FontSize(10).Color(GetRiskColor(riskLevel));
+                para1.Append($"」，安全评分 {securityScore}/100。综合来看，").FontSize(10);
+                if (riskLevel == "严重" || riskLevel == "高")
+                    para1.Append("系统面临较高安全风险，需立即启动应急响应并落实修复。").FontSize(10);
+                else if (riskLevel == "中")
+                    para1.Append("系统存在一定安全风险，建议按优先级推进修复。").FontSize(10);
+                else
+                    para1.Append("系统安全态势整体可控，建议持续保持安全监控。").FontSize(10);
+                para1.SpacingAfter(6);
+
+                // 维度二：漏洞态势
+                var para2 = doc.InsertParagraph();
+                para2.Append("【漏洞态势】").Bold().FontSize(10).Color(DeepBlue);
+                para2.Append($"在 {safeVulns.Count} 个漏洞中，").FontSize(10);
+                if (critCount > 0) { para2.Append($"严重漏洞 {critCount} 个").Bold().FontSize(10).Color(Xceed.Drawing.Color.Firebrick); para2.Append("，"); }
+                if (highCnt > 0) { para2.Append($"高危漏洞 {highCnt} 个").Bold().FontSize(10).Color(Xceed.Drawing.Color.OrangeRed); para2.Append("，"); }
+                para2.Append($"中危 {medCount} 个、低危/信息 {lowCount} 个。").FontSize(10);
+                if (critCount + highCnt > 0)
+                    para2.Append("存在可被远程利用的高危漏洞，攻击者可借此获取系统控制权或敏感数据，必须优先处置。").FontSize(10);
+                else
+                    para2.Append("未发现严重/高危级别漏洞，漏洞风险整体可控。").FontSize(10);
+                para2.SpacingAfter(6);
+
+                // 维度三：端口态势
+                var para3 = doc.InsertParagraph();
+                para3.Append("【端口态势】").Bold().FontSize(10).Color(DeepBlue);
+                para3.Append($"共识别 {openPorts.Count} 个开放端口，").FontSize(10);
+                if (highRiskPortCount > 0)
+                {
+                    para3.Append($"其中包含 {highRiskPortCount} 个高危端口（如 445/135/3389/23/21/3306/1433/6379 等），").FontSize(10);
+                    para3.Append("这些端口是勒索软件、蠕虫病毒、暴力破解攻击的主要入口，").Bold().FontSize(10).Color(Xceed.Drawing.Color.Firebrick);
+                    para3.Append("建议立即关闭或限制来源访问。").FontSize(10);
+                }
+                else
+                {
+                    para3.Append("未检测到 445/135/3389/23/21/3306/1433/6379 等高危端口对外暴露，端口暴露面整体可控。").FontSize(10);
+                }
+                para3.SpacingAfter(6);
+
+                // 维度四：风险处置优先级
+                var para4 = doc.InsertParagraph();
+                para4.Append("【风险处置优先级】").Bold().FontSize(10).Color(DeepBlue);
+                if (riskLevel == "严重" || riskLevel == "高")
+                {
+                    para4.Append("建议按 P1 紧急级别（24 小时内）处置严重/高危漏洞，").Bold().FontSize(10).Color(Xceed.Drawing.Color.Firebrick);
+                    para4.Append("同步启动应急响应流程、隔离受影响系统、加强实时威胁监控；中危漏洞按 P2（7 天内）处理；低危漏洞按 P3 持续优化。").FontSize(10);
+                }
+                else if (riskLevel == "中")
+                {
+                    para4.Append("建议按 P2 优先级（7 天内）处置中危及以上漏洞，").Bold().FontSize(10).Color(Xceed.Drawing.Color.OrangeRed);
+                    para4.Append("同步完善安全配置基线和监控告警；低危漏洞纳入 P3 持续修复计划。").FontSize(10);
+                }
+                else
+                {
+                    para4.Append("建议按 P3 持续优化原则保持安全态势，").Bold().FontSize(10).Color(Xceed.Drawing.Color.SeaGreen);
+                    para4.Append("定期执行漏洞扫描与基线核查，建立常态化的安全运营机制。").FontSize(10);
+                }
+                para4.SpacingAfter(6);
+
+                // 维度五：总体建议
+                var para5 = doc.InsertParagraph();
+                para5.Append("【总体建议】").Bold().FontSize(10).Color(DeepBlue);
+                para5.Append("结合上述态势分析，建议从「漏洞修复」「端口治理」「配置加固」「监控审计」四个维度同步推进安全工作：").FontSize(10);
+                para5.Append("（1）按 P1/P2/P3 优先级闭环处置漏洞；").FontSize(10);
+                para5.Append("（2）关闭非必要端口，配置严格的防火墙规则；").FontSize(10);
+                para5.Append("（3）建立安全配置基线并定期核查；").FontSize(10);
+                para5.Append("（4）部署集中化日志管理与威胁监控平台，形成「检测-分析-响应-恢复」的安全运营闭环。").Bold().FontSize(10).Color(DeepBlue);
+                para5.SpacingAfter(10);
             }
         }
 
         #endregion
 
-        #region 端口扫描结果
+        #region 第三章 端口扫描结果
 
         private static void GeneratePortScanSection(DocX doc, List<PortScanResult> results)
         {
-            var chapterTitle = doc.InsertParagraph("二、端口扫描结果");
+            var chapterTitle = doc.InsertParagraph("第三章 端口扫描结果");
             chapterTitle.FontSize(16).Bold();
             chapterTitle.Color(DeepBlue);
             chapterTitle.SpacingBefore(15);
@@ -769,11 +1016,38 @@ namespace NetSecurityScanner
             var closedPorts = allPorts.Where(p => p?.Status == "关闭" || p?.Status?.ToLower() == "closed").ToList();
             var filteredPorts = allPorts.Where(p => p?.Status == "过滤" || p?.Status?.ToLower() == "filtered").ToList();
 
-            var subHeaderScan = doc.InsertParagraph("2.1 扫描方法说明");
+            var subHeaderScan = doc.InsertParagraph("3.1 扫描方法说明");
             subHeaderScan.FontSize(13).Bold();
             subHeaderScan.Color(DeepBlue);
             subHeaderScan.SpacingBefore(12);
             subHeaderScan.SpacingAfter(8);
+
+            // 任务6：增加"扫描流程图"文字描述段（≥120字）
+            var flowTitle = doc.InsertParagraph("扫描流程图");
+            flowTitle.FontSize(11).Bold();
+            flowTitle.Color(AccentBlue);
+            flowTitle.SpacingBefore(4);
+            flowTitle.SpacingAfter(4);
+
+            var flowPara1 = doc.InsertParagraph("本次端口扫描按照「目标确认 → 端口发现 → 服务识别 → 漏洞匹配 → 结果汇总」五个阶段串行执行：");
+            flowPara1.FontSize(10);
+            flowPara1.SpacingAfter(4);
+
+            var flowSteps = new[]
+            {
+                "① 目标确认：解析用户输入的目标 IP/域名，校验其可达性，并对授权范围进行提示；",
+                "② 端口发现：基于 TCP SYN 半连接扫描技术对目标 1-65535 端口进行探测，依据 SYN+ACK/RST 响应判定端口状态（开放/关闭/过滤）；",
+                "③ 服务识别：对开放端口主动抓取 Banner 报文，识别服务类型与版本（如 HTTP、SSH、MySQL、Redis 等）；",
+                "④ 漏洞匹配：将服务指纹与内置 CVE/CNVD 漏洞库进行模式匹配，识别已知漏洞并计算 CVSS 评分；",
+                "⑤ 结果汇总：将端口、漏洞、风险评估结果按统一格式汇总，生成可视化报告输出。"
+            };
+            foreach (var step in flowSteps)
+            {
+                var stepP = doc.InsertParagraph(step);
+                stepP.FontSize(10);
+                stepP.SpacingAfter(3);
+            }
+            doc.InsertParagraph().SpacingAfter(8);
 
             var methodPara = doc.InsertParagraph();
             methodPara.Append("本次端口扫描采用").FontSize(10);
@@ -803,7 +1077,7 @@ namespace NetSecurityScanner
             ApplyTableRowShading(methodTable);
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader0 = doc.InsertParagraph("2.2 端口扫描概况");
+            var subHeader0 = doc.InsertParagraph("3.2 端口扫描概况");
             subHeader0.FontSize(13).Bold();
             subHeader0.Color(DeepBlue);
             subHeader0.SpacingBefore(12);
@@ -845,54 +1119,139 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            if (hasHighRisk)
+            // 3.3 高危端口安全警示 - 始终存在标题，根据数据显示表格或占位说明
             {
-                var riskTitle = doc.InsertParagraph("2.3 高危端口安全警示");
+                var riskTitle = doc.InsertParagraph("3.3 高危端口安全警示");
                 riskTitle.FontSize(13).Bold();
-                riskTitle.Color(Xceed.Drawing.Color.Firebrick);
+                riskTitle.Color(DeepBlue);
                 riskTitle.SpacingBefore(12);
                 riskTitle.SpacingAfter(8);
 
-                var riskDesc = doc.InsertParagraph($"检测到{highRiskPorts.Count}个高危端口对外暴露，这些端口通常是恶意攻击者的首要目标。开放这些端口显著增加了系统被攻破的风险，建议立即评估是否关闭或限制访问。");
-                riskDesc.FontSize(10);
-                riskDesc.SpacingAfter(10);
-
-                var highRiskTable = doc.AddTable(highRiskPorts.Count + 1, 4);
-                highRiskTable.Design = TableDesign.TableGrid;
-                highRiskTable.Alignment = Alignment.center;
-
-                var hrHeaders = new[] { "端口", "典型服务", "风险等级", "安全建议" };
-                StyleTableHeader(highRiskTable, hrHeaders);
-
-                var portRiskInfo = new Dictionary<int, (string service, string risk, string advice)>
+                if (hasHighRisk)
                 {
-                    { 445, ("SMB文件共享", "严重", "立即关闭；如需使用可通过VPN访问") },
-                    { 135, ("RPC远程调用", "严重", "关闭端口；配置防火墙阻止135/137-139") },
-                    { 3389, ("远程桌面(RDP)", "高", "限制来源IP；启用NLA网络级认证") },
-                    { 23, ("Telnet远程登录", "严重", "立即关闭；使用SSH替代") },
-                    { 21, ("FTP文件传输", "高", "关闭；使用SFTP/FTPS替代") },
-                    { 3306, ("MySQL数据库", "高", "仅限内网127.0.0.1监听") },
-                    { 1433, ("SQL Server数据库", "高", "仅限内网访问；启用SSL加密") },
-                    { 6379, ("Redis缓存", "高", "仅限内网监听；设置强密码认证") }
-                };
+                    var riskDesc = doc.InsertParagraph($"检测到{highRiskPorts.Count}个高危端口对外暴露，这些端口通常是恶意攻击者的首要目标。开放这些端口显著增加了系统被攻破的风险，建议立即评估是否关闭或限制访问。");
+                    riskDesc.FontSize(10);
+                    riskDesc.SpacingAfter(10);
 
-                int hrIdx = 1;
-                foreach (var port in highRiskPorts)
-                {
-                    var info = portRiskInfo.ContainsKey(port) ? portRiskInfo[port] : ("未知服务", "高", "评估后关闭");
-                    highRiskTable.Rows[hrIdx].Cells[0].Paragraphs[0].Append($"{port}/TCP").FontSize(9).Bold();
-                    highRiskTable.Rows[hrIdx].Cells[0].Paragraphs[0].Alignment = Alignment.center;
-                    highRiskTable.Rows[hrIdx].Cells[1].Paragraphs[0].Append(info.Item1).FontSize(9);
-                    highRiskTable.Rows[hrIdx].Cells[2].Paragraphs[0].Append(info.Item2).FontSize(9).Bold().Color(GetRiskColor(info.Item2));
-                    highRiskTable.Rows[hrIdx].Cells[2].Paragraphs[0].Alignment = Alignment.center;
-                    highRiskTable.Rows[hrIdx].Cells[3].Paragraphs[0].Append(info.Item3).FontSize(9);
-                    hrIdx++;
+                    var highRiskTable = doc.AddTable(highRiskPorts.Count + 1, 4);
+                    highRiskTable.Design = TableDesign.TableGrid;
+                    highRiskTable.Alignment = Alignment.center;
+
+                    var hrHeaders = new[] { "端口", "典型服务", "风险等级", "安全建议" };
+                    StyleTableHeader(highRiskTable, hrHeaders);
+
+                    // 任务7：扩展每个端口详情（风险描述 / 典型攻击场景 / 修复方向）
+                    var portRiskInfo = new Dictionary<int, (string service, string risk, string advice)>
+                    {
+                        { 445, ("SMB文件共享", "严重", "立即关闭；如需使用可通过VPN访问") },
+                        { 135, ("RPC远程调用", "严重", "关闭端口；配置防火墙阻止135/137-139") },
+                        { 3389, ("远程桌面(RDP)", "高", "限制来源IP；启用NLA网络级认证") },
+                        { 23, ("Telnet远程登录", "严重", "立即关闭；使用SSH替代") },
+                        { 21, ("FTP文件传输", "高", "关闭；使用SFTP/FTPS替代") },
+                        { 3306, ("MySQL数据库", "高", "仅限内网127.0.0.1监听") },
+                        { 1433, ("SQL Server数据库", "高", "仅限内网访问；启用SSL加密") },
+                        { 6379, ("Redis缓存", "高", "仅限内网监听；设置强密码认证") }
+                    };
+
+                    // 端口风险详情：风险描述 / 典型攻击场景 / 修复方向
+                    var portDetail = new Dictionary<int, (string desc, string scenario, string fix)>
+                    {
+                        { 445, ("SMB 协议广泛用于 Windows 文件与打印共享，但历史上高危漏洞频发（EternalBlue、PrintNightmare、SMBGhost 等），是勒索软件（如 WannaCry、NotPetya）的主要传播通道。",
+                                "攻击者通过 445/TCP 利用 MS17-010 等漏洞执行远程代码，或通过匿名空会话枚举共享与用户信息，进一步横向移动。",
+                                "如非必要，关闭 SMB 服务并禁用 445 端口；启用 SMB 签名；通过 VPN 访问文件共享；及时安装 MS17-010 等关键补丁。") },
+                        { 135, ("Microsoft RPC 端点映射器端口，DCOM、远程管理服务依赖此端口。历史上多次出现高危远程代码执行漏洞，是 WannaCry 等蠕虫的扩散节点之一。",
+                                "攻击者通过 135 端口调用 DCOM 接口进行远程执行，或结合 445/139 实现内网横向渗透与权限提升。",
+                                "在公网完全封禁 135/137/139 端口；按需限制内网访问；关闭不必要的 DCOM 服务；启用主机防火墙。") },
+                        { 3389, ("Windows 远程桌面协议（RDP）端口，常被勒索软件团伙和 APT 组织作为初始入口。",
+                                "攻击者通过暴力破解、弱口令或凭据填充登录；利用 BlueKeep（CVE-2019-0708）等漏洞在未认证状态下执行远程代码。",
+                                "限制 RDP 访问来源 IP；启用网络级别认证（NLA）；强制多因素认证；设置账户锁定策略；及时更新系统补丁。") },
+                        { 23, ("Telnet 协议以明文传输用户名、密码和数据，安全性极差，互联网上存在大量自动化嗅探与爆破工具。",
+                                "攻击者通过网络嗅探获取管理员凭据，或通过字典攻击暴力破解 Telnet 账户。",
+                                "立即关闭 Telnet 服务；改用 SSH（22 端口）并配置密钥认证；如确需 Telnet，仅在受控内网使用并强制访问控制。") },
+                        { 21, ("FTP 协议默认以明文传输凭据和数据，且历史上多次出现缓冲区溢出与匿名访问漏洞。",
+                                "攻击者通过匿名登录读取敏感文件，或通过弱口令暴力破解获取服务器权限，甚至利用 ProFTPD、vsftpd 等历史漏洞获取 Shell。",
+                                "关闭 FTP 服务；使用 SFTP/FTPS 替代；如需保留，按用户限制目录、配置强密码策略并启用传输加密。") },
+                        { 3306, ("MySQL 默认监听端口，如直接暴露在公网，存在严重的数据泄露与未授权访问风险。",
+                                "攻击者通过弱口令、SQL 注入或历史 MySQL 漏洞（如 UDF 提权、CVE-2016-6662）获取数据库控制权，进一步渗透内网。",
+                                "仅允许 127.0.0.1 或内网网段访问；为每个账户配置强密码；启用 TLS 加密传输；及时升级到稳定版本。") },
+                        { 1433, ("Microsoft SQL Server 默认端口，对外暴露极易成为勒索软件和挖矿木马的目标。",
+                                "攻击者通过 sa 弱口令暴力破解、SQL 注入或利用 xp_cmdshell 扩展执行系统命令，实现权限提升与数据窃取。",
+                                "修改默认端口；仅允许内网访问；禁用 sa 账户或使用强密码；启用 SSL/TLS 加密；最小化权限原则。") },
+                        { 6379, ("Redis 默认未开启认证且支持 CONFIG SET 等高危命令，公网暴露时极易被攻击者利用。",
+                                "攻击者通过未授权访问写入 SSH 公钥、计划任务或恶意 SO 文件，实现远程命令执行；常见于挖矿与勒索事件。",
+                                "仅监听 127.0.0.1 或内网；启用 requirepass 强密码认证；禁用或重命名危险命令；使用 Redis 6+ 的 ACL 细粒度授权。") },
+                        { 27017, ("MongoDB 默认端口，公网暴露的 MongoDB 历史上多次发生大规模数据泄露事件。",
+                                "攻击者通过未授权访问或弱口令登录，dump 全量数据库或植入勒索信息。",
+                                "仅监听内网；启用访问控制与强密码认证；开启审计日志；最小化用户权限。") }
+                    };
+
+                    int hrIdx = 1;
+                    foreach (var port in highRiskPorts)
+                    {
+                        var info = portRiskInfo.ContainsKey(port) ? portRiskInfo[port] : ("未知服务", "高", "评估后关闭");
+                        highRiskTable.Rows[hrIdx].Cells[0].Paragraphs[0].Append($"{port}/TCP").FontSize(9).Bold();
+                        highRiskTable.Rows[hrIdx].Cells[0].Paragraphs[0].Alignment = Alignment.center;
+                        highRiskTable.Rows[hrIdx].Cells[1].Paragraphs[0].Append(info.Item1).FontSize(9);
+                        highRiskTable.Rows[hrIdx].Cells[2].Paragraphs[0].Append(info.Item2).FontSize(9).Bold().Color(GetRiskColor(info.Item2));
+                        highRiskTable.Rows[hrIdx].Cells[2].Paragraphs[0].Alignment = Alignment.center;
+                        highRiskTable.Rows[hrIdx].Cells[3].Paragraphs[0].Append(info.Item3).FontSize(9);
+                        hrIdx++;
+                    }
+                    ApplyTableRowShading(highRiskTable);
+
+                    // 任务7：每个高危端口独立段（风险描述 + 典型攻击场景 + 修复方向）
+                    doc.InsertParagraph().SpacingAfter(8);
+                    var portDetailTitle = doc.InsertParagraph("高危端口风险详情（逐项说明）");
+                    portDetailTitle.FontSize(11).Bold();
+                    portDetailTitle.Color(AccentBlue);
+                    portDetailTitle.SpacingBefore(8);
+                    portDetailTitle.SpacingAfter(6);
+
+                    int portNo = 1;
+                    foreach (var port in highRiskPorts)
+                    {
+                        var svc = portRiskInfo.ContainsKey(port) ? portRiskInfo[port].Item1 : "未知服务";
+                        var detail = portDetail.ContainsKey(port)
+                            ? portDetail[port]
+                            : (desc: "该端口为高危服务端口，存在被攻击的高风险。",
+                               scenario: "可能遭受暴力破解、漏洞利用或数据窃取等攻击。",
+                               fix: "评估业务必要性，关闭非必要端口并限制访问来源。");
+
+                        var portHeader = doc.InsertParagraph();
+                        portHeader.Append($"{portNo}. 端口 {port}/TCP（{svc}）").Bold().FontSize(10).Color(DeepBlue);
+                        portHeader.SpacingBefore(6);
+                        portHeader.SpacingAfter(2);
+
+                        var portDescP = doc.InsertParagraph();
+                        portDescP.Append("  • 风险描述：").Bold().FontSize(10);
+                        portDescP.Append(detail.desc).FontSize(10);
+                        portDescP.SpacingAfter(2);
+
+                        var portScenarioP = doc.InsertParagraph();
+                        portScenarioP.Append("  • 典型攻击场景：").Bold().FontSize(10);
+                        portScenarioP.Append(detail.scenario).FontSize(10);
+                        portScenarioP.SpacingAfter(2);
+
+                        var portFixP = doc.InsertParagraph();
+                        portFixP.Append("  • 修复方向：").Bold().FontSize(10);
+                        portFixP.Append(detail.fix).FontSize(10);
+                        portFixP.SpacingAfter(8);
+
+                        portNo++;
+                    }
                 }
-                ApplyTableRowShading(highRiskTable);
+                else
+                {
+                    var noRiskPara = doc.InsertParagraph("本次扫描未检测到高危端口（445/135/3389/23/21/3306/1433/6379）对外暴露。高危端口通常是勒索软件、蠕虫病毒和暴力破解攻击的主要入口，未发现高危端口暴露是良好的安全态势。建议持续保持当前访问控制策略。");
+                    noRiskPara.FontSize(10);
+                    noRiskPara.Alignment = Alignment.center;
+                    noRiskPara.SpacingAfter(10);
+                }
                 doc.InsertParagraph().SpacingAfter(22);
             }
 
-            var subHeader = doc.InsertParagraph(hasHighRisk ? "2.4 所有端口详情" : "2.3 所有端口详情");
+            // 3.4 所有端口详情 - 始终使用相同编号
+            var subHeader = doc.InsertParagraph("3.4 所有端口详情");
             subHeader.FontSize(13).Bold();
             subHeader.Color(DeepBlue);
             subHeader.SpacingBefore(12);
@@ -946,24 +1305,34 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(18);
 
-            var svcGroups = openPorts.Where(p => !string.IsNullOrEmpty(p?.Service))
-                .GroupBy(p => p.Service).OrderByDescending(g => g.Count()).Take(6).ToList();
-            if (svcGroups.Any())
+            // 3.5 服务分布统计 - 始终存在标题，根据数据显示图表或占位
             {
-                var svcChartTitle = doc.InsertParagraph("2.5 服务分布统计");
+                var svcChartTitle = doc.InsertParagraph("3.5 服务分布统计");
                 svcChartTitle.FontSize(13).Bold();
                 svcChartTitle.Color(DeepBlue);
                 svcChartTitle.SpacingBefore(22);
                 svcChartTitle.SpacingAfter(8);
 
-                var svcChartData = svcGroups.Select(g => (g.Key, g.Count())).ToList();
-                var svcChart = ReportChartGenerator.GeneratePortServiceBarChart(svcChartData);
-                AddChartImage(doc, svcChart, 450, 190);
+                var svcGroups = openPorts.Where(p => !string.IsNullOrEmpty(p?.Service))
+                    .GroupBy(p => p.Service).OrderByDescending(g => g.Count()).Take(6).ToList();
+                if (svcGroups.Any())
+                {
+                    var svcChartData = svcGroups.Select(g => (g.Key, g.Count())).ToList();
+                    var svcChart = ReportChartGenerator.GeneratePortServiceBarChart(svcChartData);
+                    AddChartImage(doc, svcChart, 450, 190);
 
-                var svcNote = doc.InsertParagraph($"\n共检测到{svcTypes}种不同类型的服务，其中{svcGroups.First().Key}服务最为活跃（{svcGroups.First().Count()}个端口）。");
-                svcNote.FontSize(10);
-                svcNote.SpacingBefore(6);
-                svcNote.SpacingAfter(10);
+                    var svcNote = doc.InsertParagraph($"\n共检测到{svcTypes}种不同类型的服务，其中{svcGroups.First().Key}服务最为活跃（{svcGroups.First().Count()}个端口）。");
+                    svcNote.FontSize(10);
+                    svcNote.SpacingBefore(6);
+                    svcNote.SpacingAfter(10);
+                }
+                else
+                {
+                    var noSvcPara = doc.InsertParagraph("未识别到具体服务类型（扫描结果中未包含服务指纹信息）。建议结合主动服务探测工具（如 Nmap -sV）进行更深入的服务识别。");
+                    noSvcPara.FontSize(10);
+                    noSvcPara.Alignment = Alignment.center;
+                    noSvcPara.SpacingAfter(10);
+                }
             }
         }
 
@@ -973,7 +1342,7 @@ namespace NetSecurityScanner
 
         private static void GenerateVulnerabilitySection(DocX doc, List<VulnerabilityResult> vulnerabilities)
         {
-            var chapterTitle = doc.InsertParagraph("三、漏洞详情分析");
+            var chapterTitle = doc.InsertParagraph("第四章 漏洞详情分析");
             chapterTitle.FontSize(16).Bold();
             chapterTitle.Color(DeepBlue);
             chapterTitle.SpacingBefore(15);
@@ -991,17 +1360,6 @@ namespace NetSecurityScanner
 
             var safeVulns = vulnerabilities ?? new List<VulnerabilityResult>();
 
-            if (!safeVulns.Any())
-            {
-                var emptyPara = doc.InsertParagraph("本次扫描未发现安全漏洞");
-                emptyPara.Alignment = Alignment.center;
-                emptyPara.SpacingAfter(15);
-                var notePara = doc.InsertParagraph("未检测到已知漏洞可能表示目标系统已及时更新或安全配置良好，但也可能是扫描范围有限或目标系统运行了未公开的服务。建议结合其他评估手段进行综合判断。");
-                notePara.FontSize(9);
-                notePara.Color(MidGray);
-                return;
-            }
-
             var criticalCount = safeVulns.Count(v => IsCritical(v?.RiskLevel));
             var highCount = safeVulns.Count(v => IsHigh(v?.RiskLevel));
             var mediumCount = safeVulns.Count(v => IsMedium(v?.RiskLevel));
@@ -1011,7 +1369,18 @@ namespace NetSecurityScanner
             var vulnSvcs = safeVulns.Where(v => !string.IsNullOrWhiteSpace(v?.Service))
                 .GroupBy(v => v.Service).OrderByDescending(g => g.Count()).Take(5).ToList();
 
-            var subHeader0 = doc.InsertParagraph("3.1 漏洞风险分布");
+            if (!safeVulns.Any())
+            {
+                var emptyPara = doc.InsertParagraph("本次扫描未发现安全漏洞，未在已知漏洞库中匹配到已知漏洞。");
+                emptyPara.Alignment = Alignment.center;
+                emptyPara.SpacingAfter(12);
+                var notePara = doc.InsertParagraph("未检测到已知漏洞可能表示目标系统已及时更新或安全配置良好，但也可能是扫描范围有限或目标系统运行了未公开的服务。建议结合其他评估手段进行综合判断。");
+                notePara.FontSize(9);
+                notePara.Color(MidGray);
+                notePara.SpacingAfter(18);
+            }
+
+            var subHeader0 = doc.InsertParagraph("4.1 漏洞风险分布");
             subHeader0.FontSize(13).Bold();
             subHeader0.Color(DeepBlue);
             subHeader0.SpacingBefore(12);
@@ -1060,7 +1429,7 @@ namespace NetSecurityScanner
 
             if (vulnSvcs.Any())
             {
-                var svcDistTitle = doc.InsertParagraph("3.2 受影响服务分布");
+                var svcDistTitle = doc.InsertParagraph("4.2 受影响服务分布");
                 svcDistTitle.FontSize(13).Bold();
                 svcDistTitle.Color(DeepBlue);
                 svcDistTitle.SpacingBefore(12);
@@ -1092,8 +1461,21 @@ namespace NetSecurityScanner
 
                 doc.InsertParagraph().SpacingAfter(22);
             }
+            else
+            {
+                // 无受影响服务时为 4.2 增加占位说明
+                var svcDistTitle = doc.InsertParagraph("4.2 受影响服务分布");
+                svcDistTitle.FontSize(13).Bold();
+                svcDistTitle.Color(DeepBlue);
+                svcDistTitle.SpacingBefore(12);
+                svcDistTitle.SpacingAfter(10);
+                var svcDistPh = doc.InsertParagraph("无受影响服务（漏洞扫描结果中未关联到具体服务信息）。");
+                svcDistPh.FontSize(10);
+                svcDistPh.Alignment = Alignment.center;
+                svcDistPh.SpacingAfter(12);
+            }
 
-            var subHeaderType = doc.InsertParagraph("3.3 漏洞类型分类统计");
+            var subHeaderType = doc.InsertParagraph("4.3 漏洞类型分类统计");
             subHeaderType.FontSize(13).Bold();
             subHeaderType.Color(DeepBlue);
             subHeaderType.SpacingBefore(12);
@@ -1168,13 +1550,22 @@ namespace NetSecurityScanner
                 tRow++;
             }
             ApplyTableRowShading(typeTable);
+
+            if (!safeVulns.Any())
+            {
+                var typePh = doc.InsertParagraph("本次扫描未发现安全漏洞，无漏洞类型可统计。");
+                typePh.FontSize(10);
+                typePh.Alignment = Alignment.center;
+                typePh.SpacingAfter(12);
+            }
+
             doc.InsertParagraph().SpacingAfter(22);
 
             bool hasMore = safeVulns.Count > MAX_VULN_DISPLAY;
             var displayVulns = hasMore ? safeVulns.Take(MAX_VULN_DISPLAY).ToList() : safeVulns;
             var sortedVulns = displayVulns.OrderByDescending(v => GetRiskPriority(v?.RiskLevel)).ToList();
 
-            var subHeader = doc.InsertParagraph("3.4 漏洞概览表");
+            var subHeader = doc.InsertParagraph("4.4 漏洞概览表");
             subHeader.FontSize(13).Bold();
             subHeader.Color(DeepBlue);
             subHeader.SpacingBefore(12);
@@ -1214,23 +1605,33 @@ namespace NetSecurityScanner
             }
 
             doc.InsertParagraph().SpacingAfter(22);
-            var detailHeader = doc.InsertParagraph("3.5 漏洞详细信息（前10个）");
+            var detailHeader = doc.InsertParagraph("4.5 漏洞详细信息（前10个）");
             detailHeader.FontSize(13).Bold();
             detailHeader.Color(DeepBlue);
             detailHeader.SpacingBefore(22);
             detailHeader.SpacingAfter(10);
 
-            int dIdx = 1;
-            foreach (var vuln in sortedVulns.Take(Math.Min(MAX_DETAIL_BLOCKS, sortedVulns.Count)))
+            if (safeVulns.Any())
             {
-                try
+                int dIdx = 1;
+                foreach (var vuln in sortedVulns.Take(Math.Min(MAX_DETAIL_BLOCKS, sortedVulns.Count)))
                 {
-                    AddVulnerabilityDetailBlock(doc, vuln, dIdx++);
+                    try
+                    {
+                        AddVulnerabilityDetailBlock(doc, vuln, dIdx++);
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[WordReport-详情块] 错误: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"[WordReport-详情块] 错误: {ex.Message}");
-                }
+            }
+            else
+            {
+                var detailPh = doc.InsertParagraph("本次扫描未发现安全漏洞，无可深入分析的漏洞。");
+                detailPh.FontSize(10);
+                detailPh.Alignment = Alignment.center;
+                detailPh.SpacingAfter(10);
             }
         }
 
@@ -1309,14 +1710,45 @@ namespace NetSecurityScanner
             }
 
             contentPara.Append("\n\n【修复方案】\n").FontSize(10).Bold().Color(DeepBlue);
-            var solution = GetSafeString(vuln.Solution ?? "请参考官方安全公告获取补丁信息。");
-            foreach (var line in solution.Split('\n')
+            // 任务8：强化"修复建议"字段（≥50字）
+            string solution;
+            if (!string.IsNullOrWhiteSpace(vuln.Solution) && vuln.Solution != "-")
+            {
+                solution = vuln.Solution;
+            }
+            else
+            {
+                // 缺失修复建议时按风险等级给出通用强化建议（≥50字）
+                if (riskLevel == "严重" || riskLevel == "高危")
+                {
+                    solution = "1) 立即按官方安全公告升级组件至安全版本，或安装对应补丁；2) 若暂无补丁，启用 WAF/IPS 临时缓解并限制网络访问；3) 修改默认配置、关闭非必要服务、最小化权限；4) 复测确认漏洞已闭环；5) 持续关注官方更新和威胁情报。";
+                }
+                else if (riskLevel == "中危")
+                {
+                    solution = "1) 参照官方安全公告升级到修复版本或安装补丁；2) 强化相关组件的安全配置（如关闭调试接口、限制访问范围）；3) 必要时启用临时缓解措施（如防火墙规则）；4) 跟踪修复进度并复测。";
+                }
+                else
+                {
+                    solution = "1) 评估漏洞的实际影响并纳入下一轮修复计划；2) 持续关注漏洞库和官方安全公告；3) 定期执行安全扫描和渗透测试，确保问题可控。";
+                }
+            }
+
+            var solutionLines = solution.Split('\n')
                 .Where(l => !string.IsNullOrWhiteSpace(l))
                 .Select(l => l.Trim())
-                .Take(5))
+                .Take(6)
+                .ToList();
+            if (solutionLines.Count == 0) solutionLines.Add(solution);
+
+            foreach (var line in solutionLines)
             {
                 contentPara.Append($"  • {line}\n").FontSize(10);
             }
+
+            // 任务8：补充【验证方法】字段，确保 5 大字段齐全
+            contentPara.Append("\n【验证方法】\n").FontSize(10).Bold().Color(DeepBlue);
+            var verifyText = BuildVerificationMethod(vuln, riskLevel);
+            contentPara.Append(verifyText).FontSize(10);
 
             if (!string.IsNullOrWhiteSpace(vuln.References))
             {
@@ -1332,13 +1764,48 @@ namespace NetSecurityScanner
             separator.SpacingAfter(8);
         }
 
+        private static string BuildVerificationMethod(VulnerabilityResult vuln, string riskLevel)
+        {
+            if (vuln == null) return "重新执行本扫描工具进行复测，确认漏洞已不再命中。";
+
+            var name = (vuln.Name ?? string.Empty).ToLower();
+            var hasCve = !string.IsNullOrWhiteSpace(vuln.CveId);
+            var port = vuln.Port.HasValue ? $":{vuln.Port.Value}" : string.Empty;
+
+            if (hasCve)
+            {
+                return $"1) 重新执行本扫描工具，针对 {vuln.CveId}{port} 复测，确认风险等级降至「低危/信息」以下；" +
+                       $"2) 在 NVD 官方数据库（https://nvd.nist.gov/vuln/detail/{vuln.CveId}）查询补丁版本与缓解方案；" +
+                       $"3) 通过渗透测试或漏洞 PoC 工具验证修复有效性；" +
+                       $"4) 检查相关组件的版本号（{vuln.Service ?? "服务"}）已升级到安全版本；" +
+                       $"5) 持续关注厂商安全公告与威胁情报。";
+            }
+            if (name.Contains("rce") || name.Contains("远程执行") || name.Contains("代码执行"))
+            {
+                return "1) 复测扫描确认漏洞不再命中；2) 在沙箱环境中使用 Metasploit 等专业工具复现漏洞，确认无法再被利用；3) 验证相关组件已升级或安全配置已生效。";
+            }
+            if (name.Contains("sql") && name.Contains("injection"))
+            {
+                return "1) 复测扫描确认漏洞不再命中；2) 使用 sqlmap 等工具对原注入点进行重新检测，确认返回结果不再含数据库错误或数据泄露；3) 验证 WAF/参数化查询已部署。";
+            }
+            if (name.Contains("xss") || name.Contains("跨站"))
+            {
+                return "1) 复测扫描确认漏洞不再命中；2) 在浏览器中构造 XSS Payload 验证不再执行；3) 验证输入过滤与输出编码已部署。";
+            }
+            if (riskLevel == "严重" || riskLevel == "高危")
+            {
+                return "1) 复测扫描确认漏洞不再命中；2) 检查相关组件已升级或加固配置已生效；3) 必要时通过人工渗透测试验证修复有效性；4) 持续关注官方安全公告。";
+            }
+            return "1) 重新执行本扫描工具进行复测；2) 检查相关组件版本或配置符合安全基线；3) 跟踪修复状态并归档。";
+        }
+
         #endregion
 
         #region 风险评估
 
         private static void GenerateRiskAssessment(DocX doc, List<VulnerabilityResult> vulns, List<PortScanResult> ports)
         {
-            var chapterTitle = doc.InsertParagraph("四、风险评估");
+            var chapterTitle = doc.InsertParagraph("第五章 风险评估");
             chapterTitle.FontSize(16).Bold();
             chapterTitle.Color(DeepBlue);
             chapterTitle.SpacingBefore(15);
@@ -1354,7 +1821,22 @@ namespace NetSecurityScanner
             intro.SpacingBefore(8);
             intro.SpacingAfter(18);
 
-            var subHeader = doc.InsertParagraph("4.1 风险评估项目");
+            // 任务9：在 chapterTitle 后、subHeader（5.1）前增加"评估方法论"说明段（≥150字）
+            var methodTitle = doc.InsertParagraph("评估方法论");
+            methodTitle.FontSize(12).Bold();
+            methodTitle.Color(DeepBlue);
+            methodTitle.SpacingBefore(10);
+            methodTitle.SpacingAfter(6);
+
+            var methodPara0 = doc.InsertParagraph("本次风险评估采用 CVSS v3.1（Common Vulnerability Scoring System）通用漏洞评分体系作为基础评分依据。CVSS 由基础分（Base Score）、时效分（Temporal Score）和环境分（Environmental Score）三部分组成，其中基础分由攻击向量（AV）、攻击复杂度（AC）、权限要求（PR）、用户交互（UI）、影响范围（S）以及机密性/完整性/可用性（C/I/A）共 8 个维度计算得出，分值区间 0-10，分数越高风险越大。");
+            methodPara0.FontSize(10);
+            methodPara0.SpacingAfter(6);
+
+            var methodPara1 = doc.InsertParagraph("在 CVSS 评分基础上，结合 OWASP 风险评估方法论，采用「可能性 × 影响」二维矩阵对所有风险项进行综合判定：可能性维度（高/中/低）综合考虑漏洞可利用性、攻击复杂度与外部可达性；影响维度（严重/高/中/低）综合考虑业务影响、数据敏感度与合规要求。风险等级判定阈值：综合评分 ≥ 9.0 为「严重」、7.0-8.9 为「高危」、4.0-6.9 为「中危」、0.1-3.9 为「低危」、0 为「信息」。最终安全评分采用加权扣分法（详见 9.1 节），综合反映漏洞严重度、端口暴露、服务多样性与攻击面复杂度。");
+            methodPara1.FontSize(10);
+            methodPara1.SpacingAfter(12);
+
+            var subHeader = doc.InsertParagraph("5.1 风险评估项目");
             subHeader.FontSize(13).Bold();
             subHeader.Color(DeepBlue);
             subHeader.SpacingBefore(12);
@@ -1407,7 +1889,7 @@ namespace NetSecurityScanner
             {
                 doc.InsertParagraph().SpacingAfter(18);
 
-                var matrixTitle = doc.InsertParagraph("4.2 风险等级矩阵（可能性 × 影响）");
+                var matrixTitle = doc.InsertParagraph("5.2 风险等级矩阵（可能性 × 影响）");
                 matrixTitle.FontSize(13).Bold();
                 matrixTitle.Color(DeepBlue);
                 matrixTitle.SpacingBefore(22);
@@ -1471,7 +1953,7 @@ namespace NetSecurityScanner
 
                 doc.InsertParagraph().SpacingAfter(22);
 
-                var chartTitle = doc.InsertParagraph("4.3 风险分布图表");
+                var chartTitle = doc.InsertParagraph("5.3 风险分布图表");
                 chartTitle.FontSize(13).Bold();
                 chartTitle.Color(DeepBlue);
                 chartTitle.SpacingBefore(22);
@@ -1500,30 +1982,127 @@ namespace NetSecurityScanner
                     AddChartImage(doc, barImage, 480, 210);
                 }
             }
+            else
+            {
+                // 无漏洞时为 5.2/5.3 增加占位说明
+                var matrixTitle = doc.InsertParagraph("5.2 风险等级矩阵（可能性 × 影响）");
+                matrixTitle.FontSize(13).Bold();
+                matrixTitle.Color(DeepBlue);
+                matrixTitle.SpacingBefore(22);
+                matrixTitle.SpacingAfter(10);
+                var matrixPh = doc.InsertParagraph("未发现漏洞，无需进行风险等级矩阵评估。建议在系统发生变更后再次扫描以确认安全态势。");
+                matrixPh.FontSize(10);
+                matrixPh.Alignment = Alignment.center;
+                matrixPh.SpacingAfter(12);
+
+                var chartTitle = doc.InsertParagraph("5.3 风险分布图表");
+                chartTitle.FontSize(13).Bold();
+                chartTitle.Color(DeepBlue);
+                chartTitle.SpacingBefore(22);
+                chartTitle.SpacingAfter(10);
+                var chartPh = doc.InsertParagraph("未发现漏洞，无风险分布数据可展示。");
+                chartPh.FontSize(10);
+                chartPh.Alignment = Alignment.center;
+                chartPh.SpacingAfter(12);
+            }
 
             doc.InsertParagraph().SpacingAfter(22);
-            var sugHeader = doc.InsertParagraph("4.4 安全建议概述");
+            var sugHeader = doc.InsertParagraph("5.4 安全建议概述");
             sugHeader.FontSize(13).Bold();
             sugHeader.Color(DeepBlue);
             sugHeader.SpacingBefore(22);
             sugHeader.SpacingAfter(10);
 
-            var suggestions = new[] {
-                "立即修复所有严重和高危级别的漏洞",
-                "关闭不必要的服务和端口，减少攻击面",
-                "及时更新系统和应用软件至最新版本",
-                "实施强密码策略和多因素认证(MFA)",
-                "配置防火墙规则限制网络访问",
-                "定期进行安全扫描和渗透测试"
-            };
+            // 任务10：重构为 4 个时间维度（立即行动/短期/中期/长期），每个维度至少 3-4 条具体建议
+            var sugIntro = doc.InsertParagraph("以下按时间维度（立即行动/短期/中期/长期）给出可落地的安全建议清单，便于安全团队分阶段推进整改工作。");
+            sugIntro.FontSize(10);
+            sugIntro.SpacingAfter(10);
 
-            foreach (var s in suggestions)
+            // 立即行动（24小时内）
+            var immediateHeader = doc.InsertParagraph("【立即行动】24 小时内完成");
+            immediateHeader.FontSize(11).Bold();
+            immediateHeader.Color(Xceed.Drawing.Color.Firebrick);
+            immediateHeader.SpacingBefore(8);
+            immediateHeader.SpacingAfter(4);
+            var immediateItems = new[]
             {
-                var sPara = doc.InsertParagraph($"• {s}");
+                "立即修复所有严重和高危级别的安全漏洞，按官方公告升级组件或安装补丁",
+                "关闭所有非必要的高危端口（445/135/3389/23/21 等），配置严格的防火墙规则限制来源 IP",
+                "对所有暴露的远程管理端口（如 RDP/SSH）启用多因素认证(MFA)，强制强密码策略",
+                "启动应急响应流程，隔离已失陷或存在高危漏洞的资产，并保留证据用于溯源分析"
+            };
+            foreach (var item in immediateItems)
+            {
+                var sPara = doc.InsertParagraph($"• {item}");
                 sPara.FontSize(10);
-                sPara.SpacingBefore(4);
-                sPara.SpacingAfter(4);
+                sPara.SpacingBefore(3);
+                sPara.SpacingAfter(3);
             }
+
+            // 短期（1-7天）
+            var shortHeader = doc.InsertParagraph("【短期】1-7 天内完成");
+            shortHeader.FontSize(11).Bold();
+            shortHeader.Color(Xceed.Drawing.Color.OrangeRed);
+            shortHeader.SpacingBefore(10);
+            shortHeader.SpacingAfter(4);
+            var shortItems = new[]
+            {
+                "对中危漏洞完成升级或配置加固，建立漏洞修复的标准化处理流程",
+                "完成关键系统与应用的安全配置基线核查，修正发现的偏差项",
+                "部署并验证集中化日志管理，保留关键操作日志不少于 180 天",
+                "对所有对外服务启用 TLS 1.2+ 加密通信，禁用已知不安全的 SSL/TLS 版本和弱密码套件"
+            };
+            foreach (var item in shortItems)
+            {
+                var sPara = doc.InsertParagraph($"• {item}");
+                sPara.FontSize(10);
+                sPara.SpacingBefore(3);
+                sPara.SpacingAfter(3);
+            }
+
+            // 中期（1-3个月）
+            var midHeader = doc.InsertParagraph("【中期】1-3 个月内完成");
+            midHeader.FontSize(11).Bold();
+            midHeader.Color(Xceed.Drawing.Color.DarkOrange);
+            midHeader.SpacingBefore(10);
+            midHeader.SpacingAfter(4);
+            var midItems = new[]
+            {
+                "建立漏洞管理闭环流程：扫描 → 评估 → 修复 → 复测 → 归档，明确责任人与时限",
+                "实施网络分段和微隔离，将关键业务系统与办公网、互联网进行分层",
+                "部署 IDS/IPS 与威胁检测平台，建立安全事件实时告警与响应机制",
+                "开展全员安全意识培训和钓鱼演练，提升组织整体安全防护水位"
+            };
+            foreach (var item in midItems)
+            {
+                var sPara = doc.InsertParagraph($"• {item}");
+                sPara.FontSize(10);
+                sPara.SpacingBefore(3);
+                sPara.SpacingAfter(3);
+            }
+
+            // 长期（3-6个月）
+            var longHeader = doc.InsertParagraph("【长期】3-6 个月内完成");
+            longHeader.FontSize(11).Bold();
+            longHeader.Color(Xceed.Drawing.Color.SeaGreen);
+            longHeader.SpacingBefore(10);
+            longHeader.SpacingAfter(4);
+            var longItems = new[]
+            {
+                "推进等保 2.0 / ISO 27001 / GDPR / PCI DSS 等合规体系建设，完成差距整改与测评认证",
+                "建立威胁情报订阅和共享机制，定期执行红蓝对抗演练与桌面推演",
+                "建设 SOAR 安全编排自动化与响应能力，缩短 MTTD/MTTR（平均检测/响应时间）",
+                "制定并持续维护数据分类分级保护策略，覆盖数据全生命周期（采集、传输、存储、使用、销毁）"
+            };
+            foreach (var item in longItems)
+            {
+                var sPara = doc.InsertParagraph($"• {item}");
+                sPara.FontSize(10);
+                sPara.SpacingBefore(3);
+                sPara.SpacingAfter(3);
+            }
+
+            doc.InsertParagraph().SpacingAfter(10);
         }
 
         #endregion
@@ -1532,7 +2111,7 @@ namespace NetSecurityScanner
 
         private static void GenerateRemediationSection(DocX doc, List<VulnerabilityResult> vulns)
         {
-            var chapterTitle = doc.InsertParagraph("五、修复建议");
+            var chapterTitle = doc.InsertParagraph("第六章 修复建议");
             chapterTitle.FontSize(16).Bold();
             chapterTitle.Color(DeepBlue);
             chapterTitle.SpacingBefore(15);
@@ -1548,7 +2127,7 @@ namespace NetSecurityScanner
             intro.SpacingBefore(8);
             intro.SpacingAfter(18);
 
-            var subHeader1 = doc.InsertParagraph("5.1 修复优先级矩阵");
+            var subHeader1 = doc.InsertParagraph("6.1 修复优先级矩阵");
             subHeader1.FontSize(13).Bold();
             subHeader1.Color(DeepBlue);
             subHeader1.SpacingBefore(12);
@@ -1582,7 +2161,7 @@ namespace NetSecurityScanner
             ApplyTableRowShading(prioTable);
 
             doc.InsertParagraph().SpacingAfter(22);
-            var subHeader2 = doc.InsertParagraph("5.2 通用安全加固建议");
+            var subHeader2 = doc.InsertParagraph("6.2 通用安全加固建议");
             subHeader2.FontSize(13).Bold();
             subHeader2.Color(DeepBlue);
             subHeader2.SpacingBefore(22);
@@ -1611,40 +2190,86 @@ namespace NetSecurityScanner
             if (vulns != null && vulns.Any(v => IsCritical(v?.RiskLevel) || IsHigh(v?.RiskLevel)))
             {
                 doc.InsertParagraph().SpacingAfter(22);
-                var subHeader3 = doc.InsertParagraph("5.3 高危漏洞专项修复方案");
+                var subHeader3 = doc.InsertParagraph("6.3 高危漏洞专项修复方案");
                 subHeader3.FontSize(13).Bold();
                 subHeader3.Color(DeepBlue);
                 subHeader3.SpacingBefore(22);
                 subHeader3.SpacingAfter(10);
 
+                // 任务11：6 列扩展为：漏洞名称/风险等级/CVSS/影响服务/修复步骤/验证方法
                 var highVulns = vulns.Where(v => IsCritical(v?.RiskLevel) || IsHigh(v?.RiskLevel))
                     .OrderByDescending(v => GetRiskPriority(v?.RiskLevel)).Take(8).ToList();
 
-                var fixTable = doc.AddTable(highVulns.Count + 1, 4);
+                var fixTable = doc.AddTable(highVulns.Count + 1, 6);
                 fixTable.Design = TableDesign.TableGrid;
                 fixTable.Alignment = Alignment.center;
 
-                var fixHeaders = new[] { "漏洞名称", "风险等级", "影响服务", "修复建议" };
+                var fixHeaders = new[] { "漏洞名称", "风险等级", "CVSS", "影响服务", "修复步骤", "验证方法" };
                 StyleTableHeader(fixTable, fixHeaders);
 
                 for (int r = 0; r < highVulns.Count; r++)
                 {
                     var v = highVulns[r];
                     var rl = string.IsNullOrWhiteSpace(v?.RiskLevel) ? "未分类" : v.RiskLevel;
-                    fixTable.Rows[r + 1].Cells[0].Paragraphs[0].Append((v?.Name ?? "未知漏洞")).FontSize(9);
+                    var cvssScore = EstimateCvssScore(rl);
+
+                    // 漏洞名称（截断）
+                    var nameText = v?.Name ?? "未知漏洞";
+                    if (nameText.Length > 28) nameText = nameText.Substring(0, 25) + "...";
+                    fixTable.Rows[r + 1].Cells[0].Paragraphs[0].Append(nameText).FontSize(9).Bold();
+
+                    // 风险等级
                     fixTable.Rows[r + 1].Cells[1].Paragraphs[0].Append(rl).FontSize(9).Bold().Color(GetRiskColor(rl));
                     fixTable.Rows[r + 1].Cells[1].Paragraphs[0].Alignment = Alignment.center;
+
+                    // CVSS
+                    fixTable.Rows[r + 1].Cells[2].Paragraphs[0].Append($"{cvssScore:F1}").FontSize(9).Bold();
+                    fixTable.Rows[r + 1].Cells[2].Paragraphs[0].Color(GetRiskColor(rl));
+                    fixTable.Rows[r + 1].Cells[2].Paragraphs[0].Alignment = Alignment.center;
+
+                    // 影响服务
                     var svcPort = v?.Port.HasValue == true ? $"{v.Service ?? "未知"} (端口{v.Port.Value})" : (v?.Service ?? "-");
-                    fixTable.Rows[r + 1].Cells[2].Paragraphs[0].Append(svcPort).FontSize(9);
-                    var fixSuggestion = !string.IsNullOrWhiteSpace(v?.Solution) ? v.Solution : "请参考官方安全公告获取补丁信息";
-                    fixTable.Rows[r + 1].Cells[3].Paragraphs[0].Append(fixSuggestion.Length > 80 ? fixSuggestion.Substring(0, 77) + "..." : fixSuggestion).FontSize(9);
+                    if (svcPort.Length > 20) svcPort = svcPort.Substring(0, 17) + "...";
+                    fixTable.Rows[r + 1].Cells[3].Paragraphs[0].Append(svcPort).FontSize(9);
+
+                    // 修复步骤
+                    var fixSuggestion = !string.IsNullOrWhiteSpace(v?.Solution) ? v.Solution : "请参考官方安全公告获取补丁信息；如无补丁，启用 WAF/防火墙临时缓解。";
+                    if (fixSuggestion.Length > 60) fixSuggestion = fixSuggestion.Substring(0, 57) + "...";
+                    fixTable.Rows[r + 1].Cells[4].Paragraphs[0].Append(fixSuggestion).FontSize(9);
+
+                    // 验证方法
+                    var verifyText = !string.IsNullOrWhiteSpace(v?.CveId)
+                        ? $"复测确认漏洞不再命中；查询 NVD {v.CveId} 补丁状态"
+                        : "复测扫描确认漏洞不再命中；通过 PoC 或人工渗透测试验证修复有效性";
+                    if (verifyText.Length > 40) verifyText = verifyText.Substring(0, 37) + "...";
+                    fixTable.Rows[r + 1].Cells[5].Paragraphs[0].Append(verifyText).FontSize(9);
                 }
                 ApplyTableRowShading(fixTable);
+
+                // 任务11：在表格下方加段说明
+                var fixNote = doc.InsertParagraph();
+                fixNote.Append("说明：").Bold().FontSize(9).Color(DeepBlue);
+                fixNote.Append("上表仅列出 Top 8 高危漏洞的专项修复方案，更多漏洞详情请参见「4.5 漏洞详细信息」与「附录A CVE漏洞参考信息」。所有修复操作建议在测试环境验证后再推送到生产环境，并做好变更前后的快照备份。修复完成后请按「验证方法」列进行复测，确保漏洞已闭环处置。").FontSize(9);
+                fixNote.SpacingAfter(8);
+            }
+            else
+            {
+                // 无高危漏洞时为 6.3 增加占位说明（保持编号稳定）
+                doc.InsertParagraph().SpacingAfter(22);
+                var subHeader3 = doc.InsertParagraph("6.3 高危漏洞专项修复方案");
+                subHeader3.FontSize(13).Bold();
+                subHeader3.Color(DeepBlue);
+                subHeader3.SpacingBefore(22);
+                subHeader3.SpacingAfter(10);
+                var noHighPh = doc.InsertParagraph("本次扫描未发现高危漏洞，无需专项修复方案。建议持续保持漏洞管理流程，并在下一个扫描周期进行复核。");
+                noHighPh.FontSize(10);
+                noHighPh.Alignment = Alignment.center;
+                noHighPh.SpacingAfter(12);
             }
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader4 = doc.InsertParagraph("5.4 风险处理跟踪表");
+            var subHeader4 = doc.InsertParagraph("6.4 风险处理跟踪表");
             subHeader4.FontSize(13).Bold();
             subHeader4.Color(DeepBlue);
             subHeader4.SpacingBefore(22);
@@ -1734,7 +2359,7 @@ namespace NetSecurityScanner
 
         private static void GenerateThreatIntelligenceSection(DocX doc, List<VulnerabilityResult> vulns, List<PortScanResult> ports)
         {
-            var chapterTitle = doc.InsertParagraph("六、威胁情报分析");
+            var chapterTitle = doc.InsertParagraph("第七章 威胁情报分析");
             chapterTitle.FontSize(16).Bold();
             chapterTitle.Color(DeepBlue);
             chapterTitle.SpacingBefore(15);
@@ -1755,11 +2380,22 @@ namespace NetSecurityScanner
             var openPorts = safePorts.Where(p => p?.Status == "开放" || p?.Status?.ToLower() == "open").ToList();
             var highRiskVulns = safeVulns.Where(v => IsCritical(v?.RiskLevel) || IsHigh(v?.RiskLevel)).ToList();
 
-            var subHeader1 = doc.InsertParagraph("6.1 活跃威胁向量");
+            var subHeader1 = doc.InsertParagraph("7.1 活跃威胁向量");
             subHeader1.FontSize(13).Bold();
             subHeader1.Color(DeepBlue);
             subHeader1.SpacingBefore(12);
             subHeader1.SpacingAfter(10);
+
+            // 任务12：在 subHeader1（7.1）后、threatIntro 前增加"威胁演化趋势"补充说明段（≥100字）
+            var evolutionTitle = doc.InsertParagraph("威胁演化趋势");
+            evolutionTitle.FontSize(11).Bold();
+            evolutionTitle.Color(AccentBlue);
+            evolutionTitle.SpacingBefore(6);
+            evolutionTitle.SpacingAfter(4);
+
+            var evolutionPara = doc.InsertParagraph("2024-2026 年期间，全球网络威胁格局呈现以下显著演化趋势：(1) 勒索软件继续向「双重/三重勒索」演化，结合数据窃取、DDoS 与公开曝光施压，关键基础设施、医疗与制造业成为重点目标；(2) 软件供应链攻击频发，开源组件投毒（如 XZ Utils 后门事件）和上游厂商入侵成为新的主要攻击面；(3) 国家级 APT 组织大量使用零日漏洞，浏览器、VPN/网关系边界设备、邮件网关成为首选突破口；(4) AI 驱动攻击开始普及，攻击者利用大模型生成高度定制化的钓鱼邮件、自动化漏洞发现与深度伪造社工，攻击效率与隐蔽性显著提升。组织在评估威胁时，应将上述演化趋势与自身资产暴露面联动考量，建立「知己知彼」的纵深防御体系。");
+            evolutionPara.FontSize(10);
+            evolutionPara.SpacingAfter(10);
 
             var threatIntro = doc.InsertParagraph("基于检测到的开放端口和已知漏洞，以下为当前系统面临的活跃威胁向量：");
             threatIntro.FontSize(10);
@@ -1795,7 +2431,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader2 = doc.InsertParagraph("6.2 行业威胁趋势");
+            var subHeader2 = doc.InsertParagraph("7.2 行业威胁趋势");
             subHeader2.FontSize(13).Bold();
             subHeader2.Color(DeepBlue);
             subHeader2.SpacingBefore(22);
@@ -1832,7 +2468,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader3 = doc.InsertParagraph("6.3 攻击面评估");
+            var subHeader3 = doc.InsertParagraph("7.3 攻击面评估");
             subHeader3.FontSize(13).Bold();
             subHeader3.Color(DeepBlue);
             subHeader3.SpacingBefore(22);
@@ -1862,7 +2498,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader4 = doc.InsertParagraph("6.4 威胁情报总结");
+            var subHeader4 = doc.InsertParagraph("7.4 威胁情报总结");
             subHeader4.FontSize(13).Bold();
             subHeader4.Color(DeepBlue);
             subHeader4.SpacingBefore(22);
@@ -2006,7 +2642,7 @@ namespace NetSecurityScanner
 
         private static void GenerateComplianceSection(DocX doc, List<VulnerabilityResult> vulns, List<PortScanResult> ports)
         {
-            var chapterTitle = doc.InsertParagraph("七、合规参考");
+            var chapterTitle = doc.InsertParagraph("第八章 合规参考");
             chapterTitle.FontSize(16).Bold();
             chapterTitle.Color(DeepBlue);
             chapterTitle.SpacingBefore(15);
@@ -2026,7 +2662,7 @@ namespace NetSecurityScanner
             var safePorts = ports ?? new List<PortScanResult>();
             var openPorts = safePorts.Where(p => p?.Status == "开放" || p?.Status?.ToLower() == "open").ToList();
 
-            var subHeader1 = doc.InsertParagraph("7.1 合规标准对照评估");
+            var subHeader1 = doc.InsertParagraph("8.1 合规标准对照评估");
             subHeader1.FontSize(13).Bold();
             subHeader1.Color(DeepBlue);
             subHeader1.SpacingBefore(12);
@@ -2057,7 +2693,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader2 = doc.InsertParagraph("7.2 合规差距分析");
+            var subHeader2 = doc.InsertParagraph("8.2 合规差距分析");
             subHeader2.FontSize(13).Bold();
             subHeader2.Color(DeepBlue);
             subHeader2.SpacingBefore(22);
@@ -2089,7 +2725,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader3 = doc.InsertParagraph("7.3 合规改进建议");
+            var subHeader3 = doc.InsertParagraph("8.3 合规改进建议");
             subHeader3.FontSize(13).Bold();
             subHeader3.Color(DeepBlue);
             subHeader3.SpacingBefore(22);
@@ -2131,7 +2767,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader4 = doc.InsertParagraph("7.4 合规总结");
+            var subHeader4 = doc.InsertParagraph("8.4 合规总结");
             subHeader4.FontSize(13).Bold();
             subHeader4.Color(DeepBlue);
             subHeader4.SpacingBefore(22);
@@ -2160,6 +2796,41 @@ namespace NetSecurityScanner
             var complianceRoadmap = doc.InsertParagraph();
             complianceRoadmap.Append("合规建设是一个持续演进的过程，建议制定分阶段的合规路线图：第一阶段完成紧急整改和高危问题修复（1-3个月），第二阶段建立体系化的安全管理流程（3-6个月），第三阶段通过正式合规测评和认证（6-12个月）。").FontSize(10);
             complianceRoadmap.SpacingAfter(10);
+
+            // 任务13：合规建设路线图 3 阶段
+            var roadmapTitle = doc.InsertParagraph("合规建设路线图（3 阶段）");
+            roadmapTitle.FontSize(11).Bold();
+            roadmapTitle.Color(DeepBlue);
+            roadmapTitle.SpacingBefore(6);
+            roadmapTitle.SpacingAfter(6);
+
+            var phaseTable = doc.AddTable(4, 3);
+            phaseTable.Design = TableDesign.TableGrid;
+            phaseTable.Alignment = Alignment.center;
+
+            var phaseHeaders = new[] { "阶段", "时间窗口", "核心工作" };
+            StyleTableHeader(phaseTable, phaseHeaders);
+
+            var phaseItems = new (string, string, string)[]
+            {
+                ("阶段一：紧急整改", "1-3 个月",
+                    "完成严重/高危漏洞修复；关闭非必要的高危端口；部署 MFA、强制账户策略；建立漏洞响应小组与应急流程。"),
+                ("阶段二：体系建设", "3-6 个月",
+                    "建立安全配置基线并落地；部署集中化日志(SIEM)与威胁检测(IDS/IPS)；完善访问控制与数据加密；开展安全意识培训与演练。"),
+                ("阶段三：测评认证", "6-12 个月",
+                    "推进等保 2.0 三级/二级测评；ISO 27001 信息安全管理体系认证；GDPR/PCI DSS 合规自评估与差距关闭；建立持续合规监控机制。")
+            };
+
+            for (int r = 0; r < phaseItems.Length; r++)
+            {
+                var row = phaseTable.Rows[r + 1];
+                row.Cells[0].Paragraphs[0].Append(phaseItems[r].Item1).FontSize(9).Bold();
+                row.Cells[0].Paragraphs[0].Color(r == 0 ? Xceed.Drawing.Color.Firebrick : r == 1 ? Xceed.Drawing.Color.OrangeRed : Xceed.Drawing.Color.SeaGreen);
+                row.Cells[1].Paragraphs[0].Append(phaseItems[r].Item2).FontSize(9);
+                row.Cells[1].Paragraphs[0].Alignment = Alignment.center;
+                row.Cells[2].Paragraphs[0].Append(phaseItems[r].Item3).FontSize(9);
+            }
+            ApplyTableRowShading(phaseTable);
         }
 
         private static List<(string, string, string, string)> BuildComplianceItems(
@@ -2243,7 +2914,7 @@ namespace NetSecurityScanner
 
         private static void GenerateConclusionSection(DocX doc, List<VulnerabilityResult> vulns, List<PortScanResult> ports)
         {
-            var chapterTitle = doc.InsertParagraph("八、结论与建议");
+            var chapterTitle = doc.InsertParagraph("第九章 结论与建议");
             chapterTitle.FontSize(16).Bold();
             chapterTitle.Color(DeepBlue);
             chapterTitle.SpacingBefore(15);
@@ -2263,11 +2934,50 @@ namespace NetSecurityScanner
             var safePorts = ports ?? new List<PortScanResult>();
             var openPorts = safePorts.Where(p => p?.Status == "开放" || p?.Status?.ToLower() == "open").ToList();
 
-            var subHeader1 = doc.InsertParagraph("8.1 总体安全评级");
+            var subHeader1 = doc.InsertParagraph("9.1 总体安全评级");
             subHeader1.FontSize(13).Bold();
             subHeader1.Color(DeepBlue);
             subHeader1.SpacingBefore(12);
             subHeader1.SpacingAfter(10);
+
+            // 任务14：在 subHeader1（9.1）后、ratingPara 前增加"评分维度权重"说明表
+            var weightTitle = doc.InsertParagraph("评分维度权重");
+            weightTitle.FontSize(11).Bold();
+            weightTitle.Color(AccentBlue);
+            weightTitle.SpacingBefore(6);
+            weightTitle.SpacingAfter(4);
+
+            var weightIntro = doc.InsertParagraph("本次安全评分采用加权扣分法（满分 100），四个核心维度的权重如下：");
+            weightIntro.FontSize(10);
+            weightIntro.SpacingAfter(6);
+
+            var weightTable = doc.AddTable(5, 3);
+            weightTable.Design = TableDesign.TableGrid;
+            weightTable.Alignment = Alignment.center;
+
+            var weightHeaders = new[] { "评分维度", "权重", "说明" };
+            StyleTableHeader(weightTable, weightHeaders);
+
+            var weightItems = new (string, string, string)[]
+            {
+                ("漏洞严重度", "60%", "按 CVSS 评分与漏洞等级（严重-15/高-8/中-3/低-1）扣分，是决定总体评分的核心维度"),
+                ("端口暴露", "25%", "高危端口（445/135/3389/23/3306/1433/5432 等）每出现一个额外扣分；开放端口总数过多也会扣分"),
+                ("服务多样性", "10%", "对外服务的种类与版本分布反映攻击面复杂度，类型越多攻击路径越广"),
+                ("攻击面复杂度", "5%", "结合 Web 服务、远程管理、数据库等关键服务的暴露情况做综合评判")
+            };
+
+            for (int r = 0; r < weightItems.Length; r++)
+            {
+                var row = weightTable.Rows[r + 1];
+                row.Cells[0].Paragraphs[0].Append(weightItems[r].Item1).FontSize(9).Bold();
+                row.Cells[0].Paragraphs[0].Color(DeepBlue);
+                row.Cells[1].Paragraphs[0].Append(weightItems[r].Item2).FontSize(9).Bold();
+                row.Cells[1].Paragraphs[0].Color(Xceed.Drawing.Color.Firebrick);
+                row.Cells[1].Paragraphs[0].Alignment = Alignment.center;
+                row.Cells[2].Paragraphs[0].Append(weightItems[r].Item3).FontSize(9);
+            }
+            ApplyTableRowShading(weightTable);
+            doc.InsertParagraph().SpacingAfter(10);
 
             var overallRisk = CalculateOverallRiskLevel(safeVulns);
             var securityScore = CalculateSecurityScore(safeVulns, openPorts);
@@ -2317,7 +3027,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader2 = doc.InsertParagraph("8.2 合规雷达图");
+            var subHeader2 = doc.InsertParagraph("9.2 合规雷达图");
             subHeader2.FontSize(13).Bold();
             subHeader2.Color(DeepBlue);
             subHeader2.SpacingBefore(22);
@@ -2340,7 +3050,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader3 = doc.InsertParagraph("8.3 核心结论");
+            var subHeader3 = doc.InsertParagraph("9.3 核心结论");
             subHeader3.FontSize(13).Bold();
             subHeader3.Color(DeepBlue);
             subHeader3.SpacingBefore(22);
@@ -2360,7 +3070,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var subHeader4 = doc.InsertParagraph("8.4 长期安全建议");
+            var subHeader4 = doc.InsertParagraph("9.4 长期安全建议");
             subHeader4.FontSize(13).Bold();
             subHeader4.Color(DeepBlue);
             subHeader4.SpacingBefore(22);
@@ -2441,26 +3151,28 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(25);
 
-            var subHeader5 = doc.InsertParagraph("8.5 报告文档信息");
+            var subHeader5 = doc.InsertParagraph("9.5 报告文档信息");
             subHeader5.FontSize(13).Bold();
             subHeader5.Color(DeepBlue);
             subHeader5.SpacingBefore(22);
             subHeader5.SpacingAfter(10);
 
-            var docInfoTable = doc.AddTable(6, 2);
+            var docInfoTable = doc.AddTable(7, 2);
             docInfoTable.Design = TableDesign.TableGrid;
             docInfoTable.Alignment = Alignment.center;
 
             var docInfoHeaders = new[] { "属性", "内容" };
             StyleTableHeader(docInfoTable, docInfoHeaders);
 
+            // 任务17：确保 docInfoItems 包含 6 项：报告生成工具/扫描引擎版本/报告生成时间/风险评估方法/数据来源说明/报告模板版本
             var docInfoItems = new[]
             {
                 ("报告生成工具", $"NetSecurityScanner v{GetAppVersion()} Professional Edition"),
                 ("扫描引擎版本", GetAppVersion()),
                 ("报告生成时间", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),
                 ("风险评估方法", "基于CVSS v3.1评分体系，结合OWASP风险评估方法论"),
-                ("数据来源说明", "本报告数据来源于自动化安全扫描工具，结果综合自端口扫描、漏洞检测和威胁情报匹配")
+                ("数据来源说明", "本报告数据来源于自动化安全扫描工具，结果综合自端口扫描、漏洞检测和威胁情报匹配"),
+                ("报告模板版本", "V2.0（章节规范化重构版，含 9 章主体 + 附录 A/B，统一 x.y 编号）")
             };
 
             for (int r = 0; r < docInfoItems.Length; r++)
@@ -2514,29 +3226,65 @@ namespace NetSecurityScanner
 
         private static List<string> BuildCoreConclusions(List<VulnerabilityResult> vulns, List<PortScanResult> openPorts)
         {
+            // 任务15：固定输出 4-6 条结论（含风险定性 + 数量特征 + 关键建议）
             var conclusions = new List<string>();
-            var highRiskVulns = vulns.Where(v => IsCritical(v?.RiskLevel) || IsHigh(v?.RiskLevel)).ToList();
-            var portNumbers = openPorts.Select(p => p?.PortNumber ?? 0).ToHashSet();
+            var safeVulns = vulns ?? new List<VulnerabilityResult>();
+            var safePorts = openPorts ?? new List<PortScanResult>();
+            var highRiskVulns = safeVulns.Where(v => IsCritical(v?.RiskLevel) || IsHigh(v?.RiskLevel)).ToList();
+            var critCount = safeVulns.Count(v => IsCritical(v?.RiskLevel));
+            var highCount = safeVulns.Count(v => IsHigh(v?.RiskLevel));
+            var medCount = safeVulns.Count(v => IsMedium(v?.RiskLevel));
+            var portNumbers = safePorts.Select(p => p?.PortNumber ?? 0).ToHashSet();
+            var highRiskPorts = new[] { 445, 135, 3389, 23, 21, 3306, 1433, 6379, 27017 };
+            var exposedHighRiskPorts = highRiskPorts.Where(p => portNumbers.Contains(p)).ToList();
+            var riskLevel = CalculateOverallRiskLevel(safeVulns);
 
-            if (vulns.Any(v => IsCritical(v?.RiskLevel)))
-                conclusions.Add($"本次扫描发现{vulns.Count(v => IsCritical(v.RiskLevel))}个严重漏洞，存在被远程攻击的高风险，攻击者可利用这些漏洞获取系统控制权。");
+            // 1. 风险定性
+            string riskSummary;
+            if (riskLevel == "严重" || riskLevel == "高")
+                riskSummary = $"本次安全评估结论为「{riskLevel}」风险，系统存在被远程入侵或数据泄露的明确路径，需立即启动应急响应并按 P1 优先级闭环处置。";
+            else if (riskLevel == "中")
+                riskSummary = $"本次安全评估结论为「{riskLevel}」风险，系统存在一定的安全隐患，建议按 P2 优先级（7 天内）完成中危及以上漏洞修复。";
+            else if (safeVulns.Any())
+                riskSummary = $"本次安全评估结论为「低」风险，未发现严重/高危漏洞，建议按 P3 持续优化策略保持安全态势。";
+            else
+                riskSummary = "本次安全评估未发现已知漏洞，系统整体安全状况良好，建议保持常态化安全监控并定期复测。";
+            conclusions.Add(riskSummary);
 
+            // 2. 数量特征（漏洞）
+            var vulnDistLabel = highRiskVulns.Any() ? "高危为主" : (medCount > 0 ? "中危为主" : "低危/信息为主");
+            var openCount = safePorts.Count(p => p?.Status == "开放" || p?.Status?.ToLower() == "open");
+            conclusions.Add($"数量特征：本次扫描共发现 {safeVulns.Count} 个漏洞（严重 {critCount} 个、高危 {highCount} 个、中危 {medCount} 个），{safePorts.Count} 个端口（开放 {openCount} 个）。漏洞分布以{vulnDistLabel}，需结合业务影响确定修复优先级。");
+
+            // 3. 端口与攻击面
+            if (exposedHighRiskPorts.Any())
+            {
+                var portList = string.Join("、", exposedHighRiskPorts);
+                conclusions.Add($"关键风险点：检测到 {exposedHighRiskPorts.Count} 个高危端口（{portList}）对外暴露，是勒索软件、蠕虫与暴力破解攻击的主要入口，建议立即关闭非必要端口或通过防火墙/零信任网关限制来源 IP。");
+            }
+            else if (safePorts.Any(p => p?.Status == "开放" || p?.Status?.ToLower() == "open"))
+            {
+                conclusions.Add("关键风险点：本次未检测到 445/135/3389/23/21/3306/1433/6379 等高危端口对外暴露，端口暴露面整体可控，建议继续保持严格的访问控制策略。");
+            }
+            else
+            {
+                conclusions.Add("关键风险点：本次未发现开放端口，目标系统可能位于防火墙后或未运行网络服务，建议结合业务可达性进行进一步确认。");
+            }
+
+            // 4. 合规态势
+            if (highRiskVulns.Any() || exposedHighRiskPorts.Any())
+                conclusions.Add("合规态势：当前不符合等保 2.0、ISO 27001、PCI DSS 等主流合规标准对漏洞管理、端口治理与访问控制的基本要求，建议按 8.4 节「合规建设路线图」分阶段推进整改。");
+            else
+                conclusions.Add("合规态势：当前基本满足等保 2.0、ISO 27001、PCI DSS 等主流合规标准对漏洞管理与访问控制的基本要求，建议按 8.4 节「合规建设路线图」持续完善体系化建设。");
+
+            // 5. 关键建议（修复侧）
             if (highRiskVulns.Any())
-                conclusions.Add($"共发现{highRiskVulns.Count}个高危漏洞，涉及多个服务端口，需优先处理以降低被攻击风险。");
+                conclusions.Add($"关键建议：(1) 24 小时内完成所有严重/高危漏洞（{highRiskVulns.Count} 个）的修复或临时缓解；(2) 1 周内关闭/收敛暴露的高危端口，部署 MFA 与最小权限访问控制；(3) 1 个月内建立漏洞管理闭环流程并完成复测验证；(4) 持续推进 5.4 节四时间维度的安全建议落地。");
+            else
+                conclusions.Add("关键建议：(1) 持续保持漏洞定期扫描和补丁更新节奏；(2) 推进 5.4 节中长期安全建议落地；(3) 结合业务变更（新服务上线、网络结构调整）及时更新安全配置基线与扫描策略。");
 
-            if (portNumbers.Contains(445) || portNumbers.Contains(135) || portNumbers.Contains(3389))
-                conclusions.Add("系统暴露了SMB/RPC/RDP等高危端口，这些端口是勒索软件和蠕虫病毒的主要传播通道。");
-
-            if (portNumbers.Contains(3306) || portNumbers.Contains(1433) || portNumbers.Contains(5432) || portNumbers.Contains(6379))
-                conclusions.Add("数据库或缓存服务端口对外暴露，存在数据泄露和未授权访问风险。");
-
-            if (openPorts.Count > 15)
-                conclusions.Add($"开放端口数量较多（{openPorts.Count}个），攻击面较大，建议关闭不必要的端口和服务。");
-
-            conclusions.Add("建议建立常态化安全扫描机制，定期评估系统安全状况，及时发现和修复新增安全风险。");
-
-            if (!vulns.Any())
-                conclusions.Insert(0, "本次扫描未发现安全漏洞，系统安全状况良好，建议持续保持安全监控。");
+            // 6. 持续运营
+            conclusions.Add("持续运营：建议建立常态化的「扫描-评估-修复-复测-归档」闭环机制，结合威胁情报订阅定期（建议至少季度一次）执行安全评估，持续监控新增漏洞与新暴露端口，确保安全态势长期可控。");
 
             return conclusions;
         }
@@ -2548,7 +3296,7 @@ namespace NetSecurityScanner
         private static void GenerateScanScopeSection(DocX doc, string targetIp, List<PortScanResult> ports,
             List<VulnerabilityResult> vulns, string scanTypeInfo = null)
         {
-            var chapterTitle = doc.InsertParagraph("1.5 扫描范围与限制");
+            var chapterTitle = doc.InsertParagraph("第二章 扫描范围与方法");
             chapterTitle.FontSize(16).Bold();
             chapterTitle.Color(DeepBlue);
             chapterTitle.SpacingBefore(15);
@@ -2569,7 +3317,7 @@ namespace NetSecurityScanner
             var openPorts = safePorts.Where(p => p?.Status == "开放" || p?.Status?.ToLower() == "open").ToList();
             var closedPorts = safePorts.Where(p => p?.Status == "关闭" || p?.Status?.ToLower() == "closed" || p?.Status?.ToLower() == "filtered").ToList();
 
-            var sub1 = doc.InsertParagraph("S.1 扫描对象");
+            var sub1 = doc.InsertParagraph("2.1 扫描对象");
             sub1.FontSize(13).Bold();
             sub1.Color(DeepBlue);
             sub1.SpacingBefore(12);
@@ -2603,141 +3351,36 @@ namespace NetSecurityScanner
             }
             ApplyTableRowShading(scopeTable);
 
-            doc.InsertParagraph().SpacingAfter(18);
+            doc.InsertParagraph().SpacingAfter(10);
 
-            var portScanSub = doc.InsertParagraph("端口扫描情况");
+            // 任务5：在 scopeTable 表格后增加"扫描策略说明"段（≥100字）
+            var strategyTitle = doc.InsertParagraph("扫描策略说明");
+            strategyTitle.FontSize(11).Bold();
+            strategyTitle.Color(AccentBlue);
+            strategyTitle.SpacingBefore(6);
+            strategyTitle.SpacingAfter(6);
+
+            var strategyPara1 = doc.InsertParagraph("本次扫描采用 TCP SYN 半连接扫描（SYN Scan）作为主扫描方式。SYN 扫描只发送 SYN 包并根据目标返回的 SYN+ACK 或 RST 报文判定端口状态，不完成完整的三次握手，因此扫描速度快、隐蔽性好、降低对目标业务的影响。相比 TCP Connect() 全连接扫描，SYN 扫描不易被业务应用记录为连接日志，是业界公认的标准端口发现方法。");
+            strategyPara1.FontSize(10);
+            strategyPara1.SpacingAfter(6);
+
+            var strategyPara2 = doc.InsertParagraph("检测深度方面，系统在完成端口发现后，将主动抓取服务 Banner 与指纹信息，结合内置 CVE/CNVD 漏洞指纹库进行版本匹配与漏洞识别；标准模式覆盖常用服务和高危漏洞，专家模式额外启用深度服务探测、配置基线核查和合规评估，可在保留扫描速度的同时提升漏洞检出率与误报率控制能力。");
+            strategyPara2.FontSize(10);
+            strategyPara2.SpacingAfter(12);
+
+            var portScanSub = doc.InsertParagraph("端口扫描概况");
             portScanSub.FontSize(12).Bold();
             portScanSub.Color(AccentBlue);
             portScanSub.SpacingBefore(10);
             portScanSub.SpacingAfter(10);
 
-            var portScanSum = doc.InsertParagraph($"本次扫描共检测 {safePorts.Count} 个端口，其中开放端口 {openPorts.Count} 个，关闭/过滤端口 {closedPorts.Count} 个，发现 {svcTypes} 种不同类型的网络服务{(highRiskPortNums.Any() ? "，其中包含" + highRiskPortNums.Count + "个高危端口" : "")}。");
+            var portScanSum = doc.InsertParagraph($"本次扫描共检测 {safePorts.Count} 个端口，其中开放端口 {openPorts.Count} 个，关闭/过滤端口 {closedPorts.Count} 个，发现 {svcTypes} 种不同类型的网络服务{(highRiskPortNums.Any() ? "，其中包含" + highRiskPortNums.Count + "个高危端口" : "")}。详细的端口分布、服务指纹和高危端口列表请参见「第三章 端口扫描结果」。");
             portScanSum.FontSize(10);
             portScanSum.SpacingAfter(12);
 
-            var portScanDetailTable = doc.AddTable(4, 2);
-            portScanDetailTable.Design = TableDesign.TableGrid;
-            portScanDetailTable.Alignment = Alignment.center;
-
-            var portScanDetailHeaders = new[] { "扫描项目", "结果" };
-            StyleTableHeader(portScanDetailTable, portScanDetailHeaders);
-
-            portScanDetailTable.Rows[1].Cells[0].Paragraphs[0].Append("检测端口总数").FontSize(9).Bold();
-            portScanDetailTable.Rows[1].Cells[1].Paragraphs[0].Append($"{safePorts.Count}个").FontSize(9);
-
-            portScanDetailTable.Rows[2].Cells[0].Paragraphs[0].Append("开放端口数").FontSize(9).Bold();
-            portScanDetailTable.Rows[2].Cells[1].Paragraphs[0].Append($"{openPorts.Count}个").FontSize(9).Bold().Color(openPorts.Count > 10 ? Xceed.Drawing.Color.OrangeRed : Xceed.Drawing.Color.SeaGreen);
-
-            portScanDetailTable.Rows[3].Cells[0].Paragraphs[0].Append("关闭/过滤端口").FontSize(9).Bold();
-            portScanDetailTable.Rows[3].Cells[1].Paragraphs[0].Append($"{closedPorts.Count}个").FontSize(9);
-
-            ApplyTableRowShading(portScanDetailTable);
-
-            if (openPorts.Any())
-            {
-                doc.InsertParagraph().SpacingAfter(18);
-
-                var allPortTitle = doc.InsertParagraph("所有开放端口详情");
-                allPortTitle.FontSize(12).Bold();
-                allPortTitle.Color(AccentBlue);
-                allPortTitle.SpacingBefore(10);
-                allPortTitle.SpacingAfter(10);
-
-                var allPortTable = doc.AddTable(openPorts.Count + 1, 5);
-                allPortTable.Design = TableDesign.TableGrid;
-                allPortTable.Alignment = Alignment.center;
-
-                var allPortHeaders = new[] { "序号", "端口号", "协议", "状态", "服务/版本" };
-                StyleTableHeader(allPortTable, allPortHeaders);
-
-                int allIdx = 1;
-                foreach (var p in openPorts)
-                {
-                    var row = allPortTable.Rows[allIdx];
-                    row.Cells[0].Paragraphs[0].Append($"{allIdx}").FontSize(9).Bold();
-                    row.Cells[0].Paragraphs[0].Alignment = Alignment.center;
-
-                    var portNum = p?.PortNumber ?? 0;
-                    var portColor = highRiskPortNums.Contains(portNum) ? Xceed.Drawing.Color.Firebrick : Xceed.Drawing.Color.DarkBlue;
-                    row.Cells[1].Paragraphs[0].Append($"{portNum}").FontSize(9).Bold().Color(portColor);
-                    row.Cells[1].Paragraphs[0].Alignment = Alignment.center;
-
-                    row.Cells[2].Paragraphs[0].Append("TCP").FontSize(9);
-                    row.Cells[2].Paragraphs[0].Alignment = Alignment.center;
-
-                    row.Cells[3].Paragraphs[0].Append(p?.Status ?? "开放").FontSize(9).Bold().Color(Xceed.Drawing.Color.SeaGreen);
-                    row.Cells[3].Paragraphs[0].Alignment = Alignment.center;
-
-                    var svcName = string.IsNullOrWhiteSpace(p?.Service) ? "未知服务" : p.Service;
-                    row.Cells[4].Paragraphs[0].Append(svcName).FontSize(9);
-
-                    allIdx++;
-                }
-                ApplyTableRowShading(allPortTable);
-            }
-
-            if (highRiskPortNums.Any())
-            {
-                doc.InsertParagraph().SpacingAfter(18);
-
-                var highPortTitle = doc.InsertParagraph("高危端口列表");
-                highPortTitle.FontSize(12).Bold();
-                highPortTitle.Color(Xceed.Drawing.Color.Firebrick);
-                highPortTitle.SpacingBefore(10);
-                highPortTitle.SpacingAfter(10);
-
-                var highPortTable = doc.AddTable(highRiskPortNums.Count + 1, 4);
-                highPortTable.Design = TableDesign.TableGrid;
-                highPortTable.Alignment = Alignment.center;
-
-                var highPortHeaders = new[] { "端口号", "典型服务", "风险等级", "安全建议" };
-                StyleTableHeader(highPortTable, highPortHeaders);
-
-                var portServiceMap = new Dictionary<int, (string svc, string risk, string advice)>
-                {
-                    { 445, ("SMB/文件共享", "严重", "禁止公网暴露，配置强访问控制") },
-                    { 135, ("RPC/DCE", "高", "禁用或限制访问，修补MS17-010等漏洞") },
-                    { 3389, ("RDP远程桌面", "高", "启用NLA认证，限制IP范围，使用跳板机") },
-                    { 23, ("Telnet", "严重", "立即关闭，改用SSH加密协议") },
-                    { 21, ("FTP", "高", "改用SFTP/FTPS，或禁用匿名访问") },
-                    { 3306, ("MySQL", "高", "禁止公网访问，配置防火墙白名单") },
-                    { 1433, ("SQL Server", "高", "禁用sa账号，启用Windows认证") },
-                    { 6379, ("Redis", "严重", "配置requirepass认证，禁止公网暴露") }
-                };
-
-                int hpIdx = 1;
-                foreach (var port in highRiskPortNums.OrderBy(p => p))
-                {
-                    var row = highPortTable.Rows[hpIdx];
-                    row.Cells[0].Paragraphs[0].Append($"{port}").FontSize(9).Bold().Color(Xceed.Drawing.Color.Firebrick);
-                    row.Cells[0].Paragraphs[0].Alignment = Alignment.center;
-
-                    if (portServiceMap.TryGetValue(port, out var info))
-                    {
-                        row.Cells[1].Paragraphs[0].Append(info.svc).FontSize(9);
-                        row.Cells[1].Paragraphs[0].Alignment = Alignment.center;
-
-                        row.Cells[2].Paragraphs[0].Append(info.risk).FontSize(9).Bold().Color(
-                            info.risk == "严重" ? Xceed.Drawing.Color.Firebrick : Xceed.Drawing.Color.OrangeRed);
-                        row.Cells[2].Paragraphs[0].Alignment = Alignment.center;
-
-                        row.Cells[3].Paragraphs[0].Append(info.advice).FontSize(9);
-                    }
-                    else
-                    {
-                        row.Cells[1].Paragraphs[0].Append("未知服务").FontSize(9);
-                        row.Cells[2].Paragraphs[0].Append("高").FontSize(9).Bold().Color(Xceed.Drawing.Color.OrangeRed);
-                        row.Cells[3].Paragraphs[0].Append("建议关闭或限制访问").FontSize(9);
-                    }
-
-                    hpIdx++;
-                }
-                ApplyTableRowShading(highPortTable);
-            }
-
             doc.InsertParagraph().SpacingAfter(22);
 
-            var sub2 = doc.InsertParagraph("S.2 扫描范围外");
+            var sub2 = doc.InsertParagraph("2.2 扫描范围外");
             sub2.FontSize(13).Bold();
             sub2.Color(DeepBlue);
             sub2.SpacingBefore(12);
@@ -2762,7 +3405,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var sub3 = doc.InsertParagraph("S.3 已知限制");
+            var sub3 = doc.InsertParagraph("2.3 已知限制");
             sub3.FontSize(13).Bold();
             sub3.Color(DeepBlue);
             sub3.SpacingBefore(12);
@@ -2787,7 +3430,7 @@ namespace NetSecurityScanner
 
             doc.InsertParagraph().SpacingAfter(22);
 
-            var sub4 = doc.InsertParagraph("S.4 使用声明");
+            var sub4 = doc.InsertParagraph("2.4 使用声明");
             sub4.FontSize(13).Bold();
             sub4.Color(DeepBlue);
             sub4.SpacingBefore(12);
@@ -2817,7 +3460,7 @@ namespace NetSecurityScanner
 
         private static void GenerateCveAppendix(DocX doc, List<VulnerabilityResult> vulns)
         {
-            var chapterTitle = doc.InsertParagraph("附录一、CVE漏洞参考信息");
+            var chapterTitle = doc.InsertParagraph("附录A CVE漏洞参考信息");
             chapterTitle.FontSize(16).Bold();
             chapterTitle.Color(DeepBlue);
             chapterTitle.SpacingBefore(15);
@@ -2899,6 +3542,204 @@ namespace NetSecurityScanner
             var note = doc.InsertParagraph("注：CVSS评分为基于漏洞风险等级的估算值，实际评分请参考NVD官方数据库。NVD链接为静态参考URL，请粘贴至浏览器访问。");
             note.FontSize(9);
             note.Color(MidGray);
+        }
+
+        #endregion
+
+        #region 附录B 报告使用与法律声明
+
+        private static void GenerateAppendixB(DocX doc)
+        {
+            var chapterTitle = doc.InsertParagraph("附录B、报告使用与法律声明");
+            chapterTitle.FontSize(16).Bold();
+            chapterTitle.Color(DeepBlue);
+            chapterTitle.SpacingBefore(15);
+            chapterTitle.SpacingAfter(4);
+
+            var titleLine = doc.InsertParagraph(new string('─', 50));
+            titleLine.FontSize(7);
+            titleLine.Color(AccentBlue);
+            titleLine.SpacingAfter(12);
+
+            var intro = doc.InsertParagraph("本附录说明了本报告的使用范围、数据来源、修复建议限制、责任限制、保密要求以及版本与修订记录，是阅读和使用本报告的重要前提。请仔细阅读以下条款。");
+            intro.FontSize(10);
+            intro.SpacingBefore(8);
+            intro.SpacingAfter(18);
+
+            // B.1 报告使用范围
+            var sub1 = doc.InsertParagraph("B.1 报告使用范围");
+            sub1.FontSize(13).Bold();
+            sub1.Color(DeepBlue);
+            sub1.SpacingBefore(12);
+            sub1.SpacingAfter(10);
+
+            var useScopeItems = new[]
+            {
+                "本报告仅限于授权客户对其自有或受托管理的目标系统进行安全评估使用。",
+                "未经 NetSecurityScanner 开发方及授权客户的书面许可，不得向第三方披露、传播或转载本报告全部或部分内容。",
+                "客户可在内部安全团队、运维团队、管理层之间传阅本报告，用于制定安全改进计划、风险处置和合规审计。",
+                "本报告不得用于任何商业转售、再许可或公开宣传目的，亦不得用于公开宣传、客户演示等公开场合。",
+                "本报告的有效期建议为 6 个月。由于漏洞库和服务指纹会持续更新，超过有效期的报告需要重新扫描。",
+                "客户在使用本报告过程中遇到的问题，可联系 NetSecurityScanner 技术支持团队获取协助。"
+            };
+            foreach (var item in useScopeItems)
+            {
+                var p = doc.InsertParagraph($"• {item}");
+                p.FontSize(10);
+                p.SpacingBefore(3);
+                p.SpacingAfter(3);
+            }
+
+            doc.InsertParagraph().SpacingAfter(15);
+
+            // B.2 数据来源说明
+            var sub2 = doc.InsertParagraph("B.2 数据来源说明");
+            sub2.FontSize(13).Bold();
+            sub2.Color(DeepBlue);
+            sub2.SpacingBefore(12);
+            sub2.SpacingAfter(10);
+
+            var dataSourceItems = new[]
+            {
+                "端口扫描数据：基于 TCP SYN 半连接扫描技术，扫描结果来源于目标系统对扫描数据包的实时响应。",
+                "服务指纹数据：通过主动探测目标端口，根据服务返回的 Banner 信息识别服务类型与版本。",
+                "漏洞匹配数据：基于内置漏洞指纹库（含 CVE、CNVD、CNNVD 等公开漏洞库）进行模式匹配。",
+                "威胁情报数据：结合行业公开威胁情报、攻击趋势报告以及通用攻击向量知识库。",
+                "风险评估模型：基于 CVSS v3.1 通用漏洞评分体系，结合 OWASP 风险评估方法论进行综合评分。",
+                "合规对照标准：参考等保 2.0、ISO 27001、GDPR、PCI DSS、CIS Controls 等国际国内主流合规标准。"
+            };
+            foreach (var item in dataSourceItems)
+            {
+                var p = doc.InsertParagraph($"• {item}");
+                p.FontSize(10);
+                p.SpacingBefore(3);
+                p.SpacingAfter(3);
+            }
+
+            doc.InsertParagraph().SpacingAfter(15);
+
+            // B.3 修复建议限制
+            var sub3 = doc.InsertParagraph("B.3 修复建议限制");
+            sub3.FontSize(13).Bold();
+            sub3.Color(DeepBlue);
+            sub3.SpacingBefore(12);
+            sub3.SpacingAfter(10);
+
+            var fixLimitItems = new[]
+            {
+                "本报告中的修复建议为通用参考方案，基于公开漏洞信息、行业最佳实践和通用安全原则。",
+                "具体的修复实施需要结合客户的实际网络环境、业务连续性要求、版本兼容性和资源约束进行综合评估。",
+                "对于关键业务系统（核心交易数据库、生产服务器、核心业务中间件等）的修复操作，建议先在测试环境充分验证后再推送到生产环境。",
+                "本报告不提供定制化的修复脚本、补丁包或具体的产品配置指导。客户应参考各厂商的官方安全公告和升级指南。",
+                "部分漏洞可能存在多个修复方案（如升级、打补丁、配置调整、临时缓解等），不同方案的适用性因系统而异。",
+                "对于复杂的漏洞修复场景（如 Active Directory 域控、关键中间件、定制化业务系统），建议咨询专业的安全服务团队。"
+            };
+            foreach (var item in fixLimitItems)
+            {
+                var p = doc.InsertParagraph($"• {item}");
+                p.FontSize(10);
+                p.SpacingBefore(3);
+                p.SpacingAfter(3);
+            }
+
+            doc.InsertParagraph().SpacingAfter(15);
+
+            // B.4 责任限制
+            var sub4 = doc.InsertParagraph("B.4 责任限制");
+            sub4.FontSize(13).Bold();
+            sub4.Color(DeepBlue);
+            sub4.SpacingBefore(12);
+            sub4.SpacingAfter(10);
+
+            var liabilityItems = new[]
+            {
+                "本报告基于自动化扫描工具生成，结果仅供参考。对于关键安全问题，建议进行人工渗透测试和深度安全分析。",
+                "扫描工具受限于其检测能力，无法保证 100% 覆盖所有安全风险。报告中未列出的风险不代表不存在。",
+                "扫描过程中可能因网络环境、防火墙策略、IDS/IPS 等因素导致部分扫描结果不准确。",
+                "NetSecurityScanner 开发方不对因使用本报告而导致的任何直接或间接损失（包括但不限于业务中断、数据丢失、安全事件等）承担责任。",
+                "客户应根据自身业务特点和风险承受能力，制定符合实际情况的安全策略和修复计划。",
+                "本报告中的安全评分、风险等级、合规状态等定性指标为参考性指标，不作为合规审计、法律诉讼、保险索赔的唯一依据。"
+            };
+            foreach (var item in liabilityItems)
+            {
+                var p = doc.InsertParagraph($"• {item}");
+                p.FontSize(10);
+                p.SpacingBefore(3);
+                p.SpacingAfter(3);
+            }
+
+            doc.InsertParagraph().SpacingAfter(15);
+
+            // B.5 保密声明
+            var sub5 = doc.InsertParagraph("B.5 保密声明");
+            sub5.FontSize(13).Bold();
+            sub5.Color(DeepBlue);
+            sub5.SpacingBefore(12);
+            sub5.SpacingAfter(10);
+
+            var confidentialityItems = new[]
+            {
+                "本报告内容涉及客户目标系统的安全状况，属于敏感信息。未经授权不得向不相关方披露。",
+                "客户应采取适当的技术和组织措施保护本报告，包括但不限于：加密存储、访问控制、传输保护、销毁处理等。",
+                "如发现本报告被未授权访问、披露或泄露，应立即通知 NetSecurityScanner 开发方，并采取应急响应措施。",
+                "NetSecurityScanner 开发方对报告生成、传输、存储过程中的保密性负责，并承诺不向第三方披露客户扫描结果。",
+                "客户因业务需要向第三方共享本报告部分内容时，应事先对内容进行脱敏处理，并签署相应的保密协议。",
+                "本报告电子版本应存储在受控环境中，纸质版本应妥善保管，使用完毕后应及时销毁。"
+            };
+            foreach (var item in confidentialityItems)
+            {
+                var p = doc.InsertParagraph($"• {item}");
+                p.FontSize(10);
+                p.SpacingBefore(3);
+                p.SpacingAfter(3);
+            }
+
+            doc.InsertParagraph().SpacingAfter(15);
+
+            // B.6 版本与修订记录
+            var sub6 = doc.InsertParagraph("B.6 版本与修订记录");
+            sub6.FontSize(13).Bold();
+            sub6.Color(DeepBlue);
+            sub6.SpacingBefore(12);
+            sub6.SpacingAfter(10);
+
+            var versionTable = doc.AddTable(7, 2);
+            versionTable.Design = TableDesign.TableGrid;
+            versionTable.Alignment = Alignment.center;
+
+            var versionHeaders = new[] { "属性", "内容" };
+            StyleTableHeader(versionTable, versionHeaders);
+
+            var versionItems = new[]
+            {
+                ("报告生成工具", $"NetSecurityScanner v{GetAppVersion()} Professional Edition"),
+                ("报告生成时间", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),
+                ("风险评估方法", "基于 CVSS v3.1 通用漏洞评分体系，结合 OWASP 风险评估方法论"),
+                ("数据来源说明", "自动化扫描工具实时检测 + 内置漏洞指纹库 + 公开威胁情报"),
+                ("报告模板版本", "v2.0（章节规范化重构版）"),
+                ("主要修订说明", "统一章节编号为第一章~第九章 + 附录A/B；所有子章节使用 x.y 标准编号；条件子章节增加占位说明；新增扫描结论概览和报告使用与法律声明")
+            };
+
+            for (int r = 0; r < versionItems.Length; r++)
+            {
+                versionTable.Rows[r + 1].Cells[0].Paragraphs[0].Append(versionItems[r].Item1).FontSize(9).Bold();
+                versionTable.Rows[r + 1].Cells[1].Paragraphs[0].Append(versionItems[r].Item2).FontSize(9);
+            }
+            ApplyTableRowShading(versionTable);
+
+            doc.InsertParagraph().SpacingAfter(22);
+
+            var finalNote = doc.InsertParagraph("— 报告结束 —");
+            finalNote.Alignment = Alignment.center;
+            finalNote.FontSize(10).Bold();
+            finalNote.Color(DeepBlue);
+            finalNote.SpacingBefore(15);
+            finalNote.SpacingAfter(10);
+
+            var finalSubNote = doc.InsertParagraph("本报告由 NetSecurityScanner 安全扫描工具自动生成。如对报告内容有任何疑问，请联系 NetSecurityScanner 技术支持团队。");
+            finalSubNote.Alignment = Alignment.center;
+            finalSubNote.FontSize(9);
+            finalSubNote.Color(MidGray);
         }
 
         #endregion
@@ -3033,5 +3874,4 @@ namespace NetSecurityScanner
 
         #endregion
     }
-}  
-
+}

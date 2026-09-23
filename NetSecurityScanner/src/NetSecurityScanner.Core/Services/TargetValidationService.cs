@@ -20,7 +20,9 @@ namespace NetSecurityScanner.Services
         private readonly string _recentTargetsFilePath;
         private List<string> _recentTargets;
 
+#pragma warning disable CS0067
         public event Action<string, ValidationResult>? ValidationChanged;
+#pragma warning restore CS0067
 
         public TargetValidationService()
         {
@@ -233,7 +235,7 @@ namespace NetSecurityScanner.Services
             else if (input.Contains(".") && !TryParseIPv4(input, out _))
             {
                 errorBuilder.AppendLine("\n• IPv4地址格式错误，正确示例: 192.168.1.1");
-                
+
                 // 检查是否是常见的输入错误
                 if (Regex.IsMatch(input, @"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}"))
                 {
@@ -376,7 +378,7 @@ namespace NetSecurityScanner.Services
             {
                 Debug.WriteLine("已复制到剪贴板（仅在Windows GUI模式下可用）");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 Debug.WriteLine("复制到剪贴板失败");
             }
@@ -406,9 +408,9 @@ namespace NetSecurityScanner.Services
                 }
 
                 var replies = await Task.WhenAll(replyTasks);
-                
+
                 var successfulReplies = replies.Where(r => r.Status == System.Net.NetworkInformation.IPStatus.Success).ToList();
-                
+
                 result.IsSuccess = successfulReplies.Any();
                 result.PacketsSent = count;
                 result.PacketsReceived = successfulReplies.Count;
@@ -420,7 +422,7 @@ namespace NetSecurityScanner.Services
                     result.MinTime = roundTripTimes.Min();
                     result.MaxTime = roundTripTimes.Max();
                     result.AvgTime = (long)roundTripTimes.Average();
-                    
+
                     // 获取解析后的IP地址
                     result.ResolvedIp = successfulReplies.First().Address.ToString();
                 }

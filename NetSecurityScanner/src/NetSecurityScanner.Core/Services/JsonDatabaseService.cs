@@ -9,7 +9,7 @@ using NetSecurityScanner.Models;
 
 namespace NetSecurityScanner.Services
 {
-    public class JsonDatabaseService
+    public class JsonDatabaseService : IJsonDatabaseService
     {
         private readonly string _databasePath;
         private readonly string _historyDirectory;
@@ -26,14 +26,14 @@ namespace NetSecurityScanner.Services
             Console.WriteLine($"[JsonDatabaseService] 文档目录路径: {_historyDirectory}");
             Console.WriteLine($"[JsonDatabaseService] 当前工作目录: {Environment.CurrentDirectory}");
             Console.WriteLine($"[JsonDatabaseService] 程序运行目录: {AppDomain.CurrentDomain.BaseDirectory}");
-            
+
             // 尝试创建主目录
             if (!TryCreateDirectory(_historyDirectory))
             {
                 Console.WriteLine($"[JsonDatabaseService] 文档目录创建失败，切换到当前工作目录: {_fallbackHistoryDirectory}");
                 _historyDirectory = _fallbackHistoryDirectory;
                 _databasePath = Path.Combine(_fallbackHistoryDirectory, "scan_history.json");
-                
+
                 if (!TryCreateDirectory(_historyDirectory))
                 {
                     Console.WriteLine($"[JsonDatabaseService] 当前工作目录也失败，使用临时目录");
@@ -43,10 +43,10 @@ namespace NetSecurityScanner.Services
                     Directory.CreateDirectory(_historyDirectory);
                 }
             }
-            
+
             Console.WriteLine($"[JsonDatabaseService] 最终使用路径: {_historyDirectory}");
         }
-        
+
         /// <summary>
         /// 尝试创建目录并测试写入权限
         /// </summary>
@@ -147,13 +147,13 @@ namespace NetSecurityScanner.Services
 
                     // 使用临时文件写入，然后替换原文件（原子操作）
                     string tempFilePath = filePath + ".tmp";
-                    
+
                     using (var fileStream = new FileStream(
-                        tempFilePath, 
-                        FileMode.Create, 
-                        FileAccess.Write, 
-                        FileShare.None, 
-                        bufferSize: 4096, 
+                        tempFilePath,
+                        FileMode.Create,
+                        FileAccess.Write,
+                        FileShare.None,
+                        bufferSize: 4096,
                         useAsync: true))
                     {
                         byte[] contentBytes = Encoding.UTF8.GetBytes(content);
@@ -210,7 +210,7 @@ namespace NetSecurityScanner.Services
         {
             return await GetScanHistoryAsync(null, null, null, null, null);
         }
-        
+
         /// <summary>
         /// 根据条件获取扫描历史记录列表
         /// </summary>
@@ -236,35 +236,35 @@ namespace NetSecurityScanner.Services
 
                 string json = await File.ReadAllTextAsync(_databasePath);
                 List<ScanHistoryItem> historyList = JsonSerializer.Deserialize<List<ScanHistoryItem>>(json) ?? new List<ScanHistoryItem>();
-                
+
                 // 应用过滤条件
                 var filteredList = historyList.AsEnumerable();
-                
+
                 if (!string.IsNullOrEmpty(targetIp))
                 {
                     filteredList = filteredList.Where(item => item.TargetIp.Contains(targetIp, StringComparison.OrdinalIgnoreCase));
                 }
-                
+
                 if (!string.IsNullOrEmpty(scanType))
                 {
                     filteredList = filteredList.Where(item => item.ScanType.Contains(scanType, StringComparison.OrdinalIgnoreCase));
                 }
-                
+
                 if (startDate.HasValue)
                 {
                     filteredList = filteredList.Where(item => item.ScanTime >= startDate.Value);
                 }
-                
+
                 if (endDate.HasValue)
                 {
                     filteredList = filteredList.Where(item => item.ScanTime <= endDate.Value);
                 }
-                
+
                 if (!string.IsNullOrEmpty(riskLevel))
                 {
                     filteredList = filteredList.Where(item => item.RiskLevel == riskLevel);
                 }
-                
+
                 // 按扫描时间降序排序
                 return filteredList.OrderByDescending(item => item.ScanTime).ToList();
             }
@@ -274,7 +274,7 @@ namespace NetSecurityScanner.Services
                 return new List<ScanHistoryItem>();
             }
         }
-        
+
         /// <summary>
         /// 根据条件搜索扫描历史记录
         /// </summary>
@@ -291,15 +291,15 @@ namespace NetSecurityScanner.Services
 
                 string json = await File.ReadAllTextAsync(_databasePath);
                 List<ScanHistoryItem> historyList = JsonSerializer.Deserialize<List<ScanHistoryItem>>(json) ?? new List<ScanHistoryItem>();
-                
+
                 if (string.IsNullOrEmpty(searchTerm))
                 {
                     return historyList.OrderByDescending(item => item.ScanTime).ToList();
                 }
-                
+
                 // 在多个字段中搜索
                 return historyList
-                    .Where(item => 
+                    .Where(item =>
                         item.TargetIp.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
                         item.ScanType.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
                         item.ScanId.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) ||
@@ -313,7 +313,7 @@ namespace NetSecurityScanner.Services
                 return new List<ScanHistoryItem>();
             }
         }
-        
+
         /// <summary>
         /// 获取扫描统计信息
         /// </summary>
@@ -323,7 +323,7 @@ namespace NetSecurityScanner.Services
             try
             {
                 List<ScanHistoryItem> historyList = await GetScanHistoryAsync();
-                
+
                 var stats = new ScanStatistics
                 {
                     TotalScans = historyList.Count,
@@ -335,7 +335,7 @@ namespace NetSecurityScanner.Services
                     LastScanDate = historyList.Any() ? historyList.Max(item => item.ScanTime) : null,
                     FirstScanDate = historyList.Any() ? historyList.Min(item => item.ScanTime) : null
                 };
-                
+
                 return stats;
             }
             catch (Exception ex)
@@ -344,7 +344,7 @@ namespace NetSecurityScanner.Services
                 return new ScanStatistics();
             }
         }
-        
+
         /// <summary>
         /// 清空所有扫描历史记录
         /// </summary>
@@ -362,10 +362,10 @@ namespace NetSecurityScanner.Services
                         File.Delete(file);
                     }
                 }
-                
+
                 // 清空主历史文件
                 await File.WriteAllTextAsync(_databasePath, "[]");
-                
+
                 return true;
             }
             catch (Exception ex)
@@ -384,14 +384,36 @@ namespace NetSecurityScanner.Services
         {
             try
             {
+                // 首先尝试从单独的JSON文件读取
                 string resultFilePath = Path.Combine(_historyDirectory, $"{scanId}.json");
-                if (!File.Exists(resultFilePath))
+                if (File.Exists(resultFilePath))
                 {
-                    return null;
+                    string json = await File.ReadAllTextAsync(resultFilePath);
+                    return JsonSerializer.Deserialize<CompleteScanResult>(json);
                 }
 
-                string json = await File.ReadAllTextAsync(resultFilePath);
-                return JsonSerializer.Deserialize<CompleteScanResult>(json);
+                // 如果单独文件不存在，尝试从历史记录列表中恢复
+                var historyList = await GetScanHistoryAsync();
+                var historyItem = historyList.FirstOrDefault(h => h.ScanId == scanId);
+                if (historyItem != null)
+                {
+                    // 从 ScanHistoryItem 转换为 CompleteScanResult
+                    return new CompleteScanResult
+                    {
+                        ScanId = historyItem.ScanId,
+                        TargetIp = historyItem.TargetIp,
+                        ScanType = historyItem.ScanType,
+                        ScanTime = historyItem.ScanTime,
+                        ScanDuration = historyItem.Duration,
+                        OpenPortsCount = historyItem.OpenPortsCount,
+                        VulnerabilitiesCount = historyItem.VulnerabilitiesCount,
+                        RiskLevel = historyItem.RiskLevel,
+                        PortScanResults = historyItem.PortScanResults ?? new List<PortScanResult>(),
+                        VulnerabilityResults = historyItem.VulnerabilityResults ?? new List<VulnerabilityResult>()
+                    };
+                }
+
+                return null;
             }
             catch (Exception ex)
             {
@@ -406,7 +428,7 @@ namespace NetSecurityScanner.Services
             {
                 List<ScanHistoryItem> historyList = await GetScanHistoryAsync();
                 historyList.Insert(0, item);
-                
+
                 string historyJson = JsonSerializer.Serialize(historyList, new JsonSerializerOptions
                 {
                     WriteIndented = true,
@@ -501,7 +523,7 @@ namespace NetSecurityScanner.Services
         {
             return Path.Combine(_historyDirectory, $"{scanId}.json");
         }
-        
+
         /// <summary>
         /// 保存报告到文件（支持文本和二进制格式）
         /// </summary>
@@ -517,7 +539,7 @@ namespace NetSecurityScanner.Services
                 {
                     throw new ArgumentException("报告内容不能为空", nameof(reportContent));
                 }
-                
+
                 // 确保扩展名格式正确
                 if (string.IsNullOrEmpty(extension))
                 {
@@ -527,9 +549,9 @@ namespace NetSecurityScanner.Services
                 {
                     extension = "." + extension.TrimStart('.');
                 }
-                
+
                 string fileName = $"SecurityScanReport_{DateTime.Now:yyyyMMdd_HHmmss}{extension}";
-                
+
                 // 尝试多个路径：当前工作目录 -> 文档 -> 桌面 -> 临时目录
                 string[] savePaths = new[]
                 {
@@ -538,26 +560,26 @@ namespace NetSecurityScanner.Services
                     Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
                     Path.Combine(Path.GetTempPath(), "NetSecurityScanner", "Reports")
                 };
-                
+
                 foreach (var basePath in savePaths)
                 {
                     if (string.IsNullOrEmpty(basePath)) continue;
-                    
+
                     try
                     {
                         string filePath = Path.Combine(basePath, fileName);
                         string directoryPath = Path.GetDirectoryName(filePath);
-                        
+
                         if (!Directory.Exists(directoryPath))
                         {
                             Directory.CreateDirectory(directoryPath);
                         }
-                        
+
                         // 测试写入权限
                         string testFile = Path.Combine(directoryPath, ".test_write");
                         File.WriteAllText(testFile, "test");
                         File.Delete(testFile);
-                        
+
                         // 有权限，正式写入
                         File.WriteAllText(filePath, reportContent, Encoding.UTF8);
                         Console.WriteLine($"[SaveReport] 报告已保存到: {filePath}");
@@ -569,7 +591,7 @@ namespace NetSecurityScanner.Services
                         continue;
                     }
                 }
-                
+
                 // 所有路径都失败
                 throw new Exception("所有保存路径都不可用，请检查文件夹权限");
             }
@@ -579,7 +601,7 @@ namespace NetSecurityScanner.Services
                 throw;
             }
         }
-        
+
         /// <summary>
         /// 保存二进制报告到文件（用于Word和PDF格式）
         /// </summary>
@@ -595,7 +617,7 @@ namespace NetSecurityScanner.Services
                 {
                     throw new ArgumentException("报告数据不能为空", nameof(reportData));
                 }
-                
+
                 // 确保扩展名格式正确
                 if (string.IsNullOrEmpty(extension))
                 {
@@ -605,9 +627,9 @@ namespace NetSecurityScanner.Services
                 {
                     extension = "." + extension.TrimStart('.');
                 }
-                
+
                 string fileName = $"SecurityScanReport_{DateTime.Now:yyyyMMdd_HHmmss}{extension}";
-                
+
                 // 尝试多个路径：当前工作目录 -> 文档 -> 桌面 -> 临时目录
                 string[] savePaths = new[]
                 {
@@ -616,26 +638,26 @@ namespace NetSecurityScanner.Services
                     Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
                     Path.Combine(Path.GetTempPath(), "NetSecurityScanner", "Reports")
                 };
-                
+
                 foreach (var basePath in savePaths)
                 {
                     if (string.IsNullOrEmpty(basePath)) continue;
-                    
+
                     try
                     {
                         string filePath = Path.Combine(basePath, fileName);
                         string directoryPath = Path.GetDirectoryName(filePath);
-                        
+
                         if (!Directory.Exists(directoryPath))
                         {
                             Directory.CreateDirectory(directoryPath);
                         }
-                        
+
                         // 测试写入权限
                         string testFile = Path.Combine(directoryPath, ".test_write");
                         File.WriteAllText(testFile, "test");
                         File.Delete(testFile);
-                        
+
                         // 有权限，正式写入
                         File.WriteAllBytes(filePath, reportData);
                         Console.WriteLine($"[SaveBinaryReport] 报告已保存到: {filePath}");
@@ -647,7 +669,7 @@ namespace NetSecurityScanner.Services
                         continue;
                     }
                 }
-                
+
                 // 所有路径都失败
                 throw new Exception("所有保存路径都不可用，请检查文件夹权限");
             }
@@ -676,7 +698,7 @@ namespace NetSecurityScanner.Services
         public List<VulnerabilityResult> VulnerabilityResults { get; set; } = new();
         public double Duration { get; set; }
     }
-    
+
     /// <summary>
     /// 扫描统计信息
     /// </summary>
@@ -686,37 +708,37 @@ namespace NetSecurityScanner.Services
         /// 总扫描次数
         /// </summary>
         public int TotalScans { get; set; }
-        
+
         /// <summary>
         /// 高风险扫描次数
         /// </summary>
         public int HighRiskCount { get; set; }
-        
+
         /// <summary>
         /// 中风险扫描次数
         /// </summary>
         public int MediumRiskCount { get; set; }
-        
+
         /// <summary>
         /// 低风险扫描次数
         /// </summary>
         public int LowRiskCount { get; set; }
-        
+
         /// <summary>
         /// 平均开放端口数
         /// </summary>
         public int AverageOpenPorts { get; set; }
-        
+
         /// <summary>
         /// 平均漏洞数
         /// </summary>
         public int AverageVulnerabilities { get; set; }
-        
+
         /// <summary>
         /// 最后一次扫描日期
         /// </summary>
         public DateTime? LastScanDate { get; set; }
-        
+
         /// <summary>
         /// 第一次扫描日期
         /// </summary>

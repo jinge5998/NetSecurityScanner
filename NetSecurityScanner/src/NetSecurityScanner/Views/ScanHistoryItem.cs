@@ -20,7 +20,7 @@ namespace NetSecurityScanner.Views
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return Binding.DoNothing;
         }
     }
 
@@ -31,13 +31,13 @@ namespace NetSecurityScanner.Views
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return (value is bool b && b) ? new SolidColorBrush(Color.FromRgb(255, 193, 7))  // 橙色 #FFC107
+            return (value is bool b && b) ? new SolidColorBrush(Color.FromRgb(255, 193, 7))
                                          : new SolidColorBrush(Colors.White);
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return Binding.DoNothing;
         }
     }
 
@@ -54,7 +54,7 @@ namespace NetSecurityScanner.Views
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            return Binding.DoNothing;
         }
     }
 

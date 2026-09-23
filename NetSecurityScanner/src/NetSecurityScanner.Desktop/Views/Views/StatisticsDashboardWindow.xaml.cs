@@ -13,6 +13,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace NetSecurityScanner.Views
 {
@@ -22,6 +23,13 @@ namespace NetSecurityScanner.Views
         private readonly ScanHistoryService _scanHistoryService;
         private List<CompleteScanResult> _jsonResults = new();
         private const string ChineseFont = "Microsoft YaHei";
+        private DispatcherTimer _autoRefreshTimer;
+        private bool _isAutoRefreshing = false;
+#pragma warning disable CS0414
+        private string _currentGranularity = "Month";
+#pragma warning restore CS0414
+        private DateTime? _customStartDate;
+        private DateTime? _customEndDate;
 
         public StatisticsDashboardWindow()
         {
@@ -32,6 +40,196 @@ namespace NetSecurityScanner.Views
             catch { _scanHistoryService = null; }
 
             Loaded += StatisticsDashboardWindow_Loaded;
+            SetupAutoRefreshTimer();
+        }
+
+        private void SetupAutoRefreshTimer()
+        {
+            _autoRefreshTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(60)
+            };
+            _autoRefreshTimer.Tick += async (s, e) =>
+            {
+                if (!_isAutoRefreshing)
+                {
+                    _isAutoRefreshing = true;
+                    await LoadStatisticsAsync();
+                    _isAutoRefreshing = false;
+                }
+            };
+        }
+
+        private void AutoRefreshCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (AutoRefreshCheckBox?.IsChecked == true)
+                _autoRefreshTimer.Start();
+            else
+                _autoRefreshTimer.Stop();
+        }
+
+        private void GranularityRadioButton_Changed(object sender, RoutedEventArgs e)
+        {
+            if (GranularityDay?.IsChecked == true) _currentGranularity = "Day";
+            else if (GranularityWeek?.IsChecked == true) _currentGranularity = "Week";
+            else _currentGranularity = "Month";
+        }
+
+        private void CustomDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e)
+        {
+        }
+
+        private async void ApplyCustomDateBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var startDate = CustomStartDatePicker?.SelectedDate;
+            var endDate = CustomEndDatePicker?.SelectedDate;
+
+            if (startDate == null || endDate == null)
+            {
+                MessageBox.Show("请选择开始日期和结束日期", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (startDate > endDate)
+            {
+                MessageBox.Show("开始日期不能晚于结束日期", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _customStartDate = startDate;
+            _customEndDate = endDate;
+
+            if (TimeRangeComboBox != null)
+            {
+                var customItem = TimeRangeComboBox.Items.Cast<ComboBoxItem>()
+                    .FirstOrDefault(x => x.Content?.ToString() == "自定义");
+                if (customItem != null)
+                {
+                    TimeRangeComboBox.SelectedItem = customItem;
+                }
+            }
+
+            await LoadStatisticsAsync();
+        }
+
+        private void ExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            var formatDialog = new Window
+            {
+                Title = "导出格式选择",
+                Width = 300,
+                Height = 180,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize,
+                Background = new SolidColorBrush(Color.FromRgb(0xF5, 0xF7, 0xFA))
+            };
+
+            var stackPanel = new StackPanel { Margin = new Thickness(20) };
+            stackPanel.Children.Add(new TextBlock
+            {
+                Text = "请选择导出格式：",
+                FontSize = 14,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 0, 15)
+            });
+
+            var txtButton = new Button
+            {
+                Content = "📄 导出为 TXT 文本",
+                Height = 36,
+                Margin = new Thickness(0, 5, 0, 5),
+                Background = new SolidColorBrush(Color.FromRgb(0x34, 0x98, 0xDB)),
+                Foreground = Brushes.White,
+                BorderThickness = new Thickness(0)
+            };
+
+            var csvButton = new Button
+            {
+                Content = "📊 导出为 CSV 表格",
+                Height = 36,
+                Margin = new Thickness(0, 5, 0, 5),
+                Background = new SolidColorBrush(Color.FromRgb(0x27, 0xAE, 0x60)),
+                Foreground = Brushes.White,
+                BorderThickness = new Thickness(0)
+            };
+
+            txtButton.Click += (s, args) =>
+            {
+                formatDialog.Close();
+                ExportToTxt();
+            };
+
+            csvButton.Click += (s, args) =>
+            {
+                formatDialog.Close();
+                ExportToCsv();
+            };
+
+            stackPanel.Children.Add(txtButton);
+            stackPanel.Children.Add(csvButton);
+            formatDialog.Content = stackPanel;
+            formatDialog.ShowDialog();
+        }
+
+        private void ExportToTxt()
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
+                FileName = $"StatisticsReport_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                ExportStatisticsToFile(dialog.FileName);
+            }
+        }
+
+        private void ExportToCsv()
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                FileName = $"StatisticsReport_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    var csv = new System.Text.StringBuilder();
+                    csv.AppendLine("日期,扫描次数,开放端口,漏洞总数,严重,高危,中危,低危");
+
+                    if (ScanTrendDataGrid?.ItemsSource is System.Collections.IEnumerable trendItems)
+                    {
+                        foreach (var item in trendItems)
+                        {
+                            if (item is ScanTrendItem trend)
+                            {
+                                csv.AppendLine($"{trend.Date},{trend.ScanCount},{trend.PortCount}," +
+                                             $"{trend.VulnerabilityCount},{trend.CriticalCount}," +
+                                             $"{trend.HighCount},{trend.MediumCount},{trend.LowCount}");
+                            }
+                        }
+                    }
+
+                    csv.AppendLine();
+                    csv.AppendLine("=== 总体统计 ===");
+                    csv.AppendLine($"总扫描次数,{TotalScansTextBlock?.Text ?? "N/A"}");
+                    csv.AppendLine($"总漏洞数,{TotalVulnsTextBlock?.Text ?? "N/A"}");
+                    csv.AppendLine($"严重/高危,{CriticalVulnsTextBlock?.Text ?? "N/A"}");
+                    csv.AppendLine($"开放端口,{TotalPortsTextBlock?.Text ?? "N/A"}");
+                    csv.AppendLine($"扫描目标,{TotalTargetsTextBlock?.Text ?? "N/A"}");
+
+                    System.IO.File.WriteAllText(dialog.FileName, csv.ToString(), System.Text.Encoding.UTF8);
+                    MessageBox.Show($"CSV报告已导出到:\n{dialog.FileName}", "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"导出CSV失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
         }
 
         private async void StatisticsDashboardWindow_Loaded(object sender, RoutedEventArgs e)
@@ -46,26 +244,29 @@ namespace NetSecurityScanner.Views
 
         private async void TimeRangeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            await LoadStatisticsAsync();
+            if (TimeRangeComboBox == null) return;
+
+            var selectedItem = TimeRangeComboBox.SelectedItem as ComboBoxItem;
+            var content = selectedItem?.Content?.ToString();
+
+            if (content == "自定义")
+            {
+                if (_customStartDate.HasValue && _customEndDate.HasValue)
+                {
+                    await LoadStatisticsAsync();
+                }
+            }
+            else
+            {
+                _customStartDate = null;
+                _customEndDate = null;
+                await LoadStatisticsAsync();
+            }
         }
 
         private async void RiskFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             await LoadStatisticsAsync();
-        }
-
-        private void ExportButton_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new Microsoft.Win32.SaveFileDialog
-            {
-                Filter = "Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
-                FileName = $"StatisticsReport_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                ExportStatisticsToFile(dialog.FileName);
-            }
         }
 
         private async Task LoadStatisticsAsync()
@@ -80,15 +281,19 @@ namespace NetSecurityScanner.Views
 
                 _jsonResults = new List<CompleteScanResult>();
 
-                int timeRangeDays = GetTimeRangeDays();
-                DateTime startDate = DateTime.Now.Date.AddDays(-timeRangeDays);
+                var timeRange = GetSelectedTimeRange();
+                if (timeRange == null) return;
 
-                var filteredJsonResults = jsonResults.Where(h => h != null && h.ScanTime >= startDate).ToList();
-                var filteredDbResults = dbResults.Where(h => h != null && h.StartTime >= startDate).ToList();
+                DateTime startDate = timeRange.Value.Start;
+                DateTime endDate = timeRange.Value.End;
+
+                var filteredJsonResults = jsonResults.Where(h => h != null && h.ScanTime >= startDate && h.ScanTime <= endDate).ToList();
+                var filteredDbResults = dbResults.Where(h => h != null && h.StartTime >= startDate && h.StartTime <= endDate).ToList();
 
                 RiskDistributionPanel?.Children.Clear();
 
                 try { CalculateOverallStats(filteredJsonResults, filteredDbResults); } catch { }
+                try { RenderPeriodComparisonCards(jsonResults, dbResults); } catch { }
                 try { RenderRiskDistribution(filteredJsonResults, filteredDbResults); } catch { }
                 try { RenderVulnBarChart(filteredDbResults); } catch { }
                 try { RenderScanTrend(filteredJsonResults, filteredDbResults); } catch { }
@@ -96,6 +301,7 @@ namespace NetSecurityScanner.Views
                 try { RenderPortAnalysis(filteredJsonResults, filteredDbResults); } catch { }
                 try { RenderServiceDistribution(filteredJsonResults, filteredDbResults); } catch { }
                 try { RenderScanHistory(filteredJsonResults, filteredDbResults); } catch { }
+                try { RenderTimeDimensionAnalysis(); } catch { }
             }
             catch (Exception ex)
             {
@@ -284,19 +490,46 @@ namespace NetSecurityScanner.Views
             return panel;
         }
 
-        private int GetTimeRangeDays()
+        private (DateTime Start, DateTime End, string Label)? GetSelectedTimeRange()
         {
-            if (TimeRangeComboBox == null) return 7;
+            if (TimeRangeComboBox == null) return (DateTime.Now.AddDays(-7), DateTime.Now, "最近7天");
 
             var selectedItem = TimeRangeComboBox.SelectedItem as ComboBoxItem;
-            return selectedItem?.Content?.ToString() switch
+            var content = selectedItem?.Content?.ToString() ?? "本周";
+            var now = DateTime.Now;
+
+            return content switch
             {
-                "最近7天" => 7,
-                "最近30天" => 30,
-                "最近90天" => 90,
-                "全部时间" => 3650,
-                _ => 7
+                "本周" => (GetStartOfWeek(now), now, "本周"),
+                "本月" => (new DateTime(now.Year, now.Month, 1), now, "本月"),
+                "本季度" => (GetStartOfQuarter(now), now, "本季度"),
+                "本年度" => (new DateTime(now.Year, 1, 1), now, "本年度"),
+                "最近7天" => (now.AddDays(-7), now, "最近7天"),
+                "最近30天" => (now.AddDays(-30), now, "最近30天"),
+                "最近90天" => (now.AddDays(-90), now, "最近90天"),
+                "全部时间" => (DateTime.MinValue.AddYears(1900), now, "全部时间"),
+                "自定义..." => (_customStartDate ?? now.AddDays(-7), _customEndDate ?? now, "自定义"),
+                _ => (now.AddDays(-7), now, "最近7天")
             };
+        }
+
+        private DateTime GetStartOfWeek(DateTime date)
+        {
+            int diff = (7 + (date.DayOfWeek - DayOfWeek.Monday)) % 7;
+            return date.AddDays(-diff).Date;
+        }
+
+        private DateTime GetStartOfQuarter(DateTime date)
+        {
+            int quarterMonth = ((date.Month - 1) / 3) * 3 + 1;
+            return new DateTime(date.Year, quarterMonth, 1);
+        }
+
+        private int GetTimeRangeDays()
+        {
+            var range = GetSelectedTimeRange();
+            if (range == null) return 7;
+            return Math.Max(1, (int)(range.Value.End - range.Value.Start).TotalDays);
         }
 
         private void CalculateOverallStats(List<Services.ScanHistoryItem> jsonHistory, List<ScanHistory> dbHistory)
@@ -351,6 +584,106 @@ namespace NetSecurityScanner.Views
             if (UniqueTargetsTextBlock != null) UniqueTargetsTextBlock.Text = $"{totalTargets} 个唯一";
         }
 
+        private void RenderPeriodComparisonCards(List<Services.ScanHistoryItem> jsonHistory, List<ScanHistory> dbHistory)
+        {
+            var now = DateTime.Now;
+
+            var weekStats = CalculatePeriodStats(jsonHistory, dbHistory, GetStartOfWeek(now), now);
+            var monthStats = CalculatePeriodStats(jsonHistory, dbHistory, new DateTime(now.Year, now.Month, 1), now);
+            var quarterStats = CalculatePeriodStats(jsonHistory, dbHistory, GetStartOfQuarter(now), now);
+            var yearStats = CalculatePeriodStats(jsonHistory, dbHistory, new DateTime(now.Year, 1, 1), now);
+
+            if (WeekScanCountText != null) WeekScanCountText.Text = weekStats.CurrentCount.ToString();
+            if (WeekVulnCountText != null) WeekVulnCountText.Text = weekStats.CurrentVulnCount.ToString();
+            if (WeekScanChangeText != null)
+            {
+                WeekScanChangeText.Text = FormatChange(weekStats.CurrentCount, weekStats.PreviousCount);
+                WeekScanChangeText.Foreground = GetChangeBrush(weekStats.ChangePercent);
+            }
+
+            if (MonthScanCountText != null) MonthScanCountText.Text = monthStats.CurrentCount.ToString();
+            if (MonthVulnCountText != null) MonthVulnCountText.Text = monthStats.CurrentVulnCount.ToString();
+            if (MonthScanChangeText != null)
+            {
+                MonthScanChangeText.Text = FormatChange(monthStats.CurrentCount, monthStats.PreviousCount);
+                MonthScanChangeText.Foreground = GetChangeBrush(monthStats.ChangePercent);
+            }
+
+            if (QuarterScanCountText != null) QuarterScanCountText.Text = quarterStats.CurrentCount.ToString();
+            if (QuarterVulnCountText != null) QuarterVulnCountText.Text = quarterStats.CurrentVulnCount.ToString();
+            if (QuarterScanChangeText != null)
+            {
+                QuarterScanChangeText.Text = FormatChange(quarterStats.CurrentCount, quarterStats.PreviousCount);
+                QuarterScanChangeText.Foreground = GetChangeBrush(quarterStats.ChangePercent);
+            }
+
+            if (YearScanCountText != null) YearScanCountText.Text = yearStats.CurrentCount.ToString();
+            if (YearVulnCountText != null) YearVulnCountText.Text = yearStats.CurrentVulnCount.ToString();
+            if (YearScanChangeText != null)
+            {
+                YearScanChangeText.Text = FormatChange(yearStats.CurrentCount, yearStats.PreviousCount);
+                YearScanChangeText.Foreground = GetChangeBrush(yearStats.ChangePercent);
+            }
+        }
+
+        private PeriodStatisticsResult CalculatePeriodStats(
+            List<Services.ScanHistoryItem> jsonHistory,
+            List<ScanHistory> dbHistory,
+            DateTime startDate,
+            DateTime endDate)
+        {
+            var periodLength = Math.Max(1, (endDate - startDate).Days);
+            var previousStart = startDate.AddDays(-periodLength);
+            var previousEnd = startDate.AddDays(-1);
+
+            var currentJson = jsonHistory.Where(h => h != null && h.ScanTime >= startDate && h.ScanTime <= endDate).ToList();
+            var currentDb = dbHistory.Where(h => h != null && h.StartTime >= startDate && h.StartTime <= endDate).ToList();
+            var previousJson = jsonHistory.Where(h => h != null && h.ScanTime >= previousStart && h.ScanTime <= previousEnd).ToList();
+            var previousDb = dbHistory.Where(h => h != null && h.StartTime >= previousStart && h.StartTime <= previousEnd).ToList();
+
+            int currentCount = currentJson.Count + currentDb.Count;
+            int previousCount = previousJson.Count + previousDb.Count;
+
+            int currentVulnCount = currentJson.Sum(h => h?.VulnerabilitiesCount ?? 0) + currentDb.Sum(h => h?.TotalVulnerabilities ?? 0);
+            int currentPortCount = currentDb.Sum(h => h?.OpenPorts ?? 0);
+
+            double changePercent = previousCount > 0 ? ((double)(currentCount - previousCount) / previousCount) * 100 : (currentCount > 0 ? 100 : 0);
+
+            return new PeriodStatisticsResult
+            {
+                CurrentCount = currentCount,
+                PreviousCount = previousCount,
+                CurrentVulnCount = currentVulnCount,
+                CurrentPortCount = currentPortCount,
+                ChangePercent = changePercent
+            };
+        }
+
+        private string FormatChange(int current, int previous)
+        {
+            if (previous == 0) return current > 0 ? "新增" : "无数据";
+            int change = current - previous;
+            string sign = change > 0 ? "↑" : "↓";
+            double percent = Math.Abs((double)change / previous * 100);
+            return $"{sign}{Math.Abs(change)}次 ({percent:F0}%)";
+        }
+
+        private System.Windows.Media.Brush GetChangeBrush(double changePercent)
+        {
+            if (changePercent > 0) return System.Windows.Media.Brushes.Green;
+            if (changePercent < 0) return System.Windows.Media.Brushes.Red;
+            return System.Windows.Media.Brushes.Gray;
+        }
+
+        private class PeriodStatisticsResult
+        {
+            public int CurrentCount { get; set; }
+            public int PreviousCount { get; set; }
+            public int CurrentVulnCount { get; set; }
+            public int CurrentPortCount { get; set; }
+            public double ChangePercent { get; set; }
+        }
+
         private void RenderRiskDistribution(List<Services.ScanHistoryItem> jsonHistory, List<ScanHistory> dbHistory)
         {
             jsonHistory ??= new();
@@ -368,12 +701,57 @@ namespace NetSecurityScanner.Views
             int total = severe + high + medium + low;
             if (total == 0) total = 1;
 
+            var severePct = (double)severe / total * 100;
+            var highPct = (double)high / total * 100;
+            var mediumPct = (double)medium / total * 100;
+            var lowPct = (double)low / total * 100;
+
             var series = new ISeries[]
             {
-                new PieSeries<int> { Values = new[] { severe }, Name = "严重", Fill = new SolidColorPaint(SKColors.Red), DataLabelsPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF)) { FontFamily = ChineseFont } },
-                new PieSeries<int> { Values = new[] { high }, Name = "高", Fill = new SolidColorPaint(SKColors.Orange), DataLabelsPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF)) { FontFamily = ChineseFont } },
-                new PieSeries<int> { Values = new[] { medium }, Name = "中", Fill = new SolidColorPaint(SKColors.Goldenrod), DataLabelsPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF)) { FontFamily = ChineseFont } },
-                new PieSeries<int> { Values = new[] { low }, Name = "低", Fill = new SolidColorPaint(SKColors.Green), DataLabelsPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF)) { FontFamily = ChineseFont } }
+                new PieSeries<int>
+                {
+                    Values = new[] { severe },
+                    Name = "严重",
+                    Fill = new SolidColorPaint(SKColors.Red),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF)) { FontFamily = ChineseFont },
+                    DataLabelsSize = 12,
+                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
+                    DataLabelsFormatter = point => severePct > 5 ? $"{severePct:F0}%" : "",
+                    ToolTipLabelFormatter = point => $"严重漏洞: {severe}个 ({severePct:F1}%)"
+                },
+                new PieSeries<int>
+                {
+                    Values = new[] { high },
+                    Name = "高",
+                    Fill = new SolidColorPaint(SKColors.Orange),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF)) { FontFamily = ChineseFont },
+                    DataLabelsSize = 12,
+                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
+                    DataLabelsFormatter = point => highPct > 5 ? $"{highPct:F0}%" : "",
+                    ToolTipLabelFormatter = point => $"高危漏洞: {high}个 ({highPct:F1}%)"
+                },
+                new PieSeries<int>
+                {
+                    Values = new[] { medium },
+                    Name = "中",
+                    Fill = new SolidColorPaint(SKColors.Goldenrod),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF)) { FontFamily = ChineseFont },
+                    DataLabelsSize = 12,
+                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
+                    DataLabelsFormatter = point => mediumPct > 5 ? $"{mediumPct:F0}%" : "",
+                    ToolTipLabelFormatter = point => $"中危漏洞: {medium}个 ({mediumPct:F1}%)"
+                },
+                new PieSeries<int>
+                {
+                    Values = new[] { low },
+                    Name = "低",
+                    Fill = new SolidColorPaint(SKColors.Green),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF)) { FontFamily = ChineseFont },
+                    DataLabelsSize = 12,
+                    DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
+                    DataLabelsFormatter = point => lowPct > 5 ? $"{lowPct:F0}%" : "",
+                    ToolTipLabelFormatter = point => $"低危漏洞: {low}个 ({lowPct:F1}%)"
+                }
             };
 
             if (RiskPieChart != null)
@@ -388,6 +766,9 @@ namespace NetSecurityScanner.Views
                 };
                 RiskPieChart.LegendTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
                 RiskPieChart.LegendPosition = LiveChartsCore.Measure.LegendPosition.Bottom;
+                RiskPieChart.TooltipTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                RiskPieChart.TooltipBackgroundPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF));
+                RiskPieChart.InitialRotation = -90;
             }
 
             RenderRiskDetails("严重", severe, total, System.Windows.Media.Brushes.Red);
@@ -467,14 +848,24 @@ namespace NetSecurityScanner.Views
                     Values = severeValues,
                     Name = "严重",
                     Fill = new SolidColorPaint(SKColors.Red),
-                    Stroke = new SolidColorPaint(SKColors.Red, 2)
+                    Stroke = new SolidColorPaint(SKColors.Red, 2),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                    DataLabelsSize = 11,
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                    DataLabelsFormatter = point => $"{point.Coordinate.PrimaryValue}",
+                    YToolTipLabelFormatter = point => $"严重: {point.Coordinate.PrimaryValue}个"
                 },
                 new ColumnSeries<int>
                 {
                     Values = highValues,
                     Name = "高",
                     Fill = new SolidColorPaint(SKColors.Orange),
-                    Stroke = new SolidColorPaint(SKColors.Orange, 2)
+                    Stroke = new SolidColorPaint(SKColors.Orange, 2),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                    DataLabelsSize = 11,
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                    DataLabelsFormatter = point => $"{point.Coordinate.PrimaryValue}",
+                    YToolTipLabelFormatter = point => $"高危: {point.Coordinate.PrimaryValue}个"
                 }
             };
 
@@ -486,16 +877,22 @@ namespace NetSecurityScanner.Views
                     new Axis
                     {
                         Labels = labels.ToArray(),
-                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont }
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
                     }
                 };
                 VulnBarChart.YAxes = new[]
                 {
                     new Axis
                     {
-                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont }
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
                     }
                 };
+                VulnBarChart.TooltipTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                VulnBarChart.TooltipBackgroundPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF));
+                VulnBarChart.LegendTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                VulnBarChart.LegendPosition = LiveChartsCore.Measure.LegendPosition.Bottom;
             }
         }
 
@@ -512,6 +909,8 @@ namespace NetSecurityScanner.Views
 
             var trendData = new List<ScanTrendItem>();
             var scanCountValues = new List<int>();
+            var vulnCountValues = new List<int>();
+            var portCountValues = new List<int>();
             var labels = new List<string>();
 
             foreach (var date in dates)
@@ -520,13 +919,16 @@ namespace NetSecurityScanner.Views
                 var dbCount = dbHistory.Count(h => h?.StartTime.Date == date);
                 var dayDbScans = dbHistory.Where(h => h?.StartTime.Date == date).ToList();
 
+                var vulnCount = jsonHistory.Where(h => h?.ScanTime.Date == date).Sum(h => h?.VulnerabilitiesCount ?? 0) +
+                              dayDbScans.Sum(h => h?.TotalVulnerabilities ?? 0);
+                var portCount = dayDbScans.Sum(h => h?.OpenPorts ?? 0);
+
                 var item = new ScanTrendItem
                 {
                     Date = date.ToString("MM-dd"),
                     ScanCount = jsonCount + dbCount,
-                    PortCount = dayDbScans.Sum(h => h?.OpenPorts ?? 0),
-                    VulnerabilityCount = jsonHistory.Where(h => h?.ScanTime.Date == date).Sum(h => h?.VulnerabilitiesCount ?? 0) +
-                                        dayDbScans.Sum(h => h?.TotalVulnerabilities ?? 0),
+                    PortCount = portCount,
+                    VulnerabilityCount = vulnCount,
                     CriticalCount = dayDbScans.Sum(h => h?.CriticalCount ?? 0),
                     HighCount = dayDbScans.Sum(h => h?.HighCount ?? 0),
                     MediumCount = dayDbScans.Sum(h => h?.MediumCount ?? 0),
@@ -535,6 +937,8 @@ namespace NetSecurityScanner.Views
 
                 trendData.Add(item);
                 scanCountValues.Add(item.ScanCount);
+                vulnCountValues.Add(item.VulnerabilityCount);
+                portCountValues.Add(item.PortCount);
                 labels.Add(item.Date);
             }
 
@@ -546,11 +950,46 @@ namespace NetSecurityScanner.Views
                 {
                     Values = scanCountValues,
                     Name = "扫描次数",
-                    Fill = null,
+                    Fill = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB, 50)),
                     Stroke = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB), 3),
-                    GeometryFill = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB, 100)),
-                    GeometryStroke = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB), 2),
-                    GeometrySize = 20
+                    GeometryFill = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB)),
+                    GeometryStroke = new SolidColorPaint(SKColors.White, 2),
+                    GeometrySize = 12,
+                    YToolTipLabelFormatter = point => $"扫描: {point.Coordinate.PrimaryValue}次",
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB)) { FontFamily = ChineseFont },
+                    DataLabelsSize = 10,
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                    DataLabelsFormatter = point => point.Coordinate.PrimaryValue > 0 ? $"{point.Coordinate.PrimaryValue}" : ""
+                },
+                new LineSeries<int>
+                {
+                    Values = vulnCountValues,
+                    Name = "漏洞数",
+                    Fill = new SolidColorPaint(new SKColor(0xE7, 0x4C, 0x3C, 50)),
+                    Stroke = new SolidColorPaint(new SKColor(0xE7, 0x4C, 0x3C), 3),
+                    GeometryFill = new SolidColorPaint(new SKColor(0xE7, 0x4C, 0x3C)),
+                    GeometryStroke = new SolidColorPaint(SKColors.White, 2),
+                    GeometrySize = 12,
+                    YToolTipLabelFormatter = point => $"漏洞: {point.Coordinate.PrimaryValue}个",
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(0xE7, 0x4C, 0x3C)) { FontFamily = ChineseFont },
+                    DataLabelsSize = 10,
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                    DataLabelsFormatter = point => point.Coordinate.PrimaryValue > 0 ? $"{point.Coordinate.PrimaryValue}" : ""
+                },
+                new LineSeries<int>
+                {
+                    Values = portCountValues,
+                    Name = "开放端口",
+                    Fill = new SolidColorPaint(new SKColor(0x27, 0xAE, 0x60, 50)),
+                    Stroke = new SolidColorPaint(new SKColor(0x27, 0xAE, 0x60), 3),
+                    GeometryFill = new SolidColorPaint(new SKColor(0x27, 0xAE, 0x60)),
+                    GeometryStroke = new SolidColorPaint(SKColors.White, 2),
+                    GeometrySize = 12,
+                    YToolTipLabelFormatter = point => $"端口: {point.Coordinate.PrimaryValue}个",
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(0x27, 0xAE, 0x60)) { FontFamily = ChineseFont },
+                    DataLabelsSize = 10,
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                    DataLabelsFormatter = point => point.Coordinate.PrimaryValue > 0 ? $"{point.Coordinate.PrimaryValue}" : ""
                 }
             };
 
@@ -563,16 +1002,22 @@ namespace NetSecurityScanner.Views
                     {
                         Labels = labels.ToArray(),
                         LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
-                        LabelsRotation = -45
+                        LabelsRotation = -45,
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
                     }
                 };
                 ScanTrendChart.YAxes = new[]
                 {
                     new Axis
                     {
-                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont }
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
                     }
                 };
+                ScanTrendChart.TooltipTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                ScanTrendChart.TooltipBackgroundPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF));
+                ScanTrendChart.LegendTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                ScanTrendChart.LegendPosition = LiveChartsCore.Measure.LegendPosition.Bottom;
             }
         }
 
@@ -632,6 +1077,15 @@ namespace NetSecurityScanner.Views
                 labels.Add(key.Length > 15 ? key.Substring(0, 15) + "..." : key);
             }
 
+            var riskColors = new SKColor[]
+            {
+                new SKColor(0xE7, 0x4C, 0x3C),
+                new SKColor(0xE6, 0x7E, 0x22),
+                new SKColor(0xF3, 0x9C, 0x12),
+                new SKColor(0x27, 0xAE, 0x60),
+                new SKColor(0x34, 0x98, 0xDB)
+            };
+
             if (VulnTypeChart != null)
             {
                 VulnTypeChart.Series = new ISeries[]
@@ -640,8 +1094,22 @@ namespace NetSecurityScanner.Views
                     {
                         Values = values,
                         Name = "漏洞数量",
-                        Stroke = new SolidColorPaint(SKColors.White, 1),
-                        Fill = null
+                        Stroke = new SolidColorPaint(SKColors.White, 2),
+                        Fill = new SolidColorPaint(new SKColor(0x9B, 0x59, 0xB6)),
+                        DataLabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        DataLabelsSize = 11,
+                        DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                        DataLabelsFormatter = point => $"{point.Coordinate.PrimaryValue}",
+                        YToolTipLabelFormatter = point =>
+                        {
+                            var idx = (int)point.Coordinate.SecondaryValue;
+                            if (idx >= 0 && idx < topTypes.Count)
+                            {
+                                var item = topTypes[idx];
+                                return $"{item.Key}\n出现: {item.Value.Count}次";
+                            }
+                            return $"漏洞: {point.Coordinate.PrimaryValue}个";
+                        }
                     }
                 };
 
@@ -651,16 +1119,20 @@ namespace NetSecurityScanner.Views
                     {
                         Labels = labels.ToArray(),
                         LabelsRotation = -45,
-                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont }
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
                     }
                 };
                 VulnTypeChart.YAxes = new[]
                 {
                     new Axis
                     {
-                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont }
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
                     }
                 };
+                VulnTypeChart.TooltipTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                VulnTypeChart.TooltipBackgroundPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF));
             }
         }
 
@@ -705,7 +1177,22 @@ namespace NetSecurityScanner.Views
                     {
                         Values = values,
                         Name = "出现次数",
-                        Fill = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB))
+                        Fill = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB)),
+                        Stroke = new SolidColorPaint(SKColors.White, 2),
+                        DataLabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        DataLabelsSize = 10,
+                        DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                        DataLabelsFormatter = point => $"{point.Coordinate.PrimaryValue}",
+                        YToolTipLabelFormatter = point =>
+                        {
+                            var idx = (int)point.Coordinate.SecondaryValue;
+                            if (idx >= 0 && idx < topPorts.Count)
+                            {
+                                var item = topPorts[idx];
+                                return $"端口 {item.Key}\n出现: {item.Value}次";
+                            }
+                            return $"端口: {point.Coordinate.PrimaryValue}次";
+                        }
                     }
                 };
 
@@ -715,16 +1202,20 @@ namespace NetSecurityScanner.Views
                     {
                         Labels = labels.ToArray(),
                         LabelsRotation = -45,
-                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont }
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
                     }
                 };
                 PortChart.YAxes = new[]
                 {
                     new Axis
                     {
-                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont }
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
                     }
                 };
+                PortChart.TooltipTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                PortChart.TooltipBackgroundPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF));
             }
         }
 
@@ -847,6 +1338,13 @@ namespace NetSecurityScanner.Views
                 content.AppendLine("=====================================");
                 content.AppendLine();
 
+                content.AppendLine("【多周期统计对比】");
+                content.AppendLine($"本周扫描: {WeekScanCountText?.Text ?? "N/A"} 次 {WeekScanChangeText?.Text ?? ""}");
+                content.AppendLine($"本月扫描: {MonthScanCountText?.Text ?? "N/A"} 次 {MonthScanChangeText?.Text ?? ""}");
+                content.AppendLine($"本季度扫描: {QuarterScanCountText?.Text ?? "N/A"} 次 {QuarterScanChangeText?.Text ?? ""}");
+                content.AppendLine($"本年度扫描: {YearScanCountText?.Text ?? "N/A"} 次 {YearScanChangeText?.Text ?? ""}");
+                content.AppendLine();
+
                 content.AppendLine("【总体统计】");
                 content.AppendLine($"总扫描次数: {TotalScansTextBlock?.Text ?? "N/A"}");
                 content.AppendLine($"总漏洞数: {TotalVulnsTextBlock?.Text ?? "N/A"}");
@@ -878,6 +1376,433 @@ namespace NetSecurityScanner.Views
             {
                 MessageBox.Show($"导出失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void TimeGranularityComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            RenderTimeDimensionAnalysis();
+        }
+
+        private void ComparePeriodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            RenderTimeDimensionAnalysis();
+        }
+
+        private async void RenderTimeDimensionAnalysis()
+        {
+            try
+            {
+                var jsonHistory = await SafeGetJsonHistory();
+                var dbHistory = await SafeGetDbHistory();
+
+                RenderTimeDimensionCards(jsonHistory, dbHistory);
+                RenderTimeDimensionTrendChart(jsonHistory, dbHistory);
+                RenderComparisonChart(jsonHistory, dbHistory);
+            }
+            catch { }
+        }
+
+        private void RenderTimeDimensionCards(List<Services.ScanHistoryItem> jsonHistory, List<ScanHistory> dbHistory)
+        {
+            var now = DateTime.Now;
+
+            var todayStats = CalculatePeriodStats(jsonHistory, dbHistory, now.Date, now);
+            var weekStats = CalculatePeriodStats(jsonHistory, dbHistory, GetStartOfWeek(now), now);
+            var monthStats = CalculatePeriodStats(jsonHistory, dbHistory, new DateTime(now.Year, now.Month, 1), now);
+            var quarterStats = CalculatePeriodStats(jsonHistory, dbHistory, GetStartOfQuarter(now), now);
+            var yearStats = CalculatePeriodStats(jsonHistory, dbHistory, new DateTime(now.Year, 1, 1), now);
+
+            if (DayScanCountText != null) DayScanCountText.Text = todayStats.CurrentCount.ToString();
+            if (DayVulnCountText != null) DayVulnCountText.Text = todayStats.CurrentVulnCount.ToString();
+            if (DayChangeText != null)
+            {
+                var yesterdayStats = CalculatePeriodStats(jsonHistory, dbHistory, now.Date.AddDays(-1), now.Date.AddDays(-1));
+                DayChangeText.Text = FormatGrowth(todayStats.CurrentCount, yesterdayStats.CurrentCount);
+                DayChangeText.Foreground = GetChangeBrush(todayStats.ChangePercent);
+            }
+
+            if (WeekPeriodScanCountText != null) WeekPeriodScanCountText.Text = weekStats.CurrentCount.ToString();
+            if (WeekPeriodVulnCountText != null) WeekPeriodVulnCountText.Text = weekStats.CurrentVulnCount.ToString();
+            if (WeekPeriodChangeText != null)
+            {
+                WeekPeriodChangeText.Text = FormatGrowth(weekStats.CurrentCount, weekStats.PreviousCount);
+                WeekPeriodChangeText.Foreground = GetChangeBrush(weekStats.ChangePercent);
+            }
+
+            if (MonthPeriodScanCountText != null) MonthPeriodScanCountText.Text = monthStats.CurrentCount.ToString();
+            if (MonthPeriodVulnCountText != null) MonthPeriodVulnCountText.Text = monthStats.CurrentVulnCount.ToString();
+            if (MonthPeriodChangeText != null)
+            {
+                MonthPeriodChangeText.Text = FormatGrowth(monthStats.CurrentCount, monthStats.PreviousCount);
+                MonthPeriodChangeText.Foreground = GetChangeBrush(monthStats.ChangePercent);
+            }
+
+            if (QuarterPeriodScanCountText != null) QuarterPeriodScanCountText.Text = quarterStats.CurrentCount.ToString();
+            if (QuarterPeriodVulnCountText != null) QuarterPeriodVulnCountText.Text = quarterStats.CurrentVulnCount.ToString();
+            if (QuarterPeriodChangeText != null)
+            {
+                QuarterPeriodChangeText.Text = FormatGrowth(quarterStats.CurrentCount, quarterStats.PreviousCount);
+                QuarterPeriodChangeText.Foreground = GetChangeBrush(quarterStats.ChangePercent);
+            }
+
+            if (YearPeriodScanCountText != null) YearPeriodScanCountText.Text = yearStats.CurrentCount.ToString();
+            if (YearPeriodVulnCountText != null) YearPeriodVulnCountText.Text = yearStats.CurrentVulnCount.ToString();
+            if (YearPeriodChangeText != null)
+            {
+                var lastYearStats = CalculatePeriodStats(jsonHistory, dbHistory, new DateTime(now.Year - 1, 1, 1), new DateTime(now.Year - 1, 12, 31));
+                YearPeriodChangeText.Text = FormatGrowth(yearStats.CurrentCount, lastYearStats.CurrentCount);
+                YearPeriodChangeText.Foreground = GetChangeBrush(yearStats.ChangePercent);
+            }
+        }
+
+        private string FormatGrowth(int current, int previous)
+        {
+            if (previous == 0) return current > 0 ? "↑ 新增" : "--";
+            var change = ((double)(current - previous) / previous) * 100;
+            if (change > 0) return $"↑ {change:F0}%";
+            if (change < 0) return $"↓ {Math.Abs(change):F0}%";
+            return "持平";
+        }
+
+        private void RenderTimeDimensionTrendChart(List<Services.ScanHistoryItem> jsonHistory, List<ScanHistory> dbHistory)
+        {
+            var granularity = (TimeGranularityComboBox?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "按日";
+            var now = DateTime.Now;
+            var dates = new List<DateTime>();
+            var labels = new List<string>();
+
+            int periods = granularity switch
+            {
+                "按周" => 12,
+                "按月" => 12,
+                "按季度" => 8,
+                "按年" => 5,
+                _ => 30
+            };
+
+            for (int i = periods - 1; i >= 0; i--)
+            {
+                DateTime start, end;
+                if (granularity == "按周")
+                {
+                    start = GetStartOfWeek(now).AddDays(-i * 7);
+                    end = start.AddDays(6);
+                }
+                else if (granularity == "按月")
+                {
+                    start = new DateTime(now.Year, now.Month, 1).AddMonths(-i);
+                    end = start.AddMonths(1).AddDays(-1);
+                }
+                else if (granularity == "按季度")
+                {
+                    int quarterOffset = i * 3;
+                    int targetMonth = now.Month - quarterOffset;
+                    int targetYear = now.Year;
+                    while (targetMonth <= 0) { targetMonth += 12; targetYear--; }
+                    int quarterMonth = ((targetMonth - 1) / 3) * 3 + 1;
+                    start = new DateTime(targetYear, quarterMonth, 1);
+                    end = start.AddMonths(3).AddDays(-1);
+                }
+                else if (granularity == "按年")
+                {
+                    start = new DateTime(now.Year - i, 1, 1);
+                    end = new DateTime(now.Year - i, 12, 31);
+                }
+                else
+                {
+                    start = now.Date.AddDays(-i);
+                    end = start;
+                }
+
+                dates.Add(start);
+                labels.Add(granularity switch
+                {
+                    "按周" => start.ToString("MM/dd"),
+                    "按月" => start.ToString("yyyy-MM"),
+                    "按季度" => $"Q{(start.Month - 1) / 3 + 1}/{start.Year}",
+                    "按年" => start.ToString("yyyy"),
+                    _ => start.ToString("MM-dd")
+                });
+            }
+
+            var scanValues = new List<int>();
+            var vulnValues = new List<int>();
+            var portValues = new List<int>();
+
+            foreach (var date in dates)
+            {
+                DateTime start, end;
+                if (granularity == "按周")
+                {
+                    start = GetStartOfWeek(date);
+                    end = start.AddDays(6);
+                }
+                else if (granularity == "按月")
+                {
+                    start = new DateTime(date.Year, date.Month, 1);
+                    end = start.AddMonths(1).AddDays(-1);
+                }
+                else if (granularity == "按季度")
+                {
+                    int quarterMonth = ((date.Month - 1) / 3) * 3 + 1;
+                    start = new DateTime(date.Year, quarterMonth, 1);
+                    end = start.AddMonths(3).AddDays(-1);
+                }
+                else if (granularity == "按年")
+                {
+                    start = new DateTime(date.Year, 1, 1);
+                    end = new DateTime(date.Year, 12, 31);
+                }
+                else
+                {
+                    start = date.Date;
+                    end = start;
+                }
+
+                var periodStats = CalculatePeriodStats(jsonHistory, dbHistory, start, end);
+                scanValues.Add(periodStats.CurrentCount);
+                vulnValues.Add(periodStats.CurrentVulnCount);
+                portValues.Add(periodStats.CurrentPortCount);
+            }
+
+            if (TimeDimensionTrendChart != null)
+            {
+                TimeDimensionTrendChart.Series = new ISeries[]
+                {
+                    new LineSeries<int>
+                    {
+                        Values = scanValues,
+                        Name = "扫描次数",
+                        Fill = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB, 40)),
+                        Stroke = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB), 3),
+                        GeometryFill = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB)),
+                        GeometryStroke = new SolidColorPaint(SKColors.White, 2),
+                        GeometrySize = 10,
+                        YToolTipLabelFormatter = point => $"扫描: {point.Coordinate.PrimaryValue}次",
+                        DataLabelsPaint = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB)) { FontFamily = ChineseFont },
+                        DataLabelsSize = 9,
+                        DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top
+                    },
+                    new LineSeries<int>
+                    {
+                        Values = vulnValues,
+                        Name = "漏洞数",
+                        Fill = new SolidColorPaint(new SKColor(0xE7, 0x4C, 0x3C, 40)),
+                        Stroke = new SolidColorPaint(new SKColor(0xE7, 0x4C, 0x3C), 3),
+                        GeometryFill = new SolidColorPaint(new SKColor(0xE7, 0x4C, 0x3C)),
+                        GeometryStroke = new SolidColorPaint(SKColors.White, 2),
+                        GeometrySize = 10,
+                        YToolTipLabelFormatter = point => $"漏洞: {point.Coordinate.PrimaryValue}个",
+                        DataLabelsPaint = new SolidColorPaint(new SKColor(0xE7, 0x4C, 0x3C)) { FontFamily = ChineseFont },
+                        DataLabelsSize = 9,
+                        DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top
+                    },
+                    new LineSeries<int>
+                    {
+                        Values = portValues,
+                        Name = "开放端口",
+                        Fill = new SolidColorPaint(new SKColor(0x27, 0xAE, 0x60, 40)),
+                        Stroke = new SolidColorPaint(new SKColor(0x27, 0xAE, 0x60), 3),
+                        GeometryFill = new SolidColorPaint(new SKColor(0x27, 0xAE, 0x60)),
+                        GeometryStroke = new SolidColorPaint(SKColors.White, 2),
+                        GeometrySize = 10,
+                        YToolTipLabelFormatter = point => $"端口: {point.Coordinate.PrimaryValue}个",
+                        DataLabelsPaint = new SolidColorPaint(new SKColor(0x27, 0xAE, 0x60)) { FontFamily = ChineseFont },
+                        DataLabelsSize = 9,
+                        DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top
+                    }
+                };
+
+                TimeDimensionTrendChart.XAxes = new[]
+                {
+                    new Axis
+                    {
+                        Labels = labels.ToArray(),
+                        LabelsRotation = granularity == "按月" || granularity == "按季度" ? 0 : -45,
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
+                    }
+                };
+                TimeDimensionTrendChart.YAxes = new[]
+                {
+                    new Axis
+                    {
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
+                    }
+                };
+                TimeDimensionTrendChart.TooltipTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                TimeDimensionTrendChart.TooltipBackgroundPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF));
+                TimeDimensionTrendChart.LegendTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                TimeDimensionTrendChart.LegendPosition = LiveChartsCore.Measure.LegendPosition.Bottom;
+            }
+        }
+
+        private void RenderComparisonChart(List<Services.ScanHistoryItem> jsonHistory, List<ScanHistory> dbHistory)
+        {
+            var compareMode = (ComparePeriodComboBox?.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "与上一周期";
+            var now = DateTime.Now;
+
+            var periods = new List<string>();
+            var scanGrowth = new List<double>();
+            var vulnGrowth = new List<double>();
+            var portGrowth = new List<double>();
+
+            int numPeriods = 6;
+            for (int i = numPeriods - 1; i >= 0; i--)
+            {
+                DateTime currentStart, currentEnd, prevStart, prevEnd;
+                string label;
+
+                if (compareMode == "与去年同月")
+                {
+                    currentStart = new DateTime(now.Year, now.Month, 1).AddMonths(-i);
+                    currentEnd = currentStart.AddMonths(1).AddDays(-1);
+                    prevStart = new DateTime(now.Year - 1, now.Month, 1).AddMonths(-i);
+                    prevEnd = prevStart.AddMonths(1).AddDays(-1);
+                    label = currentStart.ToString("yyyy-MM");
+                }
+                else if (compareMode == "与上一季度同期")
+                {
+                    int quarterOffset = i * 3;
+                    int currentQuarterMonth = now.Month - quarterOffset;
+                    int currentYear = now.Year;
+                    while (currentQuarterMonth <= 0) { currentQuarterMonth += 12; currentYear--; }
+                    int currentQuarterStart = ((currentQuarterMonth - 1) / 3) * 3 + 1;
+                    currentStart = new DateTime(currentYear, currentQuarterStart, 1);
+                    currentEnd = currentStart.AddMonths(3).AddDays(-1);
+
+                    int prevQuarterMonth = currentQuarterMonth - 3;
+                    int prevYear = currentYear;
+                    if (prevQuarterMonth <= 0) { prevQuarterMonth += 12; prevYear--; }
+                    int prevQuarterStart = ((prevQuarterMonth - 1) / 3) * 3 + 1;
+                    prevStart = new DateTime(prevYear, prevQuarterStart, 1);
+                    prevEnd = prevStart.AddMonths(3).AddDays(-1);
+
+                    label = $"Q{(currentQuarterStart - 1) / 3 + 1}/{currentYear}";
+                }
+                else
+                {
+                    currentStart = now.Date.AddDays(-i);
+                    currentEnd = currentStart;
+                    prevStart = currentStart.AddDays(-1);
+                    prevEnd = prevStart;
+
+                    if (compareMode == "与上一月同期")
+                    {
+                        currentStart = new DateTime(now.Year, now.Month, 1).AddMonths(-i);
+                        currentEnd = currentStart.AddMonths(1).AddDays(-1);
+                        prevStart = currentStart.AddMonths(-1);
+                        prevEnd = prevStart.AddMonths(1).AddDays(-1);
+                        label = currentStart.ToString("yyyy-MM");
+                    }
+                    else if (compareMode == "与上一季度同期")
+                    {
+                        int quarterOffset = i * 3;
+                        int targetMonth = now.Month - quarterOffset;
+                        int targetYear = now.Year;
+                        while (targetMonth <= 0) { targetMonth += 12; targetYear--; }
+                        int quarterMonth = ((targetMonth - 1) / 3) * 3 + 1;
+                        currentStart = new DateTime(targetYear, quarterMonth, 1);
+                        currentEnd = currentStart.AddMonths(3).AddDays(-1);
+
+                        int prevQuarterMonth = quarterMonth - 3;
+                        int prevYear = targetYear;
+                        if (prevQuarterMonth <= 0) { prevQuarterMonth += 12; prevYear--; }
+                        int prevQuarterStart = ((prevQuarterMonth - 1) / 3) * 3 + 1;
+                        prevStart = new DateTime(prevYear, prevQuarterStart, 1);
+                        prevEnd = prevStart.AddMonths(3).AddDays(-1);
+
+                        label = $"Q{(quarterMonth - 1) / 3 + 1}/{targetYear}";
+                    }
+                    else
+                    {
+                        label = currentStart.ToString("MM-dd");
+                    }
+                }
+
+                var currentStats = CalculatePeriodStats(jsonHistory, dbHistory, currentStart, currentEnd);
+                var prevStats = CalculatePeriodStats(jsonHistory, dbHistory, prevStart, prevEnd);
+
+                periods.Add(label);
+
+                double scanG = CalculateGrowthRate(currentStats.CurrentCount, prevStats.CurrentCount);
+                double vulnG = CalculateGrowthRate(currentStats.CurrentVulnCount, prevStats.CurrentVulnCount);
+                double portG = CalculateGrowthRate(currentStats.CurrentPortCount, prevStats.CurrentPortCount);
+
+                scanGrowth.Add(scanG);
+                vulnGrowth.Add(vulnG);
+                portGrowth.Add(portG);
+            }
+
+            if (ComparisonChart != null)
+            {
+                ComparisonChart.Series = new ISeries[]
+                {
+                    new ColumnSeries<double>
+                    {
+                        Values = scanGrowth,
+                        Name = "扫描增长",
+                        Fill = new SolidColorPaint(new SKColor(0x34, 0x98, 0xDB)),
+                        Stroke = new SolidColorPaint(SKColors.White, 2),
+                        DataLabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        DataLabelsSize = 10,
+                        DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                        DataLabelsFormatter = point => $"{point.Coordinate.PrimaryValue:F0}%"
+                    },
+                    new ColumnSeries<double>
+                    {
+                        Values = vulnGrowth,
+                        Name = "漏洞增长",
+                        Fill = new SolidColorPaint(new SKColor(0xE7, 0x4C, 0x3C)),
+                        Stroke = new SolidColorPaint(SKColors.White, 2),
+                        DataLabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        DataLabelsSize = 10,
+                        DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                        DataLabelsFormatter = point => $"{point.Coordinate.PrimaryValue:F0}%"
+                    },
+                    new ColumnSeries<double>
+                    {
+                        Values = portGrowth,
+                        Name = "端口增长",
+                        Fill = new SolidColorPaint(new SKColor(0x27, 0xAE, 0x60)),
+                        Stroke = new SolidColorPaint(SKColors.White, 2),
+                        DataLabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        DataLabelsSize = 10,
+                        DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                        DataLabelsFormatter = point => $"{point.Coordinate.PrimaryValue:F0}%"
+                    }
+                };
+
+                ComparisonChart.XAxes = new[]
+                {
+                    new Axis
+                    {
+                        Labels = periods.ToArray(),
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1)
+                    }
+                };
+                ComparisonChart.YAxes = new[]
+                {
+                    new Axis
+                    {
+                        LabelsPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont },
+                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE8, 0xE8, 0xE8), 1),
+                        Labeler = value => $"{value:F0}%"
+                    }
+                };
+                ComparisonChart.TooltipTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                ComparisonChart.TooltipBackgroundPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF));
+                ComparisonChart.LegendTextPaint = new SolidColorPaint(new SKColor(0x2C, 0x3E, 0x50)) { FontFamily = ChineseFont };
+                ComparisonChart.LegendPosition = LiveChartsCore.Measure.LegendPosition.Bottom;
+            }
+        }
+
+        private double CalculateGrowthRate(int current, int previous)
+        {
+            if (previous == 0) return current > 0 ? 100 : 0;
+            return ((double)(current - previous) / previous) * 100;
         }
     }
 
@@ -911,5 +1836,25 @@ namespace NetSecurityScanner.Views
         public int VulnerabilitiesCount { get; set; }
         public string RiskLevel { get; set; } = "";
         public string ScanId { get; set; } = "";
+    }
+
+    public class TimeDimensionItem
+    {
+        public string Period { get; set; } = "";
+        public int ScanCount { get; set; }
+        public int VulnCount { get; set; }
+        public int PortCount { get; set; }
+        public int CriticalCount { get; set; }
+        public int HighCount { get; set; }
+        public double ChangePercent { get; set; }
+        public string ChangeLabel { get; set; } = "";
+    }
+
+    public class ComparisonItem
+    {
+        public string Period { get; set; } = "";
+        public double ScanGrowth { get; set; }
+        public double VulnGrowth { get; set; }
+        public double PortGrowth { get; set; }
     }
 }

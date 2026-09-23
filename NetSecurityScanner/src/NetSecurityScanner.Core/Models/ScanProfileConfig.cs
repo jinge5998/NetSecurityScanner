@@ -33,10 +33,19 @@ namespace NetSecurityScanner.Core.Models
         public int UdpConcurrency { get; set; } = 20;
 
         /// <summary>
-        /// 单次探测超时时间（毫秒），范围 50-5000。
+        /// TCP 单次探测超时时间（毫秒），范围 50-5000。
         /// </summary>
         [Range(50, 5000)]
         public int TimeoutMs { get; set; } = 300;
+
+        /// <summary>
+        /// UDP 单次探测超时时间（毫秒），范围 50-5000。
+        /// UDP 是无连接协议，探测需要等待 ICMP 端口不可达或应用层响应，
+        /// 通常必须显著大于 TCP 超时；若直接复用 TCP 超时会导致 UDP 端口被大量误判为关闭/过滤。
+        /// 为 0 时表示交由调用方的 udpTimeoutMs 参数决定。
+        /// </summary>
+        [Range(0, 5000)]
+        public int UdpTimeoutMs { get; set; } = 0;
 
         /// <summary>
         /// 重试次数，范围 0-5。
@@ -70,6 +79,11 @@ namespace NetSecurityScanner.Core.Models
             TcpConcurrency = Math.Clamp(TcpConcurrency, 1, 1000);
             UdpConcurrency = Math.Clamp(UdpConcurrency, 1, 1000);
             TimeoutMs = Math.Clamp(TimeoutMs, 50, 5000);
+            // 0 表示"未设置"，保持原样由调用方兜底；非 0 才做范围约束
+            if (UdpTimeoutMs != 0)
+            {
+                UdpTimeoutMs = Math.Clamp(UdpTimeoutMs, 50, 5000);
+            }
             RetryCount = Math.Clamp(RetryCount, 0, 5);
 
             if (string.IsNullOrWhiteSpace(PortRange))

@@ -1,0 +1,43 @@
+{
+  "dotnet.defaultSolution": "NetSecurityScanner/src/NetSecurityScanner.sln",
+  "dotnet.server.useOmnisharp": false,
+  "csharp.solution": "NetSecurityScanner/src/NetSecurityScanner.sln",
+  "csharp.inlayHints.enableInlayHintsForImplicitObjectCreation": false,
+  "csharp.inlayHints.enableInlayHintsForLambdaParameterType": false,
+  "csharp.inlayHints.enableInlayHintsForTypes": false,
+  "csharp.inlayHints.enableInlayHintsForVariableTypes": false,
+  "csharpextensions.useAutoMappingsForXamlCodeBehind": true,
+  "editor.formatOnSave": true,
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "files.encoding": "utf8",
+  "files.eol": "\r\n",
+  "files.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/*.user": true
+  },
+  "files.watcherExclude": {
+    "**/bin/**": true,
+    "**/obj/**": true
+  },
+  "search.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/publish": true,
+    "**/publish-*": true
+  },
+  "debug.internalConsoleOptions": "openOnSessionStart",
+  "debug.inlineValues": "on",
+  "debug.showInlineValuesView": "on",
+  "debug.autoExpandLazyVariables": true,
+  "debug.showVariableValuesInEditor": true,
+  "debug.toolBarLocation": "docked",
+  "debug.focusWindowOnBreak": true,
+  "debug.onTaskErrors": "debugAnyway",
+  "debug.allowBreakpointsEverywhere": true,
+  "debug.showBreakpointsInOverviewRuler": true,
+  "csharp.debug.debugConsoleVerbosity": "verbose",
+  "csharp.preview.improvedLaunchExperience": false,
+  "dotnet.debug.suppressInvalidDebugTypeWarning": true
+}

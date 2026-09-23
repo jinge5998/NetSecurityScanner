@@ -2,10 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using NetSecurityScanner.Models;
 
 namespace NetSecurityScanner.Services
 {
@@ -46,15 +50,21 @@ namespace NetSecurityScanner.Services
         #region 私有字段
 
         private readonly string _cacheFilePath;
+        private readonly string _settingsFilePath;
         private readonly object _dataLock = new object();
         private List<CnnvdVulnerability> _vulnerabilities;
         private DateTime? _lastSyncTime;
         private bool _isInitialized;
 
         /// <summary>
-        /// 缓存过期时间（默认7天）
+        /// 缓存过期时间（默认7天，可通过 CnnvdSettings.CacheExpiryDays 配置）
         /// </summary>
-        private readonly TimeSpan CacheExpiry = TimeSpan.FromDays(7);
+        private readonly TimeSpan CacheExpiry;
+
+        /// <summary>
+        /// 当前生效的配置
+        /// </summary>
+        public CnnvdSettings Settings { get; private set; }
 
         #endregion
 
@@ -89,7 +99,7 @@ namespace NetSecurityScanner.Services
             // 初始化缓存路径
             string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             string appFolderPath = Path.Combine(appDataPath, "NetSecurityScanner");
-            
+
             try
             {
                 Directory.CreateDirectory(appFolderPath);
@@ -100,7 +110,65 @@ namespace NetSecurityScanner.Services
             }
 
             _cacheFilePath = Path.Combine(appFolderPath, "cnnvd_cache.json");
+            _settingsFilePath = Path.Combine(appFolderPath, "cnnvd_settings.json");
             _vulnerabilities = new List<CnnvdVulnerability>();
+
+            // 加载配置（无文件时使用默认配置）
+            Settings = LoadSettings();
+            CacheExpiry = TimeSpan.FromDays(Settings.CacheExpiryDays > 0 ? Settings.CacheExpiryDays : 7);
+        }
+
+        #endregion
+
+        #region 配置管理
+
+        /// <summary>
+        /// 加载配置
+        /// </summary>
+        private CnnvdSettings LoadSettings()
+        {
+            try
+            {
+                if (File.Exists(_settingsFilePath))
+                {
+                    var json = File.ReadAllText(_settingsFilePath);
+                    var settings = JsonSerializer.Deserialize<CnnvdSettings>(json);
+                    if (settings != null) return settings;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError($"加载CNNVD配置失败: {ex.Message}", ex);
+            }
+            return new CnnvdSettings();
+        }
+
+        /// <summary>
+        /// 保存配置
+        /// </summary>
+        public bool SaveSettings(CnnvdSettings settings)
+        {
+            if (settings == null) return false;
+            try
+            {
+                Settings = settings;
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+                };
+                string json = JsonSerializer.Serialize(settings, options);
+                string tempPath = _settingsFilePath + ".tmp";
+                File.WriteAllText(tempPath, json);
+                File.Replace(tempPath, _settingsFilePath, _settingsFilePath + ".bak");
+                LogInfo("CNNVD 配置已保存");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogError($"保存CNNVD配置失败: {ex.Message}", ex);
+                return false;
+            }
         }
 
         #endregion
@@ -167,7 +235,7 @@ namespace NetSecurityScanner.Services
 
                 // 获取内置漏洞数据
                 var builtinData = GetBuiltinVulnerabilities();
-                
+
                 // 写入缓存
                 await SaveToCacheAsync(builtinData, cancellationToken);
 
@@ -179,6 +247,29 @@ namespace NetSecurityScanner.Services
                 }
 
                 LogInfo($"CNNVD漏洞库同步完成: 共 {builtinData.Count} 个漏洞");
+
+                // 自动写入本地 JSON 漏洞库
+                try
+                {
+                    var entries = LocalVulnerabilityConverter.FromCnnvdList(builtinData);
+                    if (entries.Count > 0)
+                    {
+                        var result = await LocalVulnerabilityLibrary.Instance.SaveAsync(entries, "CNNVD", cancellationToken);
+                        if (result.ok)
+                        {
+                            LogInfo($"[CNNVD→本地库] {result.message}");
+                        }
+                        else
+                        {
+                            LogWarn($"[CNNVD→本地库] 写入失败: {result.message}");
+                        }
+                    }
+                }
+                catch (Exception libEx)
+                {
+                    LogError($"[CNNVD→本地库] 异常: {libEx.Message}", libEx);
+                }
+
                 return true;
             }
             catch (Exception ex)
@@ -186,6 +277,14 @@ namespace NetSecurityScanner.Services
                 LogError($"CNNVD漏洞库同步失败: {ex.Message}", ex);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 简化的日志方法
+        /// </summary>
+        private void LogWarn(string message)
+        {
+            try { System.Diagnostics.Debug.WriteLine($"[CnnvdSyncService][WARN] {DateTime.Now:HH:mm:ss} {message}"); } catch { }
         }
 
         /// <summary>

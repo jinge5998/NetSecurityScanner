@@ -1,4 +1,4 @@
-//! 高性能网络安全扫描服务 v1.0.0.8
+//! 高性能网络安全扫描服务 v1.0.2.1
 //! 使用 Rust + Tokio 实现异步并发端口扫描
 
 mod scanner;
@@ -58,7 +58,7 @@ fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    info!("🚀 Rust 高性能扫描服务 v1.0.0.8 启动");
+    info!("🚀 Rust 高性能扫描服务 v1.0.2.0 启动");
     info!("并发数: {}, TCP超时: {}ms, UDP超时: {}ms", args.concurrency, args.tcp_timeout, args.udp_timeout);
 
     // 启动 IPC 服务

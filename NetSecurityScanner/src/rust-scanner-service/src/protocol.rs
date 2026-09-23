@@ -1,7 +1,7 @@
-//! IPC 通信协议定义 v1.0.0.8
+//! IPC 通信协议定义 v1.0.2.1
 
-use serde::{Deserialize, Serialize};
 use crate::scanner::{PortScanResult, ScanProgress};
+use serde::{Deserialize, Serialize};
 
 /// IPC 请求消息
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,23 +57,13 @@ pub enum IpcResponse {
         scan_time_ms: u64,
     },
     /// 错误响应
-    Error {
-        code: i32,
-        message: String,
-    },
+    Error { code: i32, message: String },
     /// 心跳响应
-    Heartbeat {
-        timestamp: i64,
-        status: String,
-    },
+    Heartbeat { timestamp: i64, status: String },
 }
 
 /// 创建默认扫描请求
-pub fn create_scan_request(
-    targets: Vec<String>,
-    ports: Vec<u16>,
-    protocol: String,
-) -> IpcMessage {
+pub fn create_scan_request(targets: Vec<String>, ports: Vec<u16>, protocol: String) -> IpcMessage {
     IpcMessage {
         request_id: uuid::Uuid::new_v4().to_string(),
         message_type: "scan".to_string(),
@@ -98,14 +88,14 @@ pub fn create_scan_request(
 // 简化 UUID 生成 (避免额外依赖)
 mod uuid {
     use std::time::{SystemTime, UNIX_EPOCH};
-    
+
     pub struct Uuid;
-    
+
     impl Uuid {
         pub fn new_v4() -> Self {
             Self
         }
-        
+
         pub fn to_string(&self) -> String {
             let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)

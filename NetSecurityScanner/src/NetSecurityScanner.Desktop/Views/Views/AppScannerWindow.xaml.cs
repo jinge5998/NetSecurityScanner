@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using NetSecurityScanner.Utils;
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -23,6 +24,7 @@ namespace NetSecurityScanner.Views
         public AppScannerWindow()
         {
             InitializeComponent();
+            Title = $"APP安全扫描 v{VersionHelper.GetVersion()}";
             _vulnerabilities = new ObservableCollection<AppVulnerabilityResult>();
             VulnerabilityDataGrid.ItemsSource = _vulnerabilities;
         }

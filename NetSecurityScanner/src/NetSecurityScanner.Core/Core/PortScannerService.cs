@@ -36,13 +36,13 @@ namespace NetSecurityScanner.Core
         private ScanResultCache? _resultCache;
         private ResourceMonitor? _resourceMonitor;
         private Logger? _logger;
-        
+
         // 新增：增强性能监控器
         private ScanPerformanceMonitor? _scanPerfMonitor;
 
         public event EventHandler<ScanProgressEventArgs>? ScanProgressChanged;
         public event EventHandler<PortScannedEventArgs>? PortScanned;
-        
+
         /// <summary>
         /// 获取性能监控报告
         /// </summary>
@@ -67,8 +67,8 @@ namespace NetSecurityScanner.Core
         /// 批量端口扫描 - 使用分区并行处理
         /// </summary>
         public async Task<List<PortInfo>> ScanPortsAsync(
-            string host, 
-            List<int> ports, 
+            string host,
+            List<int> ports,
             ScanOptions options,
             IProgress<ScanProgressInfo> progress = null,
             CancellationToken externalCancellationToken = default)
@@ -76,40 +76,40 @@ namespace NetSecurityScanner.Core
             // 创建链接的取消令牌源，支持外部取消
             _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(externalCancellationToken);
             var cancellationToken = _cancellationTokenSource.Token;
-            
+
             // 使用内存优化的结果存储
             var results = new ConcurrentBag<PortInfo>();
-            
+
             // 智能并发控制 - 根据端口数量和系统资源动态调整
             int optimalConcurrency = CalculateOptimalConcurrency(ports.Count, options.MaxConcurrency);
             // 根据可用内存进一步调整并发数
             optimalConcurrency = AdjustConcurrencyByMemory(optimalConcurrency);
             options.MaxConcurrency = optimalConcurrency;
-            
+
             // 初始化Socket池
             _socketPool = new SocketPool(Math.Min(optimalConcurrency, 1000));
-            
+
             _completedPorts = 0;
             _totalPorts = ports.Count;
             _scanStartTime = DateTime.Now;
             _successfulScans = 0;
             _failedScans = 0;
-            
+
             // 初始化性能统计
             _performanceStats = new PerformanceStatistics();
             _performanceStats.StartScan(ports.Count);
-            
+
             // 初始化扫描结果缓存
             _resultCache = new ScanResultCache();
-            
+
             // 初始化资源监控
             _resourceMonitor = new ResourceMonitor();
             _resourceMonitor.StartMonitoring();
-            
+
             // 初始化日志记录器
             _logger = new Logger();
             _logger.LogScanStart(host, ports.Count, options);
-            
+
             // 初始化增强性能监控器（新增）
             _scanPerfMonitor = new ScanPerformanceMonitor();
             _scanPerfMonitor.StartMonitoring();
@@ -130,7 +130,7 @@ namespace NetSecurityScanner.Core
 
                 // 根据系统资源动态调整分批扫描阈值
                 int batchScanThreshold = CalculateBatchScanThreshold();
-                
+
                 // 大端口范围时使用分批扫描策略
                 if (ports.Count > batchScanThreshold)
                 {
@@ -141,7 +141,7 @@ namespace NetSecurityScanner.Core
                 var tasks = new List<Task>();
                 var maxConcurrentTasks = Math.Min(options.MaxConcurrency, 1000);
                 var throttler = new SemaphoreSlim(maxConcurrentTasks, maxConcurrentTasks);
-                
+
                 // 任务调度和错误处理增强
                 // 对于大端口列表，使用分批处理避免一次性创建过多任务
                 int batchSize = Math.Min(1000, ports.Count);
@@ -149,16 +149,16 @@ namespace NetSecurityScanner.Core
                 {
                     if (cancellationToken.IsCancellationRequested)
                         break;
-                    
+
                     var batchPorts = ports.Skip(i).Take(batchSize).ToList();
                     foreach (var port in batchPorts)
                     {
                         if (cancellationToken.IsCancellationRequested)
                             break;
-                        
+
                         tasks.Add(ProcessPortAsync(port, ipAddress, options, progress, throttler, results, cancellationToken));
                     }
-                    
+
                     // 每批任务完成后清理内存
                     if (tasks.Count >= maxConcurrentTasks * 2)
                     {
@@ -188,13 +188,13 @@ namespace NetSecurityScanner.Core
                         // 处理AggregateException，检查是否包含取消异常
                         bool hasCancelException = aex.InnerExceptions.Any(e => e is OperationCanceledException);
                         bool hasOtherExceptions = aex.InnerExceptions.Any(e => !(e is OperationCanceledException));
-                        
+
                         if (hasCancelException)
                         {
                             wasCancelled = true;
                             Console.WriteLine("扫描已被用户取消");
                         }
-                        
+
                         if (hasOtherExceptions)
                         {
                             foreach (var ex in aex.InnerExceptions.Where(e => !(e is OperationCanceledException)))
@@ -209,7 +209,7 @@ namespace NetSecurityScanner.Core
                         Console.WriteLine($"扫描过程中发生错误: {ex.Message}");
                     }
                 }
-                
+
                 // 处理失败的任务
                 var failedTasks = tasks.Where(t => t.IsFaulted).ToList();
                 if (failedTasks.Count > 0)
@@ -224,7 +224,7 @@ namespace NetSecurityScanner.Core
                         }
                     }
                 }
-                
+
                 // 如果扫描被取消，抛出异常通知上层
                 if (wasCancelled || cancellationToken.IsCancellationRequested)
                 {
@@ -235,25 +235,25 @@ namespace NetSecurityScanner.Core
             {
                 // 停止性能统计
                 _performanceStats?.StopScan();
-                
+
                 // 停止增强性能监控器（新增）
                 if (_scanPerfMonitor != null)
                 {
                     _scanPerfMonitor.StopMonitoring();
                     var perfReport = _scanPerfMonitor.GenerateReport();
-                    
+
                     Console.WriteLine("\n=== 扫描性能报告 ===");
                     Console.WriteLine(perfReport);
                     Console.WriteLine("==================\n");
-                    
+
                     Debug.WriteLine(perfReport.ToString());
                 }
-                
+
                 // 输出性能报告
                 if (_performanceStats != null)
                 {
                     Console.WriteLine(_performanceStats.GeneratePerformanceReport());
-                    
+
                     // 保存性能报告到文件
                     try
                     {
@@ -262,14 +262,14 @@ namespace NetSecurityScanner.Core
                         {
                             System.IO.Directory.CreateDirectory(reportDir);
                         }
-                        
+
                         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                         string txtReportPath = System.IO.Path.Combine(reportDir, $"performance_report_{timestamp}.txt");
                         string htmlReportPath = System.IO.Path.Combine(reportDir, $"performance_report_{timestamp}.html");
-                        
+
                         _performanceStats.SavePerformanceReport(txtReportPath, "txt");
                         _performanceStats.SavePerformanceReport(htmlReportPath, "html");
-                        
+
                         Console.WriteLine($"性能报告已保存到:\n- TXT格式: {txtReportPath}\n- HTML格式: {htmlReportPath}");
                     }
                     catch (Exception ex)
@@ -277,20 +277,20 @@ namespace NetSecurityScanner.Core
                         Console.WriteLine($"保存性能报告时出错: {ex.Message}");
                     }
                 }
-                
+
                 // 输出Socket池统计信息
                 if (_socketPool != null)
                 {
                     Console.WriteLine(_socketPool.GetStatistics());
                     _socketPool.Dispose();
                 }
-                
+
                 // 输出缓存统计信息
                 if (_resultCache != null)
                 {
                     Console.WriteLine(_resultCache.GetStatistics());
                 }
-                
+
                 // 输出资源监控统计信息
                 if (_resourceMonitor != null)
                 {
@@ -299,7 +299,7 @@ namespace NetSecurityScanner.Core
                     Console.WriteLine(_resourceMonitor.GetResourceUsageTrend());
                     _resourceMonitor.Dispose();
                 }
-                
+
                 // 输出日志统计信息
                 if (_logger != null)
                 {
@@ -307,10 +307,10 @@ namespace NetSecurityScanner.Core
                     _logger.Dispose();
                 }
             }
-            
+
             return results.OrderBy(p => p.PortNumber).ToList();
         }
-        
+
         /// <summary>
         /// 根据可用内存调整并发数
         /// </summary>
@@ -319,7 +319,7 @@ namespace NetSecurityScanner.Core
         private int AdjustConcurrencyByMemory(int baseConcurrency)
         {
             long availableMemory = GetAvailableMemoryMb();
-            
+
             // 根据可用内存调整并发数
             if (availableMemory < 512)
             {
@@ -339,13 +339,13 @@ namespace NetSecurityScanner.Core
             // 内存充足，保持或增加并发数
             return baseConcurrency;
         }
-        
+
         /// <summary>
         /// 分批扫描大端口范围
         /// </summary>
         private async Task<List<PortInfo>> BatchScanPortsAsync(
-            IPAddress ipAddress, 
-            List<int> ports, 
+            IPAddress ipAddress,
+            List<int> ports,
             ScanOptions options,
             IProgress<ScanProgressInfo> progress,
             CancellationToken cancellationToken)
@@ -357,15 +357,15 @@ namespace NetSecurityScanner.Core
             int currentBatchSize = initialBatchSize;
             int totalBatches = (int)Math.Ceiling((double)ports.Count / initialBatchSize);
             int completedBatches = 0;
-            
+
             // 记录批量扫描开始
             _performanceStats?.RecordPhase("BatchScanStart", 0);
-            
+
             for (int i = 0; i < ports.Count; i += currentBatchSize)
             {
                 if (cancellationToken.IsCancellationRequested)
                     break;
-                
+
                 // 动态调整批量大小 - 根据前一批的处理时间和当前内存使用情况
                 if (completedBatches > 0)
                 {
@@ -373,17 +373,17 @@ namespace NetSecurityScanner.Core
                     // 根据内存使用情况进一步调整
                     currentBatchSize = AdjustBatchSizeByMemory(currentBatchSize);
                 }
-                
+
                 var batchPorts = ports.Skip(i).Take(currentBatchSize).ToList();
                 var batchStartTime = DateTime.Now;
-                
+
                 // 并行处理多个批次（如果系统资源允许）
                 var batchResults = await ScanBatchAsync(ipAddress, batchPorts, options, progress, cancellationToken);
                 var batchTimeMs = (long)(DateTime.Now - batchStartTime).TotalMilliseconds;
-                
+
                 // 记录批处理性能统计
                 _performanceStats?.RecordBatchCompleted(batchPorts.Count, batchTimeMs);
-                
+
                 // 批量添加结果，减少锁竞争
                 // 只添加开放端口和错误端口，减少内存使用
                 foreach (var result in batchResults)
@@ -393,25 +393,25 @@ namespace NetSecurityScanner.Core
                         allResults.Add(result);
                     }
                 }
-                
+
                 // 清理批次结果，释放内存
                 batchResults.Clear();
-                
+
                 completedBatches++;
-                
+
                 // 更新总体进度
                 var completed = Math.Min(i + currentBatchSize, ports.Count);
                 var percentage = (int)((double)completed / ports.Count * 100);
-                
+
                 // 记录扫描阶段
                 _performanceStats?.RecordPhase(
-                    $"Batch {completedBatches}/{totalBatches}", 
+                    $"Batch {completedBatches}/{totalBatches}",
                     completed
                 );
-                
+
                 // 监控内存使用情况
                 long availableMemory = GetAvailableMemoryMb();
-                
+
                 var progressInfo = new ScanProgressInfo
                 {
                     CompletedCount = completed,
@@ -424,26 +424,26 @@ namespace NetSecurityScanner.Core
                     TotalBatches = totalBatches,
                     AvailableMemoryMb = availableMemory
                 };
-                
+
                 progress?.Report(progressInfo);
                 ScanProgressChanged?.Invoke(this, new ScanProgressEventArgs(progressInfo));
-                
+
                 // 定期清理内存
                 if (completedBatches % 5 == 0)
                 {
                     GC.Collect(2, GCCollectionMode.Optimized);
                 }
             }
-            
+
             // 记录批量扫描完成
             _performanceStats?.RecordPhase("BatchScanEnd", ports.Count);
-            
+
             // 清理内存
             GC.Collect(2, GCCollectionMode.Optimized);
-            
+
             return allResults.OrderBy(p => p.PortNumber).ToList();
         }
-        
+
         /// <summary>
         /// 根据可用内存调整批量大小
         /// </summary>
@@ -452,7 +452,7 @@ namespace NetSecurityScanner.Core
         private int AdjustBatchSizeByMemory(int baseBatchSize)
         {
             long availableMemory = GetAvailableMemoryMb();
-            
+
             // 根据可用内存调整批量大小
             if (availableMemory < 512)
             {
@@ -472,20 +472,20 @@ namespace NetSecurityScanner.Core
             // 内存充足，保持或增加批量大小
             return baseBatchSize;
         }
-        
+
         /// <summary>
         /// 扫描单个批次
         /// </summary>
         private async Task<List<PortInfo>> ScanBatchAsync(
-            IPAddress ipAddress, 
-            List<int> ports, 
+            IPAddress ipAddress,
+            List<int> ports,
             ScanOptions options,
             IProgress<ScanProgressInfo> progress,
             CancellationToken cancellationToken)
         {
             var results = new ConcurrentBag<PortInfo>();
             var semaphore = new SemaphoreSlim(options.MaxConcurrency, options.MaxConcurrency);
-            
+
             var tasks = ports.Select(async port =>
             {
                 await semaphore.WaitAsync(cancellationToken);
@@ -493,35 +493,35 @@ namespace NetSecurityScanner.Core
                 {
                     if (cancellationToken.IsCancellationRequested)
                         return;
-                    
+
                     var portInfo = await ScanPortOptimized(ipAddress, port, options, cancellationToken);
                     results.Add(portInfo);
-                    
+
                     // 统计扫描结果
                     if (portInfo.Status == "开放")
                         Interlocked.Increment(ref _successfulScans);
                     else
                         Interlocked.Increment(ref _failedScans);
-                    
+
                     // 记录性能监控数据（新增）
                     _scanPerfMonitor?.RecordPortScanned(portInfo.Status == "开放", 0);
-                    
+
                     // 记录性能统计
                     _performanceStats?.RecordPortScanned(
-                        portInfo.Status != "Error", 
+                        portInfo.Status != "Error",
                         portInfo.Status == "开放"
                     );
-                    
+
                     // 更新进度
                     var completed = Interlocked.Increment(ref _completedPorts);
                     var percentage = (int)((double)completed / _totalPorts * 100);
-                    
+
                     // 计算开放端口数
                     int openPorts = results.Count(p => p.Status == "开放");
-                    
+
                     // 获取系统内存使用情况
                     long availableMemory = GetAvailableMemoryMb();
-                    
+
                     var progressInfo = new ScanProgressInfo
                     {
                         CompletedCount = completed,
@@ -540,7 +540,7 @@ namespace NetSecurityScanner.Core
                         BatchInfo = ports.Count > 10000 ? "Batch scanning mode" : "Single pass mode",
                         StatusDescription = GetScanStatusDescription(completed, _totalPorts, openPorts)
                     };
-                    
+
                     progress?.Report(progressInfo);
                     ScanProgressChanged?.Invoke(this, new ScanProgressEventArgs(progressInfo));
                     PortScanned?.Invoke(this, new PortScannedEventArgs(portInfo));
@@ -550,7 +550,7 @@ namespace NetSecurityScanner.Core
                     semaphore.Release();
                 }
             });
-            
+
             try
             {
                 await Task.WhenAll(tasks);
@@ -565,12 +565,12 @@ namespace NetSecurityScanner.Core
                 // 处理AggregateException，检查是否包含取消异常
                 bool hasCancelException = aex.InnerExceptions.Any(e => e is OperationCanceledException);
                 bool hasOtherExceptions = aex.InnerExceptions.Any(e => !(e is OperationCanceledException));
-                
+
                 if (hasCancelException)
                 {
                     Console.WriteLine("批次扫描已被用户取消");
                 }
-                
+
                 if (hasOtherExceptions)
                 {
                     foreach (var ex in aex.InnerExceptions.Where(e => !(e is OperationCanceledException)))
@@ -584,10 +584,10 @@ namespace NetSecurityScanner.Core
                 // 记录异常但不抛出
                 Console.WriteLine($"批次扫描过程中发生错误: {ex.Message}");
             }
-            
+
             return results.ToList();
         }
-        
+
         /// <summary>
         /// 优化的端口扫描 - 使用Socket池减少开销
         /// </summary>
@@ -595,7 +595,7 @@ namespace NetSecurityScanner.Core
         {
             string host = ipAddress.ToString();
             string protocol = options.ScanType;
-            
+
             // 检查缓存中是否已有结果
             if (_resultCache != null && _resultCache.TryGetCachedResult(host, port, protocol, out var cachedPortInfo))
             {
@@ -603,7 +603,7 @@ namespace NetSecurityScanner.Core
                 _performanceStats?.RecordOperationTime("CacheHit", 0);
                 return cachedPortInfo;
             }
-            
+
             var portInfo = new PortInfo
             {
                 Host = host,
@@ -612,7 +612,7 @@ namespace NetSecurityScanner.Core
                 ScanTime = DateTime.Now,
                 Status = "Closed"
             };
-            
+
             if (protocol.Equals("TCP", StringComparison.OrdinalIgnoreCase))
             {
                 await ScanTcpPortOptimized(portInfo, ipAddress, port, options, cancellationToken);
@@ -621,18 +621,18 @@ namespace NetSecurityScanner.Core
             {
                 await ScanUdpPortOptimized(portInfo, ipAddress, port, options, cancellationToken);
             }
-            
+
             if (portInfo.Status == "开放" && options.EnableServiceDetection)
             {
                 await DetectServiceOptimized(portInfo, ipAddress, cancellationToken);
             }
-            
+
             // 将扫描结果添加到缓存
             _resultCache?.AddToCache(host, port, protocol, portInfo);
-            
+
             return portInfo;
         }
-        
+
         /// <summary>
         /// 优化的TCP端口扫描 - 使用Socket池
         /// </summary>
@@ -642,22 +642,22 @@ namespace NetSecurityScanner.Core
             int retries = 0;
             const int maxRetries = 3;
             bool isRetryableError = false;
-            
+
             do
             {
                 try
                 {
                     // 从Socket池获取连接
                     socket = await _socketPool.AcquireAsync(cancellationToken);
-                    
+
                     // 设置超时
                     int timeout = CalculateDynamicTimeout(options.Timeout);
-                    
+
                     // 使用异步连接，优化超时处理
                     using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                     {
                         cts.CancelAfter(timeout);
-                        
+
                         try
                         {
                             await socket.ConnectAsync(new IPEndPoint(ipAddress, port), cts.Token);
@@ -745,7 +745,7 @@ namespace NetSecurityScanner.Core
                 }
             } while (isRetryableError && retries <= maxRetries && !cancellationToken.IsCancellationRequested);
         }
-        
+
         /// <summary>
         /// 优化的UDP端口扫描
         /// </summary>
@@ -753,8 +753,7 @@ namespace NetSecurityScanner.Core
         {
             int retries = 0;
             const int maxRetries = 2;
-            bool success = false;
-            
+
             do
             {
                 using (var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
@@ -764,30 +763,28 @@ namespace NetSecurityScanner.Core
                         int timeout = CalculateDynamicTimeout(options.Timeout);
                         socket.ReceiveTimeout = timeout;
                         socket.SendTimeout = timeout;
-                        
+
                         var endPoint = new IPEndPoint(ipAddress, port);
                         var data = new byte[] { 0x00 };
-                        
+
                         await socket.SendToAsync(data, SocketFlags.None, endPoint);
-                        
+
                         var buffer = new byte[1024];
                         EndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
-                        
+
                         var receiveTask = socket.ReceiveFromAsync(new ArraySegment<byte>(buffer), SocketFlags.None, remoteEndPoint);
                         var timeoutTask = Task.Delay(timeout, cancellationToken);
-                        
+
                         var completedTask = await Task.WhenAny(receiveTask, timeoutTask);
-                        
+
                         if (completedTask == receiveTask && receiveTask.IsCompletedSuccessfully)
                         {
                             portInfo.Status = "开放";
-                            success = true;
                             return;
                         }
                         else
                         {
                             portInfo.Status = "Open|Filtered";
-                            success = true;
                             return;
                         }
                     }
@@ -795,7 +792,6 @@ namespace NetSecurityScanner.Core
                     {
                         // ICMP端口不可达 - 端口关闭
                         portInfo.Status = "Closed";
-                        success = true;
                         return;
                     }
                     catch (SocketException ex) when (
@@ -839,7 +835,7 @@ namespace NetSecurityScanner.Core
                 }
             } while (retries <= maxRetries && !cancellationToken.IsCancellationRequested);
         }
-        
+
         /// <summary>
         /// 处理单个端口的扫描任务
         /// </summary>
@@ -853,12 +849,11 @@ namespace NetSecurityScanner.Core
             CancellationToken cancellationToken)
         {
             await throttler.WaitAsync(cancellationToken);
-            
+
             int retryCount = 0;
             const int maxRetries = 2;
-            bool success = false;
             PortInfo portInfo = null;
-            
+
             try
             {
                 do
@@ -868,17 +863,17 @@ namespace NetSecurityScanner.Core
                         // 扫描端口
                         portInfo = await ScanPortOptimized(ipAddress, port, options, cancellationToken);
                         results.Add(portInfo);
-                        
+
                         // 统计扫描结果
                         if (portInfo.Status == "开放")
                             Interlocked.Increment(ref _successfulScans);
                         else
                             Interlocked.Increment(ref _failedScans);
-                        
+
                         // 报告进度 - 使用Interlocked确保线程安全
                         var completed = Interlocked.Increment(ref _completedPorts);
                         var percentage = (int)((double)completed / _totalPorts * 100);
-                        
+
                         var progressInfo = new ScanProgressInfo
                         {
                             CompletedCount = completed,
@@ -889,12 +884,11 @@ namespace NetSecurityScanner.Core
                             ScanSpeed = CurrentScanSpeed,
                             EstimatedTimeRemaining = EstimatedTimeRemaining
                         };
-                        
+
                         progress?.Report(progressInfo);
                         ScanProgressChanged?.Invoke(this, new ScanProgressEventArgs(progressInfo));
                         PortScanned?.Invoke(this, new PortScannedEventArgs(portInfo));
-                        
-                        success = true;
+
                         break;
                     }
                     catch (OperationCanceledException)
@@ -920,11 +914,11 @@ namespace NetSecurityScanner.Core
                             };
                             results.Add(portInfo);
                             Interlocked.Increment(ref _failedScans);
-                            
+
                             // 报告进度
                             var completed = Interlocked.Increment(ref _completedPorts);
                             var percentage = (int)((double)completed / _totalPorts * 100);
-                            
+
                             var progressInfo = new ScanProgressInfo
                             {
                                 CompletedCount = completed,
@@ -935,14 +929,14 @@ namespace NetSecurityScanner.Core
                                 ScanSpeed = CurrentScanSpeed,
                                 EstimatedTimeRemaining = EstimatedTimeRemaining
                             };
-                            
+
                             progress?.Report(progressInfo);
                             ScanProgressChanged?.Invoke(this, new ScanProgressEventArgs(progressInfo));
                             PortScanned?.Invoke(this, new PortScannedEventArgs(portInfo));
-                            
+
                             break;
                         }
-                        
+
                         // 短暂延迟后重试
                         await Task.Delay(50 * retryCount, cancellationToken);
                     }
@@ -961,21 +955,21 @@ namespace NetSecurityScanner.Core
         {
             // 基于端口的服务识别（快速路径）
             portInfo.Service = GetServiceByPort(portInfo.PortNumber);
-            
+
             // 添加服务详情
             portInfo.ServiceDetails = GetServiceDetails(portInfo.PortNumber);
-            
+
             // 评估风险等级
             portInfo.RiskLevel = EvaluatePortRiskLevel(portInfo.PortNumber, portInfo.Service);
-            
+
             // 尝试获取Banner（可选，异步超时控制）
-            if (portInfo.PortNumber == 80 || portInfo.PortNumber == 443 || 
+            if (portInfo.PortNumber == 80 || portInfo.PortNumber == 443 ||
                 portInfo.PortNumber == 22 || portInfo.PortNumber == 21)
             {
                 await TryGetBannerOptimized(portInfo, ipAddress, cancellationToken);
             }
         }
-        
+
         /// <summary>
         /// 获取服务详情
         /// </summary>
@@ -1000,7 +994,7 @@ namespace NetSecurityScanner.Core
                 _ => "通用网络服务"
             };
         }
-        
+
         /// <summary>
         /// 评估端口风险等级
         /// </summary>
@@ -1010,15 +1004,15 @@ namespace NetSecurityScanner.Core
             var highRiskPorts = new[] { 21, 23, 25, 135, 139, 445, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 8080, 27017 };
             if (highRiskPorts.Contains(port))
                 return "高风险";
-            
+
             // 中等风险端口
             var mediumRiskPorts = new[] { 22, 53, 80, 110, 143, 443 };
             if (mediumRiskPorts.Contains(port))
                 return "中等风险";
-            
+
             return "低风险";
         }
-        
+
         /// <summary>
         /// 优化的Banner获取 - 使用Socket池
         /// </summary>
@@ -1030,9 +1024,9 @@ namespace NetSecurityScanner.Core
                 socket = await _socketPool.AcquireAsync(cancellationToken);
                 socket.ReceiveTimeout = 1000;
                 socket.SendTimeout = 1000;
-                
+
                 await socket.ConnectAsync(new IPEndPoint(ipAddress, portInfo.PortNumber));
-                
+
                 // 发送探测数据
                 byte[] probeData = GetProbeData(portInfo.PortNumber);
                 if (probeData != null)
@@ -1040,12 +1034,12 @@ namespace NetSecurityScanner.Core
                     await socket.SendAsync(probeData, SocketFlags.None);
                     await Task.Delay(100, cancellationToken); // 短暂等待响应
                 }
-                
+
                 // 接收响应
                 var buffer = new byte[512];
                 var receiveTask = socket.ReceiveAsync(new ArraySegment<byte>(buffer), SocketFlags.None);
                 var timeoutTask = Task.Delay(1000, cancellationToken);
-                
+
                 var completedTask = await Task.WhenAny(receiveTask, timeoutTask);
                 if (completedTask == receiveTask && receiveTask.IsCompletedSuccessfully)
                 {
@@ -1072,7 +1066,7 @@ namespace NetSecurityScanner.Core
                 }
             }
         }
-        
+
         /// <summary>
         /// 根据端口获取探测数据
         /// </summary>
@@ -1088,7 +1082,7 @@ namespace NetSecurityScanner.Core
                 _ => null
             };
         }
-        
+
         /// <summary>
         /// 从Banner解析版本信息
         /// </summary>
@@ -1096,15 +1090,15 @@ namespace NetSecurityScanner.Core
         {
             if (string.IsNullOrEmpty(banner))
                 return "Unknown";
-            
+
             // 限制长度
             if (banner.Length > 100)
                 banner = banner.Substring(0, 100) + "...";
-            
+
             // 简单的版本解析逻辑
             return banner.Replace("\r", "").Replace("\n", " ");
         }
-        
+
         /// <summary>
         /// 计算最优并发数
         /// </summary>
@@ -1112,7 +1106,7 @@ namespace NetSecurityScanner.Core
         {
             // 基础并发数
             int baseConcurrency = requestedConcurrency;
-            
+
             // 根据端口数量调整 - 增加并发上限以提高速度
             if (portCount > 20000)
                 baseConcurrency = Math.Min(1500, Environment.ProcessorCount * 40); // 进一步提高上限
@@ -1124,7 +1118,7 @@ namespace NetSecurityScanner.Core
                 baseConcurrency = Math.Min(800, Environment.ProcessorCount * 25); // 提高上限
             else
                 baseConcurrency = Math.Min(500, Environment.ProcessorCount * 20); // 提高上限
-            
+
             // 根据系统内存调整
             long availableMemory = GetAvailableMemoryMb();
             if (availableMemory < 512)
@@ -1135,14 +1129,14 @@ namespace NetSecurityScanner.Core
                 baseConcurrency = Math.Min(baseConcurrency * 2, 2000); // 内存充足时进一步提高并发
             else if (availableMemory > 4096)
                 baseConcurrency = Math.Min((int)(baseConcurrency * 1.5), 1500); // 内存充足时提高并发
-            
+
             // 根据网络带宽估计调整
             int networkBasedConcurrency = EstimateNetworkBasedConcurrency();
             baseConcurrency = Math.Min(baseConcurrency, networkBasedConcurrency);
-            
+
             return Math.Max(150, baseConcurrency); // 提高最低并发
         }
-        
+
         /// <summary>
         /// 根据网络带宽估计并发数
         /// </summary>
@@ -1155,7 +1149,7 @@ namespace NetSecurityScanner.Core
                 // 保守估计网络带宽为100Mbps
                 int estimatedBandwidthMbps = 100;
                 int bandwidthPerConnectionKbps = 10 * 8; // 10KB/s = 80Kbps
-                
+
                 int maxConcurrency = (estimatedBandwidthMbps * 1024) / bandwidthPerConnectionKbps;
                 return Math.Max(500, Math.Min(maxConcurrency, 2000));
             }
@@ -1164,14 +1158,14 @@ namespace NetSecurityScanner.Core
                 return 1000; // 默认值
             }
         }
-        
+
         /// <summary>
         /// 获取扫描状态描述
         /// </summary>
         private string GetScanStatusDescription(int completed, int total, int openPorts)
         {
             double progressPercentage = (double)completed / total * 100;
-            
+
             if (progressPercentage < 10)
             {
                 return "开始扫描...";
@@ -1193,7 +1187,7 @@ namespace NetSecurityScanner.Core
                 return "扫描收尾阶段...";
             }
         }
-        
+
         /// <summary>
         /// 根据系统资源计算分批扫描阈值
         /// </summary>
@@ -1203,7 +1197,7 @@ namespace NetSecurityScanner.Core
             {
                 // 基础阈值
                 int baseThreshold = 10000;
-                
+
                 // 根据系统内存调整
                 long availableMemory = GetAvailableMemoryMb();
                 if (availableMemory < 1024)
@@ -1226,7 +1220,7 @@ namespace NetSecurityScanner.Core
                     // 内存充足，提高阈值
                     baseThreshold = 15000;
                 }
-                
+
                 // 根据处理器核心数调整
                 int processorCount = Environment.ProcessorCount;
                 if (processorCount <= 2)
@@ -1239,7 +1233,7 @@ namespace NetSecurityScanner.Core
                     // 处理器核心数多，提高阈值
                     baseThreshold = Math.Min(25000, (int)(baseThreshold * 1.2));
                 }
-                
+
                 return baseThreshold;
             }
             catch
@@ -1248,7 +1242,7 @@ namespace NetSecurityScanner.Core
                 return 10000;
             }
         }
-        
+
         /// <summary>
         /// 根据端口数量和系统资源计算最佳批次大小
         /// </summary>
@@ -1258,7 +1252,7 @@ namespace NetSecurityScanner.Core
             {
                 // 基础批次大小
                 int baseBatchSize = 5000;
-                
+
                 // 根据系统内存调整
                 long availableMemory = GetAvailableMemoryMb();
                 if (availableMemory < 1024)
@@ -1281,7 +1275,7 @@ namespace NetSecurityScanner.Core
                     // 内存充足，使用较大的批次大小
                     baseBatchSize = 6000;
                 }
-                
+
                 // 根据处理器核心数调整
                 int processorCount = Environment.ProcessorCount;
                 if (processorCount <= 2)
@@ -1294,7 +1288,7 @@ namespace NetSecurityScanner.Core
                     // 处理器核心数多，增大批次大小
                     baseBatchSize = Math.Min(10000, (int)(baseBatchSize * 1.5));
                 }
-                
+
                 // 根据总端口数调整
                 if (totalPorts > 100000)
                 {
@@ -1306,7 +1300,7 @@ namespace NetSecurityScanner.Core
                     // 端口数量较小，使用较小的批次大小
                     baseBatchSize = Math.Max(1000, baseBatchSize / 2);
                 }
-                
+
                 return baseBatchSize;
             }
             catch
@@ -1315,7 +1309,7 @@ namespace NetSecurityScanner.Core
                 return 5000;
             }
         }
-        
+
         /// <summary>
         /// 计算动态超时时间
         /// </summary>
@@ -1333,7 +1327,7 @@ namespace NetSecurityScanner.Core
             }
             return baseTimeout;
         }
-        
+
         /// <summary>
         /// 动态调整批量大小
         /// </summary>
@@ -1346,7 +1340,7 @@ namespace NetSecurityScanner.Core
             {
                 // 基础调整因子
                 double adjustmentFactor = 1.0;
-                
+
                 // 根据系统内存调整
                 long availableMemory = GetAvailableMemoryMb();
                 if (availableMemory < 512)
@@ -1359,7 +1353,7 @@ namespace NetSecurityScanner.Core
                     // 内存充足，增加批量大小
                     adjustmentFactor = 1.3;
                 }
-                
+
                 // 根据CPU核心数调整
                 int processorCount = Environment.ProcessorCount;
                 if (processorCount <= 2)
@@ -1372,14 +1366,14 @@ namespace NetSecurityScanner.Core
                     // CPU核心数多，增加批量大小
                     adjustmentFactor *= 1.2;
                 }
-                
+
                 // 计算新的批量大小
                 int newBatchSize = (int)(currentBatchSize * adjustmentFactor);
-                
+
                 // 限制批量大小范围
                 int minBatchSize = Math.Max(500, Environment.ProcessorCount * 50);
                 int maxBatchSize = Math.Min(15000, Environment.ProcessorCount * 500);
-                
+
                 return Math.Clamp(newBatchSize, minBatchSize, maxBatchSize);
             }
             catch
@@ -1388,7 +1382,7 @@ namespace NetSecurityScanner.Core
                 return currentBatchSize;
             }
         }
-        
+
         /// <summary>
         /// 计算当前扫描速度
         /// </summary>
@@ -1397,10 +1391,10 @@ namespace NetSecurityScanner.Core
             TimeSpan elapsed = DateTime.Now - _scanStartTime;
             if (elapsed.TotalSeconds < 1)
                 return 0;
-            
+
             return _completedPorts / elapsed.TotalSeconds;
         }
-        
+
         /// <summary>
         /// 计算预计完成时间
         /// </summary>
@@ -1409,15 +1403,15 @@ namespace NetSecurityScanner.Core
             double speed = CurrentScanSpeed;
             if (speed <= 0)
                 return null;
-            
+
             int remainingPorts = _totalPorts - _completedPorts;
             if (remainingPorts <= 0)
                 return TimeSpan.Zero;
-            
+
             double remainingSeconds = remainingPorts / speed;
             return TimeSpan.FromSeconds(remainingSeconds);
         }
-        
+
         /// <summary>
         /// 获取可用内存（MB）
         /// </summary>
@@ -1433,13 +1427,13 @@ namespace NetSecurityScanner.Core
                 return 1024; // 默认值
             }
         }
-        
+
         private string GetServiceByPort(int port)
         {
             // 使用静态只读字典避免重复创建
             return ServiceMap.TryGetValue(port, out var service) ? service : "Unknown";
         }
-        
+
         // 静态服务映射表 - 只初始化一次
         private static readonly Dictionary<int, string> ServiceMap = new()
         {
@@ -1466,21 +1460,21 @@ namespace NetSecurityScanner.Core
             {27017, "MongoDB"}
         };
     }
-    
+
     public class ScanProgressEventArgs : EventArgs
     {
         public ScanProgressInfo ProgressInfo { get; }
-        
+
         public ScanProgressEventArgs(ScanProgressInfo progressInfo)
         {
             ProgressInfo = progressInfo;
         }
     }
-    
+
     public class PortScannedEventArgs : EventArgs
     {
         public PortInfo PortInfo { get; }
-        
+
         public PortScannedEventArgs(PortInfo portInfo)
         {
             PortInfo = portInfo;

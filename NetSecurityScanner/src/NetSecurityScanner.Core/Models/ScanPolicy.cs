@@ -190,9 +190,18 @@ namespace NetSecurityScanner.Models
         /// 最大并发扫描数
         /// </summary>
         public int MaxConcurrentScans { get; set; } = Environment.ProcessorCount * 2;
-        
+
         /// <summary>
-        /// 端口扫描速率（端口/秒）
+        /// 是否启用端口扫描速率限制。
+        ///
+        /// 必须显式开启才会限流：PortScanRate 有默认値(100)，若直接以它为依据限流，
+        /// 会把所有未显式配置的调用方（主窗口扫描、插件等）全部压到 100 端口/秒，
+        /// 属于严重的静默性能回归。因此限流与否只看这个开关。
+        /// </summary>
+        public bool EnableRateLimit { get; set; } = false;
+
+        /// <summary>
+        /// 端口扫描速率（端口/秒）。仅当 EnableRateLimit 为 true 时生效。
         /// </summary>
         public int PortScanRate { get; set; } = 100;
         

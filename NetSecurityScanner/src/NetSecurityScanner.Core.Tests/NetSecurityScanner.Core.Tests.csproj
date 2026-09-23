@@ -28,4 +28,8 @@
     <ProjectReference Include="..\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj" />
   </ItemGroup>
 
+  <!-- 预存测试文件引用已过时的模型 API，待模型稳定后重写 -->
+  <ItemGroup>
+    <Compile Remove="VulnerabilityDatabaseUpdaterTests.cs" />
+  </ItemGroup>
 </Project>

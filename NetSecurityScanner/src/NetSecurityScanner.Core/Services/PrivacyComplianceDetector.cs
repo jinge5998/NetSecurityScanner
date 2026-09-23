@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using NetSecurityScanner.Models;
 using NetSecurityScanner.Core.Models;
-using Models = NetSecurityScanner.Models;
 
 namespace NetSecurityScanner.Services
 {
   public class PrivacyComplianceDetector
   {
-    public async Task<PrivacyComplianceReport> DetectAsync(IpaAnalysisResult ipa, Models.ScanMode mode, CancellationToken token)
+    public async Task<PrivacyComplianceReport> DetectAsync(IpaAnalysisResult ipa, ScanMode mode, CancellationToken token)
     {
       var report = new PrivacyComplianceReport();
       var tasks = new List<Task>();

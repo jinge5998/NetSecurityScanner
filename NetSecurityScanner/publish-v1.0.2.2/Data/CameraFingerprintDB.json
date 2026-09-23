@@ -1,0 +1,107 @@
+[
+  {
+    "Vendor": "Hikvision",
+    "HttpPatterns": ["hikvision", "HIKVISION", "ISAPI", "PSIA", "/ISAPI/", "WebComponents", "HKVision"],
+    "HttpServer": ["App-webs/", "Hikvision-Webs"],
+    "OnvifManufacturers": ["Hikvision", "Hangzhou Hikvision"],
+    "DefaultPorts": [80, 8000, 8200, 554]
+  },
+  {
+    "Vendor": "Dahua",
+    "HttpPatterns": ["dahua", "DAHUA", "DahuaTech", "WebSDK", "DH-IPC", "DH_SDK", "dvr"],
+    "HttpServer": ["Dahua Http Server", "Dahua Web Server"],
+    "OnvifManufacturers": ["Dahua", "Zhejiang Dahua"],
+    "DefaultPorts": [80, 37777, 554]
+  },
+  {
+    "Vendor": "Uniview",
+    "HttpPatterns": ["uniview", "UNIVIEW", "ipc", "EzView"],
+    "HttpServer": ["Uniview Http Server"],
+    "OnvifManufacturers": ["Uniview", "Zhejiang Uniview"],
+    "DefaultPorts": [80, 34567, 554]
+  },
+  {
+    "Vendor": "Tiandy",
+    "HttpPatterns": ["tiandy", "TIANDY", "TC-NC", "EasyLive", "Easy7"],
+    "HttpServer": ["Tiandy Http Server"],
+    "OnvifManufacturers": ["Tiandy", "Tianjin Tiandy"],
+    "DefaultPorts": [80, 6036, 554]
+  },
+  {
+    "Vendor": "TP-Link",
+    "HttpPatterns": ["TP-LINK", "TP-LINK IPC", "tapo", "Tapo", "Kasa", "KASA-CAM"],
+    "HttpServer": ["TP-LINK HTTPD", "TP-LINK Web Server"],
+    "OnvifManufacturers": ["TP-Link", "TP-LINK Technologies"],
+    "DefaultPorts": [80, 2020, 554]
+  },
+  {
+    "Vendor": "EZVIZ",
+    "HttpPatterns": ["ezviz", "EZVIZ", "cs-c", "h3c-camera", "C3X", "C6CN"],
+    "HttpServer": ["EZVIZ Http Server"],
+    "OnvifManufacturers": ["EZVIZ", "Hangzhou Ezviz"],
+    "DefaultPorts": [80, 8000, 8001, 554]
+  },
+  {
+    "Vendor": "Axis",
+    "HttpPatterns": ["axis", "AXIS", "vapix", "VAPIX", "AXIS M", "AXIS P", "AXIS Q"],
+    "HttpServer": ["AXIS", "AXIS Web Server"],
+    "OnvifManufacturers": ["Axis Communications"],
+    "DefaultPorts": [80, 554, 443]
+  },
+  {
+    "Vendor": "Bosch",
+    "HttpPatterns": ["bosch", "BOSCH", "boschsecurity", "CPP", "CPP13"],
+    "HttpServer": ["Bosch Security"],
+    "OnvifManufacturers": ["Bosch Security", "Robert Bosch"],
+    "DefaultPorts": [80, 443, 554]
+  },
+  {
+    "Vendor": "Hanwha",
+    "HttpPatterns": ["hanwha", "Hanwha", "Wisenet", "WISENET", "SAMSUNG TECHWIN"],
+    "HttpServer": ["Hanwha", "Wisenet"],
+    "OnvifManufacturers": ["Hanwha Vision", "Hanwha Techwin"],
+    "DefaultPorts": [80, 554, 8080]
+  },
+  {
+    "Vendor": "Xiongmai",
+    "HttpPatterns": ["Xiongmai", "xiongMai", "xmtech", "XM", "XMTECH", "IPC-"],
+    "HttpServer": ["Xiongmai"],
+    "OnvifManufacturers": ["Xiongmai", "Hangzhou Xiongmai"],
+    "DefaultPorts": [80, 34567, 34599, 8899]
+  },
+  {
+    "Vendor": "Anji",
+    "HttpPatterns": ["anji", "Anji", "ANJI"],
+    "HttpServer": ["Anji Http Server"],
+    "OnvifManufacturers": ["Anji"],
+    "DefaultPorts": [80, 8080, 8899]
+  },
+  {
+    "Vendor": "TVT",
+    "HttpPatterns": ["tvt", "TVT", "TD-", "TVT Digital"],
+    "HttpServer": ["TVT Http Server"],
+    "OnvifManufacturers": ["TVT", "Shenzhen TVT"],
+    "DefaultPorts": [80, 8080, 8899]
+  },
+  {
+    "Vendor": "Hikvision/萤石",
+    "HttpPatterns": ["ezviz", "hikvision"],
+    "HttpServer": ["EZVIZ"],
+    "OnvifManufacturers": ["Hikvision"],
+    "DefaultPorts": [8000, 8001, 554]
+  },
+  {
+    "Vendor": "Onvif",
+    "HttpPatterns": ["onvif"],
+    "HttpServer": ["onvif"],
+    "OnvifManufacturers": ["Generic"],
+    "DefaultPorts": [80, 554, 8080]
+  },
+  {
+    "Vendor": "Huawei",
+    "HttpPatterns": ["Huawei IPC", "Huawei Camera", "HoloSens"],
+    "HttpServer": ["Huawei"],
+    "OnvifManufacturers": ["Huawei"],
+    "DefaultPorts": [80, 554, 8080]
+  }
+]

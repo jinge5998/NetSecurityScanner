@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -20,23 +20,17 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-using OxyPlot;
-using OxyPlot.Axes;
-using OxyPlot.Series;
+using iTextSharp.text;
+using iTextSharp.text.pdf;
 using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
-using LiveChartsCore.SkiaSharpView.Painting.Effects;
-using LiveChartsCore.SkiaSharpView.Extensions;
-using iTextSharp.text;
-using iTextSharp.text.pdf;
-using LiveChartsCore.SkiaSharpView.VisualElements;
-using SkiaSharp;
 using NetSecurityScanner.Models;
 using NetSecurityScanner.Services;
 using NetSecurityScanner.Data;
 using NetSecurityScanner.Utils;
 using NetSecurityScanner.Views;
+using SkiaSharp;
 
 namespace NetSecurityScanner
 {
@@ -48,11 +42,14 @@ namespace NetSecurityScanner
         private PortManagementService _portManagementService;
         private JsonDatabaseService _jsonDatabaseService;
 
+        // AI 风险评估
+        private AIRiskAssessmentService _aiRiskAssessmentService;
+        private AIRiskAssessmentReportV5 _currentAiReport;
+
         // 筛选相关（保留基础字段）
         private ObservableCollection<PortScanResult> _portScanResults;
         private ObservableCollection<VulnerabilityResult> _vulnerabilityResults;
         private ObservableCollection<RiskAssessmentItem> _riskAssessmentItems;
-        private RiskAssessmentResult _riskAssessmentResult;
 
         private CancellationTokenSource _cancellationTokenSource;
         private DispatcherTimer _systemUptimeTimer;
@@ -67,23 +64,13 @@ namespace NetSecurityScanner
         // 性能优化组件（新增）
         private UiUpdateThrottler _uiUpdateThrottler;  // UI更新节流器
         private ScanPerformanceMonitor _scanPerformanceMonitor;  // 扫描性能监控器
+#pragma warning disable CS0414
         private bool _isPdfGenerating;  // PDF生成状态标志（防止重复点击）
-        
+#pragma warning restore CS0414
+
         // 常量配置
         private const int UI_UPDATE_INTERVAL_MS = 500;  // UI更新间隔（毫秒）
         private const int MAX_DISPLAY_RESULTS = 1000;   // DataGrid最大显示数量
-
-        // 风险评估图表
-        private PlotModel _riskDistributionModel;
-        public PlotModel RiskDistributionModel
-        {
-            get { return _riskDistributionModel; }
-            set
-            {
-                _riskDistributionModel = value;
-                OnPropertyChanged("RiskDistributionModel");
-            }
-        }
 
 
         public MainWindow()
@@ -91,6 +78,7 @@ namespace NetSecurityScanner
             try
             {
                 Log("开始MainWindow构造函数");
+                System.Diagnostics.Debug.WriteLine($"[AI Risk Font] Application started; CJK font resolved: {CjkFontResolver.ResolvedFamilyName}");
                 InitializeComponent();
                 Log("InitializeComponent完成");
 
@@ -111,46 +99,42 @@ namespace NetSecurityScanner
                 _licenseTimer.Interval = TimeSpan.FromSeconds(30);
                 _licenseTimer.Tick += LicenseTimer_Tick;
                 _licenseTimer.Start();
-                
+
                 InitializeServices();
                 Log("InitializeServices完成");
-                
+
                 _portScanResults = new ObservableCollection<PortScanResult>();
                 _vulnerabilityResults = new ObservableCollection<VulnerabilityResult>();
                 _riskAssessmentItems = new ObservableCollection<RiskAssessmentItem>();
-                _riskAssessmentResult = new RiskAssessmentResult();
-                
+
                 // 为端口扫描结果添加PropertyChanged事件监听
                 PortScanResultsDataGrid.ItemsSource = _portScanResults;
                 PortScanResultsDataGrid.ItemContainerGenerator.StatusChanged += PortScanResultsDataGrid_ItemContainerGenerator_StatusChanged;
-                
+
                 VulnerabilityResultsDataGrid.ItemsSource = _vulnerabilityResults;
-                
-                // 设置新的风险评估UI元素数据源
-                VulnerabilityDetailsDataGrid.ItemsSource = _riskAssessmentResult.VulnerabilityDetails;
-                OpenPortsDataGrid.ItemsSource = _riskAssessmentResult.OpenPorts;
-                
+
                 // 设置数据上下文，支持图表绑定
                 this.DataContext = this;
-                
+
                 // 初始化系统启动时间
                 _systemStartTime = DateTime.Now;
                 _systemUptimeTimer = new DispatcherTimer();
                 _systemUptimeTimer.Interval = TimeSpan.FromSeconds(1);
                 _systemUptimeTimer.Tick += SystemUptimeTimer_Tick;
                 _systemUptimeTimer.Start();
-                
+
                 // 设置状态栏版本号
                 StatusVersionText.Text = $"NetSecurityScanner v{VersionHelper.GetVersion()}";
-                
+
                 // 初始化系统性能监控
                 InitializeSystemPerformanceCounters();
-                
+
                 // 初始化性能优化组件（新增）
                 InitializePerformanceOptimizers();
-                
+
                 // 确保窗口可见
                 this.Loaded += MainWindow_Loaded;
+
                 Log("MainWindow构造函数完成");
 
                 // 预热插件加载（异步，不阻塞 UI）
@@ -203,7 +187,7 @@ namespace NetSecurityScanner
                     this.Left = SystemParameters.VirtualScreenWidth - this.Width;
                 if (this.Top > SystemParameters.VirtualScreenHeight - this.Height)
                     this.Top = SystemParameters.VirtualScreenHeight - this.Height;
-                
+
                 // 初始化扫描历史记录（在后台线程中执行，但UI更新会在UI线程中进行）
                 _ = Task.Run(async () =>
                 {
@@ -216,14 +200,14 @@ namespace NetSecurityScanner
                         await Dispatcher.InvokeAsync(() => Log($"后台刷新扫描历史记录失败: {ex.Message}"));
                     }
                 });
-                
+
                 // 延迟初始化图表以避免BeginInit冲突
                 Dispatcher.BeginInvoke(new Action(async () =>
                 {
                     try
                     {
                         await InitializeCharts();
-                        
+
                         // 启动系统健康状态更新计时器
                         StartSystemHealthUpdates();
                     }
@@ -232,7 +216,10 @@ namespace NetSecurityScanner
                         Log($"图表初始化失败: {chartEx.Message}");
                     }
                 }));
-                
+
+                // 初始化 AI 风险评估仪表盘为空状态
+                ShowAiRiskEmptyState();
+
                 Log("MainWindow_Loaded事件处理完成");
             }
             catch (Exception ex)
@@ -247,17 +234,14 @@ namespace NetSecurityScanner
                 MessageBox.Show($"窗口加载失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
+
         // 初始化图表
         private async Task InitializeCharts()
         {
             try
             {
                 Log("开始初始化图表");
-                
-                // 初始化风险分布图表
-                InitializeRiskDistributionChart();
-                
+
                 Log("图表初始化完成");
             }
             catch (Exception ex)
@@ -266,7 +250,7 @@ namespace NetSecurityScanner
                 Log($"异常堆栈: {ex.StackTrace}");
             }
         }
-        
+
         /// <summary>
         /// 初始化性能优化组件（UI节流器、性能监控器等）
         /// </summary>
@@ -275,18 +259,18 @@ namespace NetSecurityScanner
             try
             {
                 Log("开始初始化性能优化组件");
-                
+
                 // 1. 初始化UI更新节流器
                 _uiUpdateThrottler = new UiUpdateThrottler(this.Dispatcher, UI_UPDATE_INTERVAL_MS);
                 Log($"UI节流器初始化成功，更新间隔: {UI_UPDATE_INTERVAL_MS}ms");
-                
+
                 // 2. 初始化扫描性能监控器
                 _scanPerformanceMonitor = new ScanPerformanceMonitor();
                 Log("扫描性能监控器初始化成功");
-                
+
                 // 3. 初始化PDF生成状态标志
                 _isPdfGenerating = false;
-                
+
                 Log("性能优化组件初始化完成");
             }
             catch (Exception ex)
@@ -296,509 +280,6 @@ namespace NetSecurityScanner
                 // 即使初始化失败也不影响程序运行，使用降级模式
             }
         }
-        
-        /// <summary>
-        /// 初始化风险分布图表
-        /// </summary>
-        private void InitializeRiskDistributionChart()
-        {
-            try
-            {
-                RiskDistributionModel = new PlotModel { Title = "风险分布" };
-                
-                // 添加类别轴和值轴
-                RiskDistributionModel.Axes.Add(new CategoryAxis { Position = AxisPosition.Left, Title = "风险等级" });
-                RiskDistributionModel.Axes.Add(new LinearAxis { Position = AxisPosition.Bottom, Title = "数量", Minimum = 0 });
-                
-                // 添加空的柱状图系列
-                var series = new BarSeries { Title = "漏洞数量", FillColor = OxyColors.SkyBlue };
-                RiskDistributionModel.Series.Add(series);
-            }
-            catch (Exception ex)
-            {
-                Log($"初始化风险分布图表失败: {ex.Message}");
-            }
-        }
-        
-        /// <summary>
-        /// 更新风险分布图表
-        /// </summary>
-        private void UpdateRiskDistributionChart()
-        {
-            try
-            {
-                if (RiskDistributionModel == null)
-                {
-                    InitializeRiskDistributionChart();
-                }
-                
-                // 清空现有数据
-                RiskDistributionModel.Series.Clear();
-                
-                // 创建新的柱状图系列
-                var series = new BarSeries { Title = "漏洞数量" };
-                
-                // 根据风险等级添加数据点
-                foreach (var riskCategory in _riskAssessmentResult.RiskDistribution)
-                {
-                    // 根据风险等级设置不同颜色
-                    OxyColor color = riskCategory.Category switch
-                    {
-                        "高" => OxyColors.Red,
-                        "中" => OxyColors.Orange,
-                        "低" => OxyColors.Yellow,
-                        "无风险" => OxyColors.Green,
-                        _ => OxyColors.SkyBlue
-                    };
-                    
-                    series.Items.Add(new BarItem { Value = riskCategory.Count, Color = color });
-                }
-                
-                RiskDistributionModel.Series.Add(series);
-                
-                // 更新图表
-                RiskDistributionModel.InvalidatePlot(true);
-            }
-            catch (Exception ex)
-            {
-                Log($"更新风险分布图表失败: {ex.Message}");
-            }
-        }
-        
-        /// <summary>
-        /// 更新风险分布饼图 (LiveCharts)
-        /// </summary>
-        private void UpdateRiskDistributionPieChart()
-        {
-            try
-            {
-                if (_riskAssessmentResult == null || _riskAssessmentResult.RiskDistribution == null)
-                    return;
-                
-                var data = _riskAssessmentResult.RiskDistribution
-                    .Where(r => r.Count > 0)
-                    .ToList();
-                
-                if (!data.Any())
-                    return;
-                
-                var pieSeries = new List<PieSeries<int>>();
-                
-                // 中文字体配置
-                var fontFamily = "Microsoft YaHei";
-                var paint = new SolidColorPaint(new SKColor(0x33, 0x33, 0x33)) { FontFamily = fontFamily };
-                
-                foreach (var risk in data)
-                {
-                    var color = risk.Category switch
-                    {
-                        "严重" => new SKColor(0xFF, 0x41, 0x6C),
-                        "高" => new SKColor(0xFF, 0x6B, 0x4A),
-                        "中" => new SKColor(0xFF, 0xA5, 0x02),
-                        "低" => new SKColor(0x2E, 0xD5, 0x73),
-                        "无风险" => new SKColor(0x70, 0xA1, 0xFF),
-                        _ => new SKColor(0xC0, 0xC0, 0xC0)
-                    };
-                    
-                    pieSeries.Add(new PieSeries<int>
-                    {
-                        Name = risk.Category,
-                        Values = new[] { risk.Count },
-                        Fill = new SolidColorPaint(color),
-                        DataLabelsPaint = new SolidColorPaint(new SKColor(0xFF, 0xFF, 0xFF)) { FontFamily = fontFamily },
-                        DataLabelsSize = 14,
-                        DataLabelsPosition = LiveChartsCore.Measure.PolarLabelsPosition.Middle,
-                        InnerRadius = 50
-                    });
-                }
-                
-                RiskDistributionPieChart.Series = pieSeries;
-                
-                // 配置图例字体
-                RiskDistributionPieChart.LegendTextPaint = paint;
-            }
-            catch (Exception ex)
-            {
-                Log($"更新风险分布饼图失败: {ex.Message}");
-            }
-        }
-        
-        /// <summary>
-        /// 更新风险分布柱状图 (LiveCharts)
-        /// </summary>
-        private void UpdateRiskDistributionBarChart()
-        {
-            try
-            {
-                if (_riskAssessmentResult == null || _riskAssessmentResult.RiskDistribution == null)
-                    return;
-                
-                var data = _riskAssessmentResult.RiskDistribution
-                    .Where(r => r.Count > 0)
-                    .ToList();
-                
-                if (!data.Any())
-                    return;
-                
-                var columnSeries = new List<ColumnSeries<int>>();
-                var labels = new List<string>();
-                
-                // 中文字体配置
-                var fontFamily = "Microsoft YaHei";
-                
-                foreach (var risk in data)
-                {
-                    var color = risk.Category switch
-                    {
-                        "严重" => new SKColor(0xFF, 0x41, 0x6C),
-                        "高" => new SKColor(0xFF, 0x6B, 0x4A),
-                        "中" => new SKColor(0xFF, 0xA5, 0x02),
-                        "低" => new SKColor(0x2E, 0xD5, 0x73),
-                        "无风险" => new SKColor(0x70, 0xA1, 0xFF),
-                        _ => new SKColor(0xC0, 0xC0, 0xC0)
-                    };
-                    
-                    labels.Add(risk.Category);
-                    columnSeries.Add(new ColumnSeries<int>
-                    {
-                        Name = risk.Category,
-                        Values = new[] { risk.Count },
-                        Fill = new SolidColorPaint(color) { FontFamily = fontFamily },
-                        MaxBarWidth = 60
-                    });
-                }
-                
-                RiskDistributionBarChart.Series = columnSeries;
-                RiskDistributionBarChart.XAxes = new LiveChartsCore.SkiaSharpView.Axis[]
-                {
-                    new LiveChartsCore.SkiaSharpView.Axis
-                    {
-                        Labels = labels,
-                        LabelsRotation = 0,
-                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE0, 0xE0, 0xE0)),
-                        TextSize = 12,
-                        LabelsPaint = new SolidColorPaint(new SKColor(0x33, 0x33, 0x33)) { FontFamily = fontFamily }
-                    }
-                };
-                RiskDistributionBarChart.YAxes = new LiveChartsCore.SkiaSharpView.Axis[]
-                {
-                    new LiveChartsCore.SkiaSharpView.Axis
-                    {
-                        MinStep = 1,
-                        SeparatorsPaint = new SolidColorPaint(new SKColor(0xE0, 0xE0, 0xE0)),
-                        TextSize = 12,
-                        LabelsPaint = new SolidColorPaint(new SKColor(0x33, 0x33, 0x33)) { FontFamily = fontFamily }
-                    }
-                };
-            }
-            catch (Exception ex)
-            {
-                Log($"更新风险分布柱状图失败: {ex.Message}");
-            }
-        }
-        
-        /// <summary>
-        /// 更新风险评估UI
-        /// </summary>
-        private void UpdateRiskAssessmentUI()
-        {
-            try
-            {
-                if (_riskAssessmentResult == null)
-                    return;
-                
-                // 更新风险概览面板
-                UpdateRiskOverviewPanel();
-                
-                // 更新风险分布图表 (OxyPlot)
-                UpdateRiskDistributionChart();
-                
-                // 更新风险分布图表 (LiveCharts)
-                UpdateRiskDistributionPieChart();
-                UpdateRiskDistributionBarChart();
-                
-                // 更新数据网格
-                // 设置开放端口数据源
-                if (OpenPortsDataGrid != null && _riskAssessmentResult.OpenPorts != null)
-                {
-                    OpenPortsDataGrid.ItemsSource = null;
-                    OpenPortsDataGrid.ItemsSource = _riskAssessmentResult.OpenPorts;
-                }
-                
-                // 设置漏洞详情数据源
-                if (VulnerabilityDetailsDataGrid != null && _riskAssessmentResult.VulnerabilityDetails != null)
-                {
-                    VulnerabilityDetailsDataGrid.ItemsSource = null;
-                    VulnerabilityDetailsDataGrid.ItemsSource = _riskAssessmentResult.VulnerabilityDetails;
-                }
-                
-                // 更新安全建议
-                SecurityAdviceText.Text = _riskAssessmentResult.SecurityAdvice;
-                
-                // 更新生成端口关闭脚本按钮状态
-                UpdateGeneratePortBatFromAiButton();
-            }
-            catch (Exception ex)
-            {
-                Log($"更新风险评估UI失败: {ex.Message}");
-            }
-        }
-        
-        /// <summary>
-        /// 更新风险概览面板
-        /// </summary>
-        private void UpdateRiskOverviewPanel()
-        {
-            try
-            {
-                if (_riskAssessmentResult == null)
-                    return;
-                
-                // 更新总体风险等级和分数
-                OverallRiskText.Text = _riskAssessmentResult.OverallRiskLevel;
-                RiskScoreText.Text = $"{_riskAssessmentResult.TotalRiskScore:F1} 分";
-                
-                // 根据风险等级设置颜色
-                switch (_riskAssessmentResult.OverallRiskLevel)
-                {
-                    case "严重":
-                    case "高":
-                        OverallRiskText.Foreground = Brushes.Red;
-                        break;
-                    case "中":
-                        OverallRiskText.Foreground = Brushes.Orange;
-                        break;
-                    case "低":
-                        OverallRiskText.Foreground = Brushes.YellowGreen;
-                        break;
-                    default:
-                        OverallRiskText.Foreground = Brushes.Green;
-                        break;
-                }
-                
-                // 更新目标IP和评估时间
-                TargetIpText.Text = _riskAssessmentResult.TargetIp;
-                AssessmentTimeText.Text = $"评估时间: {_riskAssessmentResult.AssessmentTime:yyyy-MM-dd HH:mm:ss}";
-                AssessmentDateText.Text = $"评估日期: {_riskAssessmentResult.AssessmentTime:yyyy-MM-dd}";
-                
-                // 更新漏洞总数和开放端口数
-                TotalVulnerabilitiesText.Text = _riskAssessmentResult.Statistics.TotalVulnerabilities.ToString();
-                OpenPortsCountText.Text = _riskAssessmentResult.OpenPorts.Count.ToString();
-                SensitivePortsText.Text = $"{_riskAssessmentResult.SensitiveOpenPorts.Count} 个敏感端口";
-                
-                // 更新高风险漏洞数量
-                int highRiskCount = _riskAssessmentResult.RiskDistribution.Where(r => r.Category == "高" || r.Category == "严重").Sum(r => r.Count);
-                if (this.Dispatcher.CheckAccess())
-                {
-                    HighRiskCountText.Text = highRiskCount.ToString();
-                }
-                else
-                {
-                    this.Dispatcher.Invoke(() => HighRiskCountText.Text = highRiskCount.ToString());
-                }
-            }
-            catch (Exception ex)
-            {
-                Log($"更新风险概览面板失败: {ex.Message}");
-            }
-        }
-        
-        /// <summary>
-        /// 手动触发AI风险分析
-        /// </summary>
-        private async void RefreshAiAnalysis_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                await StartAiRiskAssessmentAsync();
-            }
-            catch (Exception ex)
-            {
-                Log($"AI风险评估操作失败: {ex.Message}");
-                // 确保在UI线程上显示错误信息
-                if (this.Dispatcher.CheckAccess())
-                {
-                    MessageBox.Show($"AI风险评估失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-                else
-                {
-                    this.Dispatcher.Invoke(() =>
-                    {
-                        MessageBox.Show($"AI风险评估失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                    });
-                }
-            }
-        }
-        
-        /// <summary>
-        /// 开始AI风险评估
-        /// </summary>
-        private async Task StartAiRiskAssessmentAsync()
-        {
-            try
-            {
-                // 更新AI分析状态
-                UpdateAiAnalysisStatus("AI分析中...", 0, true);
-                
-                // 模拟AI分析过程
-                for (int i = 0; i <= 100; i += 10)
-                {
-                    await Task.Delay(200);
-                    UpdateAiAnalysisStatus("AI分析中...", i, true);
-                }
-                
-                // 更新AI分析状态为完成
-                UpdateAiAnalysisStatus("AI分析完成", 100, false);
-                
-                // 更新AI分析子状态
-                if (this.Dispatcher.CheckAccess())
-                {
-                    AiAnalysisSubStatusText.Text = "已完成风险评估，正在生成报告...";
-                }
-                else
-                {
-                    this.Dispatcher.Invoke(() =>
-                    {
-                        AiAnalysisSubStatusText.Text = "已完成风险评估，正在生成报告...";
-                    });
-                }
-                
-                // 执行实际的风险评估逻辑
-                var portResultsCopy = new List<PortScanResult>();
-                var vulnResultsCopy = new List<VulnerabilityResult>();
-                                
-                // 在UI线程上复制数据以确保线程安全
-                if (this.Dispatcher.CheckAccess())
-                {
-                    portResultsCopy.AddRange(_portScanResults);
-                    vulnResultsCopy.AddRange(_vulnerabilityResults);
-                }
-                else
-                {
-                    await this.Dispatcher.InvokeAsync(() =>
-                    {
-                        portResultsCopy.AddRange(_portScanResults);
-                        vulnResultsCopy.AddRange(_vulnerabilityResults);
-                    });
-                }
-                                
-                if (portResultsCopy.Any() || vulnResultsCopy.Any())
-                {
-                    var newRiskAssessmentItems = _riskAssessmentService.AssessRisk(vulnResultsCopy, portResultsCopy);
-                                    
-                    // 在UI线程上更新UI元素
-                    if (this.Dispatcher.CheckAccess())
-                    {
-                        _riskAssessmentItems.Clear();
-                        foreach(var item in newRiskAssessmentItems)
-                        {
-                            _riskAssessmentItems.Add(item);
-                        }
-                        _riskAssessmentResult = _riskAssessmentService.AssessRiskExpert(vulnResultsCopy, portResultsCopy, TargetIpTextBox.Text.Trim());
-                        UpdateRiskAssessmentUI();
-                    }
-                    else
-                    {
-                        await this.Dispatcher.InvokeAsync(() =>
-                        {
-                            _riskAssessmentItems.Clear();
-                            foreach(var item in newRiskAssessmentItems)
-                            {
-                                _riskAssessmentItems.Add(item);
-                            }
-                            _riskAssessmentResult = _riskAssessmentService.AssessRiskExpert(vulnResultsCopy, portResultsCopy, TargetIpTextBox.Text.Trim());
-                            UpdateRiskAssessmentUI();
-                        });
-                    }
-                                    
-                    // 更新AI分析子状态
-                    if (this.Dispatcher.CheckAccess())
-                    {
-                        AiAnalysisSubStatusText.Text = "报告生成完成";
-                    }
-                    else
-                    {
-                        this.Dispatcher.Invoke(() =>
-                        {
-                            AiAnalysisSubStatusText.Text = "报告生成完成";
-                        });
-                    }
-                }
-                else
-                {
-                    // 如果没有扫描结果
-                    UpdateAiAnalysisStatus("AI分析就绪", 0, false);
-                    if (this.Dispatcher.CheckAccess())
-                    {
-                        AiAnalysisSubStatusText.Text = "请先执行端口扫描或漏洞扫描";
-                    }
-                    else
-                    {
-                        this.Dispatcher.Invoke(() =>
-                        {
-                            AiAnalysisSubStatusText.Text = "请先执行端口扫描或漏洞扫描";
-                        });
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Log($"AI风险评估失败: {ex.Message}");
-                UpdateAiAnalysisStatus("AI分析失败", 0, false);
-                if (this.Dispatcher.CheckAccess())
-                {
-                    AiAnalysisSubStatusText.Text = ex.Message;
-                }
-                else
-                {
-                    this.Dispatcher.Invoke(() =>
-                    {
-                        AiAnalysisSubStatusText.Text = ex.Message;
-                    });
-                }
-            }
-        }
-        
-        /// <summary>
-        /// 更新AI分析状态
-        /// </summary>
-        private void UpdateAiAnalysisStatus(string status, int progress, bool showProgress)
-        {
-            if (this.Dispatcher.CheckAccess())
-            {
-                AiAnalysisStatusText.Text = status;
-                if (showProgress)
-                {
-                    AiAnalysisProgressBar.Visibility = Visibility.Visible;
-                    AiAnalysisProgressBar.Value = progress;
-                }
-                else
-                {
-                    AiAnalysisProgressBar.Visibility = Visibility.Collapsed;
-                }
-            }
-            else
-            {
-                this.Dispatcher.Invoke(() =>
-                {
-                    AiAnalysisStatusText.Text = status;
-                    if (showProgress)
-                    {
-                        AiAnalysisProgressBar.Visibility = Visibility.Visible;
-                        AiAnalysisProgressBar.Value = progress;
-                    }
-                    else
-                    {
-                        AiAnalysisProgressBar.Visibility = Visibility.Collapsed;
-                    }
-                });
-            }
-        }
-        
-
-        
-
-
 
         private void Log(string message)
         {
@@ -823,24 +304,27 @@ namespace NetSecurityScanner
                 // 初始化基础服务
                 _portScanner = new PortScanner();
                 Log("PortScanner初始化完成");
-                
+
                 _riskAssessmentService = new RiskAssessmentService();
                 Log("RiskAssessmentService初始化完成");
-                
+
                 _portManagementService = new PortManagementService();
                 Log("PortManagementService初始化完成");
-                
+
                 // 初始化依赖基础服务的服务
                 _vulnerabilityScanner = new VulnerabilityScanner();
                 Log("VulnerabilityScanner初始化完成");
-                
+
                 // 初始化JSON数据库服务（主要使用的数据库服务）
                 _jsonDatabaseService = new JsonDatabaseService();
                 Log("JsonDatabaseService初始化完成");
-                
+
                 // 注意：已跳过DatabaseService初始化，因为应用程序主要使用JsonDatabaseService
                 // _databaseService = new DatabaseService();
                 // Log("DatabaseService初始化完成");
+
+                _aiRiskAssessmentService = new AIRiskAssessmentService();
+                Log("AIRiskAssessmentService初始化完成");
             }
             catch (Exception ex)
             {
@@ -885,7 +369,7 @@ namespace NetSecurityScanner
                 }
             }
         }
-        
+
         private async Task StartPortScanAsync()
         {
             string targetIp = TargetIpTextBox.Text.Trim();
@@ -894,7 +378,7 @@ namespace NetSecurityScanner
                 MessageBox.Show("请输入有效的IP地址", "输入错误", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-        
+
             List<int> portsToScan;
             if (AutoScanCheckBox.IsChecked == true)
             {
@@ -917,9 +401,9 @@ namespace NetSecurityScanner
                     return;
                 }
             }
-        
+
             _cancellationTokenSource = new CancellationTokenSource();
-                    
+
             try
             {
                 // 清除之前的扫描结果
@@ -934,19 +418,19 @@ namespace NetSecurityScanner
                         _portScanResults.Clear();
                     });
                 }
-                        
+
                 // 更新按钮状态和扫描状态
                 UpdateScanButtonStates(true);
                 UpdateScanStatus("端口扫描准备中...", 0);
-        
+
                 var progress = new ThreadSafeProgress<int>(this, value =>
                 {
                     UpdateScanStatus("端口扫描中...", value);
                 });
-        
+
                 List<PortScanResult> results;
                 string scanType = (ScanTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString() ?? "TCP";
-                        
+
                 if (scanType == "TCP")
                 {
                     results = await _portScanner.ScanTcpPortsAsync(targetIp, portsToScan, progress, _cancellationTokenSource.Token);
@@ -955,10 +439,10 @@ namespace NetSecurityScanner
                 {
                     results = await _portScanner.ScanUdpPortsAsync(targetIp, portsToScan, progress, _cancellationTokenSource.Token);
                 }
-                        
+
                 // 只添加开放的端口到结果列表中
                 var openPorts = results.Where(r => r.Status == "开放").ToList();
-        
+
                 // 在UI线程上更新UI元素
                 if (this.Dispatcher.CheckAccess())
                 {
@@ -969,7 +453,7 @@ namespace NetSecurityScanner
                     {
                         _portScanResults.Add(result);
                     }
-                            
+
                     // 更新生成按钮状态
                     UpdateGenerateButtons();
                 }
@@ -984,14 +468,14 @@ namespace NetSecurityScanner
                         {
                             _portScanResults.Add(result);
                         }
-                                
+
                         // 更新生成按钮状态
                         UpdateGenerateButtons();
                     });
                 }
-        
+
                 int openPortsCount = results.Count(r => r.Status == "开放");
-                        
+
                 // 保存完整扫描结果到JSON数据库
                 var scanTime = DateTime.Now;
                 _lastScanTime = scanTime;
@@ -1012,31 +496,18 @@ namespace NetSecurityScanner
                     }
                 };
                 await _jsonDatabaseService.SaveScanResultAsync(completeScanResult);
-                        
+
                 // 扫描完成，更新状态
                 UpdateScanStatus($"{scanType}端口扫描完成：发现 {openPortsCount} 个开放端口", 100, false);
                 UpdateScanButtonStates(false);
+
+                // 触发 AI 风险评估（异步，不阻塞 UI）
+                _ = RunAiRiskAssessmentAsync(targetIp);
             }
             finally
             {
                 // 确保取消令牌被释放
                 _cancellationTokenSource?.Dispose();
-                        
-                // 自动触发AI风险评估
-                if (_portScanResults.Count > 0) // 只有当发现开放端口时才触发
-                {
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await StartAiRiskAssessmentAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            await Dispatcher.InvokeAsync(() => Log($"AI风险评估过程中发生错误: {ex.Message}"));
-                        }
-                    });
-                }
             }
         }
 
@@ -1063,7 +534,7 @@ namespace NetSecurityScanner
                 }
             }
         }
-        
+
         private async Task StartVulnScanAsync()
         {
             string targetIp = VulnTargetTextBox.Text.Trim();
@@ -1072,9 +543,9 @@ namespace NetSecurityScanner
                 MessageBox.Show("请输入有效的IP地址", "输入错误", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
-                
+
             _cancellationTokenSource = new CancellationTokenSource();
-                            
+
             try
             {
                 // 清除之前的扫描结果
@@ -1089,11 +560,11 @@ namespace NetSecurityScanner
                         _vulnerabilityResults.Clear();
                     });
                 }
-                                
+
                 // 更新按钮状态和扫描状态
                 UpdateScanButtonStates(true);
                 UpdateScanStatus("漏洞扫描准备中...", 0);
-                        
+
                 // 更新漏洞扫描专用进度条
                 if (this.Dispatcher.CheckAccess())
                 {
@@ -1112,12 +583,12 @@ namespace NetSecurityScanner
                         VulnScanCurrentStage.Text = "正在准备扫描...";
                     });
                 }
-                
+
                 // 创建漏洞扫描进度报告器
                 var vulnProgress = new Progress<(string stage, int progress)>(progressTuple =>
                 {
                     var (stage, progressValue) = progressTuple;
-                            
+
                     if (this.Dispatcher.CheckAccess())
                     {
                         VulnScanProgressText.Text = stage;
@@ -1136,7 +607,7 @@ namespace NetSecurityScanner
                         });
                     }
                 });
-                
+
                 List<VulnerabilityResult> results;
                 // 转换 PortScanResult 到 PortInfo
                 var portInfos = _portScanResults.Select(p => new PortInfo
@@ -1158,8 +629,8 @@ namespace NetSecurityScanner
                     // 直接进行漏洞扫描
                     results = await _vulnerabilityScanner.ScanAsync(targetIp, new List<PortInfo>(), "standard", vulnProgress, _cancellationTokenSource.Token);
                 }
-                
-                                
+
+
                 // 在UI线程上更新UI元素
                 if (this.Dispatcher.CheckAccess())
                 {
@@ -1170,7 +641,7 @@ namespace NetSecurityScanner
                     {
                         _vulnerabilityResults.Add(result);
                     }
-                            
+
                     // 更新风险评估（传递开放端口列表以获得更准确的评估）
                     _riskAssessmentItems.Clear();
                     var assessmentItems = _riskAssessmentService.AssessRisk(results, _portScanResults.ToList());
@@ -1178,10 +649,6 @@ namespace NetSecurityScanner
                     {
                         _riskAssessmentItems.Add(item);
                     }
-                            
-                    // 更新专家级风险评估结果
-                    _riskAssessmentResult = _riskAssessmentService.AssessRiskExpert(results, _portScanResults.ToList(), targetIp);
-                    UpdateRiskAssessmentUI();
                 }
                 else
                 {
@@ -1194,7 +661,7 @@ namespace NetSecurityScanner
                         {
                             _vulnerabilityResults.Add(result);
                         }
-                                
+
                         // 更新风险评估（传递开放端口列表以获得更准确的评估）
                         _riskAssessmentItems.Clear();
                         var assessmentItems = _riskAssessmentService.AssessRisk(results, _portScanResults.ToList());
@@ -1202,16 +669,12 @@ namespace NetSecurityScanner
                         {
                             _riskAssessmentItems.Add(item);
                         }
-                                
-                        // 更新专家级风险评估结果
-                        _riskAssessmentResult = _riskAssessmentService.AssessRiskExpert(results, _portScanResults.ToList(), targetIp);
-                        UpdateRiskAssessmentUI();
                     });
                 }
-                                
+
                 // 计算总体风险等级
                 string overallRisk = _riskAssessmentService.CalculateOverallRisk(results);
-                                
+
                 // 保存完整扫描结果到JSON数据库
                 var scanTime = DateTime.Now;
                 _lastScanTime = scanTime;
@@ -1232,10 +695,10 @@ namespace NetSecurityScanner
                     }
                 };
                 await _jsonDatabaseService.SaveScanResultAsync(completeScanResult);
-                
+
                 // 扫描完成，更新状态
                 UpdateScanStatus($"漏洞扫描完成：发现 {results.Count} 个漏洞", 100, false);
-                        
+
                 // 更新漏洞扫描进度条为完成状态
                 if (this.Dispatcher.CheckAccess())
                 {
@@ -1254,32 +717,16 @@ namespace NetSecurityScanner
                         VulnScanCurrentStage.Text = $"发现 {results.Count} 个漏洞";
                     });
                 }
-                        
+
                 UpdateScanButtonStates(false);
+
+                // 触发 AI 风险评估（异步，不阻塞 UI）
+                _ = RunAiRiskAssessmentAsync(targetIp);
             }
             finally
             {
                 // 确保取消令牌被释放
                 _cancellationTokenSource?.Dispose();
-                                
-                // 自动触发AI风险评估，使用更安全的方式
-                if (Application.Current != null && Application.Current.Dispatcher != null)
-                {
-                    _ = Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await Dispatcher.InvokeAsync(async () =>
-                            {
-                                await StartAiRiskAssessmentAsync();
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            await Dispatcher.InvokeAsync(() => Log($"AI风险评估过程中发生错误: {ex.Message}"));
-                        }
-                    });
-                }
             }
         }
 
@@ -1298,249 +745,47 @@ namespace NetSecurityScanner
 
         private async void StartScan_Click(object sender, RoutedEventArgs e)
         {
-            var dialog = new NetSecurityScanner.Desktop.Views.ComprehensiveScanDialog();
-            dialog.Owner = this;
-            
-            if (dialog.ShowDialog() != true)
-            {
-                return;
-            }
+            // v1.0.1.3: 业务逻辑全部下沉到 ComprehensiveScanService，UI 层只做协调
+            var dlg = new NetSecurityScanner.Desktop.Views.ComprehensiveScanDialog { Owner = this };
+            if (dlg.ShowDialog() != true) return;
+            var options = dlg.BuildOptions();
 
-            var targetIp = dialog.TargetIp;
-            var portRange = dialog.PortRange;
-            var enableTcp = dialog.EnableTcp;
-            var enableUdp = dialog.EnableUdp;
-            var enableVulnScan = dialog.EnableVulnerabilityScan;
-            var saveToHistory = dialog.SaveToHistory;
-
-            await ExecuteComprehensiveScanAsync(targetIp, portRange, enableTcp, enableUdp, enableVulnScan, saveToHistory);
-        }
-
-        private async Task ExecuteComprehensiveScanAsync(string targetIp, string portRange, bool enableTcp, bool enableUdp, bool enableVulnScan, bool saveToHistory)
-        {
-            var scanId = $"COMPREHENSIVE_{DateTime.Now:yyyyMMdd_HHmmss}";
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var allPortResults = new System.Collections.Concurrent.ConcurrentBag<PortScanResult>();
-            var allVulnResults = new System.Collections.Concurrent.ConcurrentBag<VulnerabilityResult>();
-            string scanTypeText = "";
-            string riskLevel = "无风险";
+            var liveWin = new NetSecurityScanner.Views.ScanProgressLiveWindow { Owner = this };
+            liveWin.SetTarget(options.TargetIp);
+            liveWin.Show();
 
             try
             {
-                UpdateScanButtonStates(true);
-                _cancellationTokenSource = new CancellationTokenSource();
-                var token = _cancellationTokenSource.Token;
+                var service = new NetSecurityScanner.Services.ComprehensiveScanService(
+                    _portScanner, _vulnerabilityScanner, _riskAssessmentService,
+                    _jsonDatabaseService, null, msg => Log(msg));
+                var result = await service.ExecuteAsync(options, liveWin.Progress, liveWin.CancellationToken);
+                liveWin.Close();
 
-                if (enableTcp && enableUdp) scanTypeText = "TCP+UDP综合扫描";
-                else if (enableTcp) scanTypeText = "TCP综合扫描";
-                else scanTypeText = "UDP综合扫描";
-
-                if (saveToHistory)
+                if (result.Cancelled)
                 {
-                    await _jsonDatabaseService.SaveScanHistoryAsync(new ScanHistoryItem
-                    {
-                        ScanId = scanId,
-                        TargetIp = targetIp,
-                        ScanType = scanTypeText,
-                        ScanTime = DateTime.Now,
-                        OpenPortsCount = 0,
-                        VulnerabilitiesCount = 0,
-                        RiskLevel = "扫描中...",
-                        PortScanResults = new List<PortScanResult>(),
-                        VulnerabilityResults = new List<VulnerabilityResult>()
-                    });
-                }
-
-                var ports = ParsePortRange(portRange);
-                if (ports.Count == 0)
-                {
-                    MessageBox.Show("端口范围格式错误", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    UpdateScanStatus("扫描已取消", 0);
+                    Log("[综合扫描] 用户已取消");
                     return;
                 }
 
-                Dispatcher.Invoke(() =>
+                UpdateScanStatus($"扫描完成 - 耗时 {result.ScanDurationSeconds:F1}s | 端口 {result.OpenPortsCount} | 漏洞 {result.VulnerabilitiesCount} | 风险 {result.RiskLevel}", 100);
+                if (options.SaveToHistory) await RefreshScanHistoryAsync();
+
+                // 触发 AI 风险评估（异步，不阻塞 UI）
+                if (!string.IsNullOrWhiteSpace(result.TargetIp))
                 {
-                    TargetIpTextBox.Text = targetIp;
-                    PortRangeTextBox.Text = portRange;
-                    _portScanResults.Clear();
-                    _vulnerabilityResults.Clear();
-                    MainTabControl.SelectedIndex = 0;
-                });
-
-                if (enableTcp)
-                {
-                    UpdateScanStatus("正在执行TCP端口扫描...", 5);
-                    Log($"[综合扫描] 开始TCP端口扫描: {targetIp}, 端口范围: {portRange}");
-
-                    var tcpProgress = new Progress<int>(p =>
-                    {
-                        Dispatcher.Invoke(() => UpdateScanStatus($"TCP端口扫描进度: {p}%", 5 + p * 10));
-                    });
-
-                    var tcpResults = await _portScanner.ScanTcpPortsAsync(targetIp, ports, tcpProgress, token);
-                    foreach (var r in tcpResults) allPortResults.Add(r);
-
-                    Log($"[综合扫描] TCP端口扫描完成，发现 {tcpResults.Count(x => x.Status == "开放")} 个开放端口");
+                    _ = RunAiRiskAssessmentAsync(result.TargetIp);
                 }
 
-                if (token.IsCancellationRequested) return;
-
-                if (enableUdp)
-                {
-                    UpdateScanStatus("正在执行UDP端口扫描...", 55);
-                    Log($"[综合扫描] 开始UDP端口扫描: {targetIp}, 端口范围: {portRange}");
-
-                    var udpProgress = new Progress<int>(p =>
-                    {
-                        Dispatcher.Invoke(() => UpdateScanStatus($"UDP端口扫描进度: {p}%", 55 + p * 10));
-                    });
-
-                    var udpResults = await _portScanner.ScanUdpPortsAsync(targetIp, ports, udpProgress, token);
-                    foreach (var r in udpResults) allPortResults.Add(r);
-
-                    Log($"[综合扫描] UDP端口扫描完成，发现 {udpResults.Count(x => x.Status == "开放")} 个开放端口");
-                }
-
-                if (token.IsCancellationRequested) return;
-
-                var openPorts = allPortResults.Where(x => x.Status == "开放").ToList();
-                UpdateScanStatus($"端口扫描完成，共发现 {openPorts.Count} 个开放端口，正在更新UI...", 85);
-
-                Dispatcher.Invoke(() =>
-                {
-                    foreach (var r in allPortResults.OrderBy(x => x.PortNumber))
-                    {
-                        _portScanResults.Add(r);
-                    }
-                    ScanProgressText.Text = $"端口扫描完成 - 发现 {openPorts.Count} 个开放端口";
-                });
-
-                if (token.IsCancellationRequested) return;
-
-                if (enableVulnScan && openPorts.Count > 0)
-                {
-                    UpdateScanStatus("正在执行漏洞扫描...", 90);
-                    Log($"[综合扫描] 开始漏洞扫描，基于 {openPorts.Count} 个开放端口");
-
-                    var portInfos = openPorts.Select(p => new PortInfo
-                    {
-                        PortNumber = p.PortNumber,
-                        Protocol = "tcp",
-                        Service = p.Service,
-                        Version = p.ServiceVersion
-                    }).ToList();
-
-                    var vulnResults = await _vulnerabilityScanner.ScanAsync(targetIp, portInfos, "standard", null, token);
-                    
-                    foreach (var v in vulnResults) allVulnResults.Add(v);
-
-                    Log($"[综合扫描] 漏洞扫描完成，发现 {vulnResults.Count} 个漏洞");
-
-                    Dispatcher.Invoke(() =>
-                    {
-                        foreach (var v in allVulnResults)
-                        {
-                            _vulnerabilityResults.Add(v);
-                        }
-                    });
-                }
-
-                if (openPorts.Count > 0)
-                {
-                    // 使用统一调度器（已预热插件）
-                    var orchestrator = PluginOrchestrator.Instance;
-
-                    var openPortNumbers = openPorts.Select(p => p.PortNumber).ToList();
-                    StatusTextBlock.Text = "正在执行插件扫描...";
-                    var pluginResults = await orchestrator.ScanTargetAsync(targetIp, openPortNumbers, null, token);
-                    foreach (var pr in pluginResults)
-                    {
-                        allVulnResults.Add(pr);
-                    }
-
-                    Dispatcher.Invoke(() =>
-                    {
-                        foreach (var pr in pluginResults)
-                        {
-                            _vulnerabilityResults.Add(pr);
-                        }
-                    });
-                }
-
-                stopwatch.Stop();
-
-                var openPortCount = allPortResults.Count(x => x.Status == "开放");
-                var vulnCount = allVulnResults.Count();
-                riskLevel = vulnCount > 0 ? 
-                    (allVulnResults.Any(x => x.RiskLevel == "严重" || x.RiskLevel == "严重风险") ? "严重风险" :
-                     allVulnResults.Any(x => x.RiskLevel == "高" || x.RiskLevel == "高风险") ? "高风险" :
-                     allVulnResults.Any(x => x.RiskLevel == "中" || x.RiskLevel == "中风险") ? "中风险" : "低风险") : "无风险";
-
-                Dispatcher.Invoke(() =>
-                {
-                    UpdateScanStatus($"综合扫描完成! 耗时: {stopwatch.Elapsed.TotalSeconds:F1}秒", 100);
-                    ScanProgressText.Text = $"扫描完成 - 耗时: {stopwatch.Elapsed.TotalSeconds:F1}秒 | 开放端口: {openPortCount} | 漏洞: {vulnCount} | 风险: {riskLevel}";
-
-                    UpdateAiRiskAssessment(targetIp, allPortResults.ToList(), allVulnResults.ToList());
-
-                    MessageBox.Show(
-                        $"综合扫描完成!\n\n" +
-                        $"目标: {targetIp}\n" +
-                        $"扫描类型: {scanTypeText}\n" +
-                        $"开放端口: {openPortCount} 个\n" +
-                        $"发现漏洞: {vulnCount} 个\n" +
-                        $"风险等级: {riskLevel}\n" +
-                        $"耗时: {stopwatch.Elapsed.TotalSeconds:F1}秒",
-                        "扫描完成", MessageBoxButton.OK, MessageBoxImage.Information);
-                });
-
-                if (saveToHistory)
-                {
-                    await _jsonDatabaseService.UpdateScanHistoryAsync(scanId, new ScanHistoryItem
-                    {
-                        ScanId = scanId,
-                        TargetIp = targetIp,
-                        ScanType = scanTypeText,
-                        ScanTime = DateTime.Now,
-                        OpenPortsCount = openPortCount,
-                        VulnerabilitiesCount = vulnCount,
-                        RiskLevel = riskLevel,
-                        PortScanResults = allPortResults.ToList(),
-                        VulnerabilityResults = allVulnResults.ToList(),
-                        Duration = stopwatch.Elapsed.TotalSeconds
-                    });
-
-                    await RefreshScanHistoryAsync();
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                Log("[综合扫描] 扫描已取消");
-                UpdateScanStatus("扫描已取消", 0);
+                new NetSecurityScanner.Views.ComprehensiveScanResultWindow(result) { Owner = this }.ShowDialog();
             }
             catch (Exception ex)
             {
-                Log($"[综合扫描] 扫描失败: {ex.Message}");
+                liveWin.Close();
+                Log($"[综合扫描] 失败: {ex.Message}");
                 MessageBox.Show($"扫描失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-            finally
-            {
-                UpdateScanButtonStates(false);
-                stopwatch.Stop();
-            }
-        }
-
-        private void UpdateAiRiskAssessment(string targetIp, List<PortScanResult> portResults, List<VulnerabilityResult> vulnResults)
-        {
-            _riskAssessmentItems.Clear();
-            var assessmentItems = _riskAssessmentService.AssessRisk(vulnResults, portResults);
-            foreach (var item in assessmentItems)
-            {
-                _riskAssessmentItems.Add(item);
-            }
-
-            _riskAssessmentResult = _riskAssessmentService.AssessRiskExpert(vulnResults, portResults, targetIp);
-            UpdateRiskAssessmentUI();
         }
 
         /// <summary>
@@ -1556,7 +801,7 @@ namespace NetSecurityScanner
                     StartPortScanButton.IsEnabled = !isScanning;
                 if (StopPortScanButton != null)
                     StopPortScanButton.IsEnabled = isScanning;
-                
+
                 // 更新漏洞扫描按钮状态
                 if (StartVulnScanButton != null)
                     StartVulnScanButton.IsEnabled = !isScanning;
@@ -1572,7 +817,7 @@ namespace NetSecurityScanner
                         StartPortScanButton.IsEnabled = !isScanning;
                     if (StopPortScanButton != null)
                         StopPortScanButton.IsEnabled = isScanning;
-                    
+
                     // 更新漏洞扫描按钮状态
                     if (StartVulnScanButton != null)
                         StartVulnScanButton.IsEnabled = !isScanning;
@@ -1581,7 +826,7 @@ namespace NetSecurityScanner
                 });
             }
         }
-        
+
         /// <summary>
         /// 更新扫描状态显示
         /// </summary>
@@ -1624,7 +869,7 @@ namespace NetSecurityScanner
                 });
             }
         }
-        
+
         private void StopScan_Click(object sender, RoutedEventArgs e)
         {
             _cancellationTokenSource?.Cancel();
@@ -1737,14 +982,6 @@ namespace NetSecurityScanner
         }
 
         /// <summary>
-        /// OpenPortsDataGrid选择变化事件
-        /// </summary>
-        private void OpenPortsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            UpdateGeneratePortBatFromAiButton();
-        }
-
-        /// <summary>
         /// 端口扫描结果表格选择变化事件
         /// </summary>
         private void PortScanResultsDataGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1775,82 +1012,6 @@ namespace NetSecurityScanner
                         GeneratePortBatButton.IsEnabled = hasSelectedPorts;
                     }
                 });
-            }
-        }
-
-        /// <summary>
-        /// 更新AI风险评估界面中的生成端口关闭脚本按钮状态
-        /// </summary>
-        private void UpdateGeneratePortBatFromAiButton()
-        {
-            if (this.Dispatcher.CheckAccess())
-            {
-                bool hasSelectedPorts = _riskAssessmentResult?.OpenPorts?.Any(p => p.IsSelected) == true;
-                if (GeneratePortBatFromAiButton != null)
-                {
-                    GeneratePortBatFromAiButton.IsEnabled = hasSelectedPorts;
-                }
-            }
-            else
-            {
-                this.Dispatcher.Invoke(() =>
-                {
-                    bool hasSelectedPorts = _riskAssessmentResult?.OpenPorts?.Any(p => p.IsSelected) == true;
-                    if (GeneratePortBatFromAiButton != null)
-                    {
-                        GeneratePortBatFromAiButton.IsEnabled = hasSelectedPorts;
-                    }
-                });
-            }
-        }
-
-        /// <summary>
-        /// 从AI风险评估界面生成端口关闭脚本
-        /// </summary>
-        private void GeneratePortBatFromAi_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                if (_riskAssessmentResult == null || _riskAssessmentResult.OpenPorts == null)
-                {
-                    MessageBox.Show("没有可用的端口数据", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                var selectedPorts = _riskAssessmentResult.OpenPorts.Where(p => p.IsSelected).ToList();
-                if (!selectedPorts.Any())
-                {
-                    MessageBox.Show("请先选择要关闭的端口", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                // 提供高级选项
-                var result = MessageBox.Show(
-                    "是否使用高级选项生成端口关闭脚本？\n高级选项将包含防火墙规则备份功能。",
-                    "端口关闭脚本选项",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question
-                );
-
-                string batContent;
-                if (result == MessageBoxResult.Yes)
-                {
-                    batContent = _portManagementService.GenerateAdvancedPortClosureScript(selectedPorts.Select(p => p.PortNumber).ToList());
-                }
-                else
-                {
-                    batContent = _portManagementService.GeneratePortClosureScript(selectedPorts.Select(p => p.PortNumber).ToList());
-                }
-
-                string filePath = _portManagementService.SaveScriptToFile(batContent, $"PortClosureScript_{DateTime.Now:yyyyMMdd_HHmmss}.bat");
-
-                MessageBox.Show($"端口关闭脚本已生成：\n{filePath}\n\n请以管理员权限运行此脚本来关闭选定的端口。", "脚本生成成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                StatusTextBlock.Text = $"已生成端口关闭脚本：{filePath}";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"生成端口关闭脚本失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                StatusTextBlock.Text = "生成端口关闭脚本失败";
             }
         }
 
@@ -2294,7 +1455,7 @@ namespace NetSecurityScanner
             }
         }
 
-        
+
 
         #region Professional PDF Report Generation
 
@@ -2365,7 +1526,7 @@ namespace NetSecurityScanner
         private void About_Click(object sender, RoutedEventArgs e)
         {
             var version = GetAppVersion();
-            MessageBox.Show($"网络安全扫描工具 v{version}\n\n功能：\n- 端口扫描\n- 漏洞检测\n- 风险评估\n- 端口管理\n- 扫描历史记录\n\n仅供学习和测试使用", "关于", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show($"网络安全扫描工具 v{version}\n\n功能：\n- 端口扫描\n- 漏洞检测\n- 风险评估\n- 端口管理\n- 批量扫描\n- APP 安全扫描\n- 摄像头安全扫描\n- Agent 安全扫描\n- 扫描历史记录\n- 统计仪表盘\n- 可视化分析\n- 网络拓扑\n- 攻击路径分析\n- 攻击日志查询\n- 合规检查\n- 漏洞知识库\n- Web 路径追踪\n- 插件管理\n- 资产管理\n\n仅供学习和测试使用", "关于", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         private async void CheckForUpdates_Click(object sender, RoutedEventArgs e)
@@ -2431,9 +1592,9 @@ namespace NetSecurityScanner
                 }
             }
         }
-        
+
         #region 扫描历史记录相关方法
-        
+
         private async void RefreshScanHistory_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -2457,7 +1618,7 @@ namespace NetSecurityScanner
                 }
             }
         }
-        
+
         private async void ClearScanHistory_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -2486,7 +1647,7 @@ namespace NetSecurityScanner
                 StatusTextBlock.Text = "清空扫描历史记录失败";
             }
         }
-        
+
         private async void DeleteScanHistory_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -2497,7 +1658,7 @@ namespace NetSecurityScanner
                     var scanId = button.Tag.ToString();
                     // 删除指定ScanId的扫描历史记录
                     await _jsonDatabaseService.DeleteScanResultAsync(scanId);
-                    
+
                     // 刷新历史记录显示
                     await RefreshScanHistoryAsync();
                     StatusTextBlock.Text = $"扫描历史记录已删除";
@@ -2509,7 +1670,7 @@ namespace NetSecurityScanner
                 StatusTextBlock.Text = "删除扫描历史记录失败";
             }
         }
-        
+
         private async void ViewScanHistory_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -2526,7 +1687,7 @@ namespace NetSecurityScanner
                 MessageBox.Show($"查看扫描历史记录失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
+
         private async void ScanHistoryDataGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             try
@@ -2546,13 +1707,13 @@ namespace NetSecurityScanner
                 MessageBox.Show($"查看扫描历史记录失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
+
         private void UpdateVulnerabilityDatabase_Click(object sender, RoutedEventArgs e)
         {
             var updateWindow = new Views.VulnerabilityDatabaseUpdateWindow();
             updateWindow.Owner = this;
             updateWindow.ShowDialog();
-            
+
             RefreshDatabaseStatus();
         }
 
@@ -2592,10 +1753,10 @@ namespace NetSecurityScanner
                         WindowStartupLocation = WindowStartupLocation.CenterScreen,
                         ResizeMode = ResizeMode.CanResize
                     };
-                    
+
                     var scrollViewer = new ScrollViewer();
                     var stackPanel = new StackPanel { Margin = new Thickness(20) };
-                    
+
                     // 扫描基本信息
                     stackPanel.Children.Add(new Label { Content = "扫描基本信息", FontWeight = System.Windows.FontWeights.Bold, FontSize = 16, Margin = new Thickness(0, 0, 0, 10) });
                     stackPanel.Children.Add(new TextBlock { Text = $"扫描ID: {completeResult.ScanId}", Margin = new Thickness(0, 0, 0, 5) });
@@ -2603,12 +1764,12 @@ namespace NetSecurityScanner
                     stackPanel.Children.Add(new TextBlock { Text = $"扫描类型: {completeResult.ScanType}", Margin = new Thickness(0, 0, 0, 5) });
                     stackPanel.Children.Add(new TextBlock { Text = $"扫描时间: {completeResult.ScanTime}", Margin = new Thickness(0, 0, 0, 5) });
                     stackPanel.Children.Add(new TextBlock { Text = $"风险等级: {completeResult.RiskLevel}", Margin = new Thickness(0, 0, 0, 15) });
-                    
+
                     // 端口扫描结果
                     if (completeResult.PortScanResults != null && completeResult.PortScanResults.Any())
                     {
                         stackPanel.Children.Add(new Label { Content = "端口扫描结果", FontWeight = System.Windows.FontWeights.Bold, FontSize = 14, Margin = new Thickness(0, 0, 0, 10) });
-                        
+
                         var portDataGrid = new DataGrid
                         {
                             AutoGenerateColumns = false,
@@ -2617,20 +1778,20 @@ namespace NetSecurityScanner
                             AlternatingRowBackground = new SolidColorBrush(Color.FromRgb(245, 245, 245)),
                             ItemsSource = completeResult.PortScanResults
                         };
-                        
+
                         portDataGrid.Columns.Add(new DataGridTextColumn { Header = "端口号", Binding = new Binding("PortNumber"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
                         portDataGrid.Columns.Add(new DataGridTextColumn { Header = "状态", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
                         portDataGrid.Columns.Add(new DataGridTextColumn { Header = "服务", Binding = new Binding("Service"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
                         portDataGrid.Columns.Add(new DataGridTextColumn { Header = "服务版本", Binding = new Binding("ServiceVersion"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
-                        
+
                         stackPanel.Children.Add(portDataGrid);
                     }
-                    
+
                     // 漏洞扫描结果
                     if (completeResult.VulnerabilityResults != null && completeResult.VulnerabilityResults.Any())
                     {
                         stackPanel.Children.Add(new Label { Content = "漏洞扫描结果", FontWeight = System.Windows.FontWeights.Bold, FontSize = 14, Margin = new Thickness(0, 0, 0, 10) });
-                        
+
                         var vulnDataGrid = new DataGrid
                         {
                             AutoGenerateColumns = false,
@@ -2639,28 +1800,28 @@ namespace NetSecurityScanner
                             AlternatingRowBackground = new SolidColorBrush(Color.FromRgb(245, 245, 245)),
                             ItemsSource = completeResult.VulnerabilityResults
                         };
-                        
+
                         vulnDataGrid.Columns.Add(new DataGridTextColumn { Header = "漏洞名称", Binding = new Binding("Name"), Width = new DataGridLength(2, DataGridLengthUnitType.Star) });
                         vulnDataGrid.Columns.Add(new DataGridTextColumn { Header = "风险等级", Binding = new Binding("RiskLevel"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
                         vulnDataGrid.Columns.Add(new DataGridTextColumn { Header = "描述", Binding = new Binding("Description"), Width = new DataGridLength(3, DataGridLengthUnitType.Star), ElementStyle = new Style(typeof(TextBlock)) { Setters = { new Setter(TextBlock.TextWrappingProperty, TextWrapping.Wrap) } } });
-                        
+
                         stackPanel.Children.Add(vulnDataGrid);
                     }
-                    
+
                     // 风险评估
                     if (completeResult.RiskAssessment != null)
                     {
                         stackPanel.Children.Add(new Label { Content = "风险评估", FontWeight = System.Windows.FontWeights.Bold, FontSize = 14, Margin = new Thickness(0, 0, 0, 10) });
-                        
+
                         stackPanel.Children.Add(new TextBlock { Text = $"总体风险: {completeResult.RiskAssessment.RiskLevel}", Margin = new Thickness(0, 0, 0, 5) });
-                        
+
                         if (!string.IsNullOrEmpty(completeResult.RiskAssessment.SecurityAdvice))
                         {
                             stackPanel.Children.Add(new Label { Content = "安全建议", FontWeight = System.Windows.FontWeights.Bold, Margin = new Thickness(0, 10, 0, 5) });
                             stackPanel.Children.Add(new TextBlock { Text = completeResult.RiskAssessment.SecurityAdvice, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 15) });
                         }
                     }
-                    
+
                     scrollViewer.Content = stackPanel;
                     detailsWindow.Content = scrollViewer;
                     detailsWindow.ShowDialog();
@@ -2675,7 +1836,7 @@ namespace NetSecurityScanner
                 MessageBox.Show($"查看扫描结果详情失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
+
         private async void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             try
@@ -2700,7 +1861,7 @@ namespace NetSecurityScanner
                 }
             }
         }
-        
+
         private async void SearchScanHistory_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -2725,7 +1886,7 @@ namespace NetSecurityScanner
                 }
             }
         }
-        
+
         private async void RiskLevelFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             try
@@ -2750,7 +1911,7 @@ namespace NetSecurityScanner
                 }
             }
         }
-        
+
         private async void ScanTypeFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             try
@@ -2775,7 +1936,7 @@ namespace NetSecurityScanner
                 }
             }
         }
-        
+
         private async void ResetFilters_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -2803,7 +1964,7 @@ namespace NetSecurityScanner
                 }
             }
         }
-        
+
         private async Task SearchScanHistory()
         {
             try
@@ -2825,7 +1986,7 @@ namespace NetSecurityScanner
                 MessageBox.Show($"搜索扫描历史记录失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
+
         private async Task FilterScanHistory()
         {
             try
@@ -2838,18 +1999,18 @@ namespace NetSecurityScanner
                     if (RiskLevelFilterComboBox == null || ScanTypeFilterComboBox == null || _jsonDatabaseService == null)
                         return; // 如果延迟后仍未初始化，则返回
                 }
-                
+
                 // 获取过滤条件
                 string riskLevel = (RiskLevelFilterComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
                 string scanType = (ScanTypeFilterComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
-                
+
                 // 如果选择的是"全部"，则传递null
                 riskLevel = riskLevel == "全部" ? null : riskLevel;
                 scanType = scanType == "全部" ? null : scanType;
-                
+
                 // 应用过滤
                 var histories = await _jsonDatabaseService.GetScanHistoryAsync(null, scanType, null, null, riskLevel);
-                
+
                 // 在UI线程中更新UI元素
                 await Dispatcher.BeginInvoke(new Action(() =>
                 {
@@ -2866,7 +2027,7 @@ namespace NetSecurityScanner
                 }));
             }
         }
-        
+
         private void UpdateScanHistoryDisplay(List<ScanHistoryItem> histories)
         {
             // 更新DataGrid的ItemsSource
@@ -2874,11 +2035,11 @@ namespace NetSecurityScanner
 
             // 更新统计信息
             ScanHistoryStats.Text = $"共 {histories.Count} 条记录";
-            
+
             // 更新生成报告按钮的可用性
             GenerateReportFromHistoryButton.IsEnabled = histories.Any();
         }
-        
+
         /// <summary>
         /// 获取选中的扫描历史记录项
         /// </summary>
@@ -2888,10 +2049,10 @@ namespace NetSecurityScanner
             var histories = ScanHistoryDataGrid.ItemsSource as List<ScanHistoryItem>;
             if (histories == null)
                 return new List<ScanHistoryItem>();
-            
+
             return histories.Where(item => item.IsSelected).ToList();
         }
-        
+
         /// <summary>
         /// 从扫描历史记录生成报告
         /// </summary>
@@ -4078,9 +3239,9 @@ namespace NetSecurityScanner
             return features;
         }
         #endregion
-        
+
         #region 辅助方法
-        
+
         /// <summary>
         /// 刷新扫描历史记录
         /// </summary>
@@ -4107,7 +3268,7 @@ namespace NetSecurityScanner
                 }));
             }
         }
-        
+
         /// <summary>
         /// 更新生成按钮状态
         /// </summary>
@@ -4117,13 +3278,13 @@ namespace NetSecurityScanner
             bool hasSelectedPorts = _portScanResults.Any(r => r.IsSelected);
             // 检查是否有开放的端口
             bool hasOpenPorts = _portScanResults.Any(r => r.Status == "开放" || r.Status == "开放或过滤");
-            
+
             // 更新按钮状态
             GeneratePortBatButton.IsEnabled = hasSelectedPorts;
         }
-        
 
-        
+
+
         /// <summary>
         /// 验证IP地址格式
         /// </summary>
@@ -4133,10 +3294,10 @@ namespace NetSecurityScanner
         {
             if (string.IsNullOrEmpty(ipAddress))
                 return false;
-            
+
             return IPAddress.TryParse(ipAddress, out _);
         }
-        
+
         /// <summary>
         /// 解析端口范围字符串
         /// </summary>
@@ -4145,16 +3306,16 @@ namespace NetSecurityScanner
         private List<int> ParsePortRange(string portRange)
         {
             var ports = new List<int>();
-            
+
             if (string.IsNullOrEmpty(portRange))
                 return ports;
-            
+
             var ranges = portRange.Split(',', StringSplitOptions.RemoveEmptyEntries);
-            
+
             foreach (var range in ranges)
             {
                 var trimmedRange = range.Trim();
-                
+
                 if (trimmedRange.Contains("-"))
                 {
                     // 处理范围格式，如"1-100"
@@ -4176,14 +3337,14 @@ namespace NetSecurityScanner
                     }
                 }
             }
-            
+
             return ports.Distinct().OrderBy(p => p).ToList();
         }
-        
+
         #endregion
-        
+
         #region 事件处理程序
-        
+
         /// <summary>
         /// 端口扫描结果DataGrid的ItemContainerGenerator状态变化事件处理程序
         /// </summary>
@@ -4191,7 +3352,7 @@ namespace NetSecurityScanner
         {
             // 这里可以添加ItemContainerGenerator状态变化的处理逻辑
         }
-        
+
         /// <summary>
         /// 系统运行时间计时器Tick事件处理程序
         /// </summary>
@@ -4211,7 +3372,7 @@ namespace NetSecurityScanner
                 Log($"更新系统运行时间失败: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// 初始化系统性能计数器
         /// </summary>
@@ -4223,11 +3384,11 @@ namespace NetSecurityScanner
                 _cpuCounter.CategoryName = "Processor";
                 _cpuCounter.CounterName = "% Processor Time";
                 _cpuCounter.InstanceName = "_Total";
-                
+
                 _ramCounter = new PerformanceCounter();
                 _ramCounter.CategoryName = "Memory";
                 _ramCounter.CounterName = "% Committed Bytes In Use";
-                
+
                 // 首次调用GetNextValue()可能会返回0，所以预热一下
                 var cpuUsage = _cpuCounter.NextValue();
                 var ramUsage = _ramCounter.NextValue();
@@ -4237,7 +3398,7 @@ namespace NetSecurityScanner
                 Log($"初始化性能计数器失败: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// 启动系统健康状态更新
         /// </summary>
@@ -4247,11 +3408,11 @@ namespace NetSecurityScanner
             _systemHealthTimer.Interval = TimeSpan.FromSeconds(5); // 每5秒更新一次
             _systemHealthTimer.Tick += SystemHealthTimer_Tick;
             _systemHealthTimer.Start();
-            
+
             // 立即更新一次
             UpdateSystemHealthStatus();
         }
-        
+
         /// <summary>
         /// 系统健康状态计时器Tick事件处理程序
         /// </summary>
@@ -4259,7 +3420,7 @@ namespace NetSecurityScanner
         {
             UpdateSystemHealthStatus();
         }
-        
+
         /// <summary>
         /// 更新系统健康状态显示
         /// </summary>
@@ -4273,14 +3434,14 @@ namespace NetSecurityScanner
                 {
                     cpuUsage = _cpuCounter.NextValue();
                 }
-                
+
                 // 获取内存使用率
                 float ramUsage = 0;
                 if (_ramCounter != null)
                 {
                     ramUsage = _ramCounter.NextValue();
                 }
-                
+
                 // 获取磁盘使用率
                 DriveInfo[] drives = DriveInfo.GetDrives();
                 float maxDiskUsage = 0;
@@ -4302,10 +3463,10 @@ namespace NetSecurityScanner
                         // 忽略无法访问的驱动器
                     }
                 }
-                
+
                 // 获取网络连接数（简化实现）
                 int networkConnections = GetActiveTcpConnectionsCount();
-                
+
                 // 更新UI界面
                 if (this.Dispatcher.CheckAccess())
                 {
@@ -4330,7 +3491,7 @@ namespace NetSecurityScanner
                 Log($"更新系统健康状态失败: {ex.Message}");
             }
         }
-        
+
         /// <summary>
         /// 获取活动TCP连接数
         /// </summary>
@@ -4348,11 +3509,11 @@ namespace NetSecurityScanner
                 return 0; // 返回0表示无法获取
             }
         }
-        
+
         #endregion
-        
+
         #region Window Events
-        
+
         private async void Window_Closing(object sender, CancelEventArgs e)
         {
             try
@@ -4395,13 +3556,13 @@ namespace NetSecurityScanner
                 Log($"窗口关闭清理过程中发生错误: {ex.Message}");
             }
         }
-        
+
         #endregion
-        
+
         #region IDisposable Implementation
-        
+
         private bool _disposed = false;
-        
+
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposed && disposing)
@@ -4410,10 +3571,10 @@ namespace NetSecurityScanner
                 {
                     // 停止所有正在运行的任务
                     _cancellationTokenSource?.Cancel();
-                    
+
                     // 等待一小段时间让任务取消完成
                     System.Threading.Thread.Sleep(100);
-                    
+
                     if (_cancellationTokenSource != null)
                     {
                         try
@@ -4423,10 +3584,10 @@ namespace NetSecurityScanner
                         catch (ObjectDisposedException) { }
                         _cancellationTokenSource = null;
                     }
-                    
+
                     // 释放漏洞扫描器
                     _vulnerabilityScanner?.Dispose();
-                                        
+
                     // 停止计时器
                     _systemUptimeTimer?.Stop();
                     if (_systemUptimeTimer != null)
@@ -4441,13 +3602,13 @@ namespace NetSecurityScanner
                         _systemHealthTimer.Tick -= SystemHealthTimer_Tick;
                     }
                     _systemHealthTimer = null;
-                                    
+
                     // 清理性能计数器
                     _cpuCounter?.Dispose();
                     _cpuCounter = null;
                     _ramCounter?.Dispose();
                     _ramCounter = null;
-                    
+
                     // 释放性能优化组件（新增）
                     try
                     {
@@ -4462,12 +3623,12 @@ namespace NetSecurityScanner
                     {
                         _uiUpdateThrottler = null;
                     }
-                    
+
                     try
                     {
                         _scanPerformanceMonitor?.StopMonitoring();
                         _scanPerformanceMonitor?.Dispose();
-                        
+
                         // 输出性能报告（如果进行过扫描）
                         if (_scanPerformanceMonitor != null && _scanPerformanceMonitor.PortsScanned > 0)
                         {
@@ -4484,7 +3645,7 @@ namespace NetSecurityScanner
                     {
                         _scanPerformanceMonitor = null;
                     }
-                    
+
                     // 清理大集合数据，释放内存
                     try
                     {
@@ -4497,7 +3658,7 @@ namespace NetSecurityScanner
                     {
                         Log($"清理集合数据失败: {ex.Message}");
                     }
-                    
+
                     // 强制垃圾回收（可选，在程序退出时执行）
                     GC.Collect(2, GCCollectionMode.Forced);
                     GC.WaitForPendingFinalizers();
@@ -4511,17 +3672,17 @@ namespace NetSecurityScanner
             }
             _disposed = true;
         }
-        
+
         public void Dispose()
         {
             Dispose(true);
             GC.SuppressFinalize(this);
         }
-        
+
         #endregion
-        
+
         #region Vulnerability Context Menu Handlers
-        
+
         private void CopyVulnerabilityDetails_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -4537,7 +3698,7 @@ namespace NetSecurityScanner
                                   $"描述: {selectedItem.Description}\n" +
                                   $"解决方案: {selectedItem.Solution}\n" +
                                   $"参考链接: {selectedItem.References}";
-                    
+
                     Clipboard.SetText(details);
                     MessageBox.Show("漏洞详情已复制到剪贴板", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
@@ -4552,7 +3713,7 @@ namespace NetSecurityScanner
                 MessageBox.Show("复制漏洞详情时发生错误", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
+
         private void ExportSelectedVulnerabilities_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -4575,7 +3736,7 @@ namespace NetSecurityScanner
                 MessageBox.Show("导出漏洞时发生错误", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
+
         private void ViewCveDetails_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -4601,7 +3762,7 @@ namespace NetSecurityScanner
                 MessageBox.Show("打开CVE详情时发生错误", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
+
         private void CopyCveId_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -4623,7 +3784,7 @@ namespace NetSecurityScanner
                 MessageBox.Show("复制CVE编号时发生错误", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
+
         private void MarkAsResolved_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -4632,7 +3793,7 @@ namespace NetSecurityScanner
                 if (selectedItem != null)
                 {
                     selectedItem.Solution += " [已标记为已处理]";
-                    
+
                     // 持久化漏洞结果到JSON文件
                     try
                     {
@@ -4644,7 +3805,7 @@ namespace NetSecurityScanner
                     {
                         System.Diagnostics.Debug.WriteLine($"保存漏洞结果失败: {saveEx.Message}");
                     }
-                    
+
                     MessageBox.Show("漏洞已标记为已处理", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
@@ -4658,7 +3819,7 @@ namespace NetSecurityScanner
                 MessageBox.Show("标记漏洞为已处理时发生错误", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-        
+
         private void AddRemark_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -4700,6 +3861,113 @@ namespace NetSecurityScanner
             {
                 Log($"添加备注时发生错误: {ex.Message}");
                 MessageBox.Show("添加备注时发生错误", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// v5-T4.1: 漏洞结果 DataGrid 右键"🔌 用插件深挖"。
+        /// 从选中漏洞行提取目标 IP 与端口，调用 PluginOrchestrator 深挖。
+        /// </summary>
+        private async void DeepScanWithPlugins_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var selectedItem = VulnerabilityResultsDataGrid.SelectedItem as VulnerabilityResult;
+                if (selectedItem == null)
+                {
+                    MessageBox.Show("请先选择一条漏洞记录", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var targetIp = !string.IsNullOrEmpty(selectedItem.Target)
+                    ? selectedItem.Target
+                    : TargetIpTextBox?.Text?.Trim();
+
+                if (string.IsNullOrEmpty(targetIp))
+                {
+                    MessageBox.Show("无法获取目标 IP", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var ports = new List<int>();
+                if (selectedItem.Port.HasValue && selectedItem.Port.Value > 0) ports.Add(selectedItem.Port.Value);
+                var portsDisplay = ports.Count > 0 ? string.Join(",", ports) : "默认";
+
+                var confirm = MessageBox.Show(
+                    $"将使用所有适用插件重新扫描 {targetIp} (端口: {portsDisplay})，是否继续？",
+                    "插件深挖",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                if (confirm != MessageBoxResult.Yes) return;
+
+                Mouse.OverrideCursor = Cursors.Wait;
+                var results = await PluginOrchestrator.Instance.ScanTargetAsync(targetIp, ports);
+                Mouse.OverrideCursor = null;
+
+                if (results.Count > 0)
+                {
+                    foreach (var r in results) _vulnerabilityResults.Add(r);
+                    MessageBox.Show($"深挖完成：新增 {results.Count} 个漏洞", "完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("深挖完成：未发现新漏洞", "完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                Mouse.OverrideCursor = null;
+                Log($"插件深挖失败: {ex.Message}");
+                MessageBox.Show($"深挖失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// v5-T4.3: 扫描历史 DataGrid 右键"🔌 用插件深挖"。
+        /// 从选中历史记录提取 IP 与端口，调用 PluginOrchestrator.DeepScanAsync。
+        /// </summary>
+        private async void DeepScanHistoryWithPlugins_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var selectedItem = ScanHistoryDataGrid.SelectedItem as ScanHistoryItem;
+                if (selectedItem == null)
+                {
+                    MessageBox.Show("请先选择一条历史记录", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var targetIp = selectedItem.TargetIp;
+                if (string.IsNullOrEmpty(targetIp))
+                {
+                    MessageBox.Show("无法获取目标 IP", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var confirm = MessageBox.Show(
+                    $"将使用所有适用插件深挖 {targetIp} 的历史扫描结果，是否继续？",
+                    "插件深挖",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                if (confirm != MessageBoxResult.Yes) return;
+
+                Mouse.OverrideCursor = Cursors.Wait;
+                var results = await PluginOrchestrator.Instance.DeepScanAsync(selectedItem);
+                Mouse.OverrideCursor = null;
+
+                MessageBox.Show(
+                    results.Count > 0
+                        ? $"深挖完成：发现 {results.Count} 个漏洞"
+                        : "深挖完成：未发现新漏洞",
+                    "完成",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                Mouse.OverrideCursor = null;
+                Log($"历史深挖失败: {ex.Message}");
+                MessageBox.Show($"深挖失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -4800,24 +4068,24 @@ namespace NetSecurityScanner
                 Title = dialogTitle,
                 FileName = $"{defaultFileName}_{DateTime.Now:yyyyMMdd_HHmmss}"
             };
-            
+
             if (saveFileDialog.ShowDialog() == true)
             {
                 try
                 {
                     string fileExtension = System.IO.Path.GetExtension(saveFileDialog.FileName).ToLower();
-                    
+
                     if (fileExtension == ".csv")
                     {
                         // 导出为CSV格式
                         StringBuilder csvContent = new StringBuilder();
                         csvContent.AppendLine("序号,漏洞名称,风险等级,端口,服务,CVE编号,检测方法,描述,解决方案,参考链接");
-                        
+
                         foreach (var result in results)
                         {
                             csvContent.AppendLine($"{result.Id},\"{result.Name}\",\"{result.RiskLevel}\",{result.Port},\"{result.Service}\",\"{result.CveId}\",\"{result.DetectionMethod}\",\"{result.Description}\",\"{result.Solution}\",\"{result.References}\"");
                         }
-                        
+
                         File.WriteAllText(saveFileDialog.FileName, csvContent.ToString(), Encoding.UTF8);
                     }
                     else
@@ -4827,7 +4095,7 @@ namespace NetSecurityScanner
                         txtContent.AppendLine($"漏洞扫描结果报告 - {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                         txtContent.AppendLine(new string('=', 80));
                         txtContent.AppendLine();
-                        
+
                         foreach (var result in results)
                         {
                             txtContent.AppendLine($"【漏洞 {result.Id}】");
@@ -4843,17 +4111,17 @@ namespace NetSecurityScanner
                             txtContent.AppendLine(new string('-', 80));
                             txtContent.AppendLine();
                         }
-                        
+
                         File.WriteAllText(saveFileDialog.FileName, txtContent.ToString(), Encoding.UTF8);
                     }
-                    
-                    MessageBox.Show($"漏洞数据已成功导出到: {saveFileDialog.FileName}", "导出成功", 
+
+                    MessageBox.Show($"漏洞数据已成功导出到: {saveFileDialog.FileName}", "导出成功",
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
                     Log($"导出文件时发生错误: {ex.Message}");
-                    MessageBox.Show($"导出文件时发生错误: {ex.Message}", "导出失败", 
+                    MessageBox.Show($"导出文件时发生错误: {ex.Message}", "导出失败",
                         MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
@@ -4874,269 +4142,1119 @@ namespace NetSecurityScanner
             return _vulnerabilityResults?.ToList() ?? new List<VulnerabilityResult>();
         }
 
-        /// <summary>
-        /// 打开AI风险评估窗口
-        /// </summary>
-        private void AIRiskAssessment_Click(object sender, RoutedEventArgs e)
+        #endregion
+
+
+        #region 菜单项事件处理方法
+
+        private void PortScan_Click(object sender, RoutedEventArgs e)
+        {
+            MainTabControl.SelectedIndex = 0;
+        }
+
+        private void VulnerabilityScan_Click(object sender, RoutedEventArgs e)
+        {
+            MainTabControl.SelectedIndex = 1;
+        }
+
+        private void BatchScan_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // 检查是否有扫描结果
-                if (_portScanResults == null || !_portScanResults.Any())
-                {
-                    MessageBox.Show("请先执行端口扫描或漏洞扫描，然后再进行 AI 风险评估。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
-                    return;
-                }
-
-                // 获取目标 IP
-                var targetIp = !string.IsNullOrWhiteSpace(TargetIpTextBox.Text) ? TargetIpTextBox.Text.Trim() : _portScanResults.FirstOrDefault()?.TargetIp ?? "Unknown";
-                
-                // 显示提示
-                MessageBox.Show($"正在对目标 IP: {targetIp} 进行 AI 风险评估...", "AI 风险评估", MessageBoxButton.OK, MessageBoxImage.Information);
-
-                // 复制扫描结果
-                var portList = _portScanResults.ToList();
-                var vulnList = _vulnerabilityResults?.ToList() ?? new List<VulnerabilityResult>();
-
-                // 打开 AI 风险评估窗口，传递 MainWindow 引用以便重新分析时获取最新数据
-                var aiRiskWindow = new Views.AIRiskAssessmentWindow(portList, vulnList, this);
-                aiRiskWindow.ShowDialog();
+                var batchScanWindow = new Views.BatchScanWindow();
+                batchScanWindow.ShowDialog();
             }
             catch (Exception ex)
             {
-                Log($"打开 AI 风险评估窗口失败：{ex.Message}");
-                MessageBox.Show($"打开 AI 风险评估窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"打开批量扫描窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        
+        private void ExpertMode_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var expertWindow = new Views.ExpertModeWindow();
+                expertWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开专家模式失败：{ex.Message}\n\n{ex.InnerException?.Message}\n\n{ex.StackTrace}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void AppScan_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var appScannerWindow = new Views.AppScannerWindow { Owner = this };
+                appScannerWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开APP扫描窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void AgentSecurityScan_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var agentScannerWindow = new Views.AgentSecurityScannerWindow { Owner = this };
+                agentScannerWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开Agent安全扫描窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 1.0.1.0 补齐：扫描 → 摄像头安全扫描（之前 MainWindow 缺少入口菜单）
+        /// </summary>
+        private void CameraSecurityScan_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var cameraWindow = new Views.CameraSecurityScannerWindow { Owner = this };
+                cameraWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开摄像头安全扫描窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void StatisticsDashboard_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var statsWindow = new Views.StatisticsDashboardWindow();
+                statsWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开统计仪表板失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void Visualization_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var visualizationWindow = new Views.ScanVisualizationWindow();
+                visualizationWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开可视化图表失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void NetworkTopology_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var topologyWindow = new Views.NetworkTopologyWindow();
+                topologyWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开网络拓扑失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ViewAttackPaths_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_portScanResults == null && _vulnerabilityResults == null)
+                {
+                    MessageBox.Show("请先执行端口扫描或漏洞扫描，然后再进行攻击路径分析。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                var portList = _portScanResults?.Where(p => p.Status == "开放" || p.Status == "开放或过滤").ToList() ?? new List<PortScanResult>();
+                var vulnList = _vulnerabilityResults?.ToList() ?? new List<VulnerabilityResult>();
+
+                var attackPaths = _riskAssessmentService.GenerateAttackPathsForAnalysis(vulnList, portList);
+
+                var attackPathWindow = new Views.AttackPathAnalysisWindow(attackPaths);
+                attackPathWindow.Owner = this;
+                attackPathWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开攻击路径分析窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void AttackLogQuery_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var attackLogWindow = new Views.AttackLogWindow();
+                attackLogWindow.Owner = this;
+                attackLogWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开攻击日志查询窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void ComplianceCheck_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var complianceWindow = new Views.ComplianceCheckWindow();
+                complianceWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开合规检查窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void VulnerabilityKnowledgeBase_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var knowledgeBaseWindow = new Views.VulnerabilityKnowledgeBaseWindow { Owner = this };
+                knowledgeBaseWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开漏洞知识库窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void WebPathTracer_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var tracerWindow = new Views.WebPathTracerWindow { Owner = this };
+                tracerWindow.Show();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开网页路径追踪窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void PluginManager_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var window = new Views.PluginManagerWindow { Owner = this };
+                window.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开插件管理窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void AssetManagement_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // v1.0.1.2：未登录时弹登录窗
+                if (SessionContext.Instance.Current == null)
+                {
+                    var login = new LoginWindow { Owner = this };
+                    if (login.ShowDialog() != true)
+                    {
+                        return;
+                    }
+                }
+
+                // v1.0.1.2：登录后无 Asset:View 权限则阻止进入
+                var current = SessionContext.Instance.Current;
+                if (current == null ||
+                    (!current.IsAdmin &&
+                     (current.Permissions == null || !current.Permissions.Contains(Permission.AssetView))))
+                {
+                    MessageBox.Show("无资产管理查看权限", "权限不足", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var window = new Views.AssetManagementWindow { Owner = this };
+                window.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"打开资产管理窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         #endregion
 
-    
-    #region 菜单项事件处理方法
-    
-    private void PortScan_Click(object sender, RoutedEventArgs e)
-    {
-        MainTabControl.SelectedIndex = 0;
-    }
-    
-    private void VulnerabilityScan_Click(object sender, RoutedEventArgs e)
-    {
-        MainTabControl.SelectedIndex = 1;
-    }
-    
-    private void BatchScan_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var batchScanWindow = new Views.BatchScanWindow();
-            batchScanWindow.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开批量扫描窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    private void ExpertMode_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var expertWindow = new Views.ExpertModeWindow();
-            expertWindow.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开专家模式失败：{ex.Message}\n\n{ex.InnerException?.Message}\n\n{ex.StackTrace}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    private void AppScan_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var appScannerWindow = new Views.AppScannerWindow { Owner = this };
-            appScannerWindow.Show();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开APP扫描窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
+        #region AI 风险评估仪表盘（v2 SOC 风格）
 
-    private void AgentSecurityScan_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var agentScannerWindow = new Views.AgentSecurityScannerWindow { Owner = this };
-            agentScannerWindow.Show();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开Agent安全扫描窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
+        /// <summary>
+        /// 图表中文文本字体：通过 <see cref="CjkFontResolver"/> 解析，
+        /// LiveChartsCore 2.x 使用 SkiaSharp 渲染文本，WPF FontFamily 不会被自动继承，
+        /// 因此需要显式为所有 SolidColorPaint 指定 Typeface，否则中文字符会显示为方块。
+        /// </summary>
+        private static readonly SKTypeface _chineseTypeface = CjkFontResolver.Resolved;
 
-    /// <summary>
-    /// 1.0.1.0 补齐：扫描 → 摄像头安全扫描（之前 MainWindow 缺少入口菜单）
-    /// </summary>
-    private void CameraSecurityScan_Click(object sender, RoutedEventArgs e)
-    {
-        try
+        /// <summary>
+        /// 创建带中文字体的纯色 Paint（用于图表文字、填充、描边）。
+        /// 同时设置 SKTypeface、FontFamily、IsAntialias 三项，避免 LiveChartsCore
+        /// 内部重建字体时丢失中文字体。
+        /// </summary>
+        private static SolidColorPaint CjkPaint(SKColor color, float? strokeThickness = null)
         {
-            var cameraWindow = new Views.CameraSecurityScannerWindow { Owner = this };
-            cameraWindow.Show();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开摄像头安全扫描窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    private void StatisticsDashboard_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var statsWindow = new Views.StatisticsDashboardWindow();
-            statsWindow.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开统计仪表板失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    private void Visualization_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var visualizationWindow = new Views.ScanVisualizationWindow();
-            visualizationWindow.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开可视化图表失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    private void NetworkTopology_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var topologyWindow = new Views.NetworkTopologyWindow();
-            topologyWindow.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开网络拓扑失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    private void ViewAttackPaths_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            if (_portScanResults == null && _vulnerabilityResults == null)
+            var paint = new SolidColorPaint(color)
             {
-                MessageBox.Show("请先执行端口扫描或漏洞扫描，然后再进行攻击路径分析。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                SKTypeface = _chineseTypeface,
+                IsAntialias = true
+            };
+            // 显式设置 FontFamily 字段，避免 LiveChartsCore 内部重建字体时丢失。
+            if (!string.IsNullOrEmpty(_chineseTypeface?.FamilyName))
+            {
+                paint.FontFamily = _chineseTypeface!.FamilyName;
+            }
+            if (strokeThickness.HasValue)
+            {
+                paint.StrokeThickness = strokeThickness.Value;
+            }
+            return paint;
+        }
+
+        /// <summary>
+        /// 创建带中文字体的纯色 Paint 重载，允许外部传入 typeface（用于动态切换）。
+        /// </summary>
+        private static SolidColorPaint CjkPaint(SKColor color, float strokeThickness, SKTypeface? typeface)
+        {
+            var tf = typeface ?? _chineseTypeface;
+            var paint = new SolidColorPaint(color)
+            {
+                SKTypeface = tf,
+                IsAntialias = true
+            };
+            if (!string.IsNullOrEmpty(tf?.FamilyName))
+            {
+                paint.FontFamily = tf!.FamilyName;
+            }
+            paint.StrokeThickness = strokeThickness;
+            return paint;
+        }
+
+        /// <summary>
+        /// 为图表设置 Tooltip 文本与背景的 Paint，使用中文字体避免 CJK 显示为方块。
+        /// 兼容 CartesianChart / PieChart / PolarChart（均继承自 LiveChartsCore.SkiaSharpView.WPF.Chart）。
+        /// </summary>
+        private static void ApplyTooltipPaint(LiveChartsCore.SkiaSharpView.WPF.Chart chart)
+        {
+            if (chart == null) return;
+            var text = CjkPaint(SKColor.Parse("#0F172A"));
+            var bg = new SolidColorPaint(new SKColor(255, 255, 255, 230))
+            {
+                SKTypeface = _chineseTypeface,
+                IsAntialias = true
+            };
+            if (!string.IsNullOrEmpty(_chineseTypeface?.FamilyName))
+            {
+                bg.FontFamily = _chineseTypeface!.FamilyName;
+            }
+            try
+            {
+                chart.TooltipTextPaint = text;
+                chart.TooltipBackgroundPaint = bg;
+            }
+            catch
+            {
+                // 反射兜底：极少数 Chart 子类的 Paint 属性可能不可写
+                var ttp = chart.GetType().GetProperty("TooltipTextPaint");
+                if (ttp != null && ttp.CanWrite) ttp.SetValue(chart, text);
+                var tbp = chart.GetType().GetProperty("TooltipBackgroundPaint");
+                if (tbp != null && tbp.CanWrite) tbp.SetValue(chart, bg);
+            }
+        }
+
+        /// <summary>
+        /// "重新分析" 按钮点击处理。
+        /// </summary>
+        private async void RefreshAiRiskDashboard_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var ip = TryGetCurrentTargetIp();
+                await RunAiRiskAssessmentAsync(ip);
+            }
+            catch (Exception ex)
+            {
+                Log($"AI 风险评估重新分析失败: {ex.Message}");
+                UpdateAiRiskDashboardStatus($"分析失败：{ex.Message}", 0, false);
+                MessageBox.Show($"AI 风险评估失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 异步执行 AI 风险评估并更新仪表盘。
+        /// </summary>
+        /// <param name="ip">可选的目标 IP；为空则尝试从当前 MainWindow 中提取。</param>
+        private async Task RunAiRiskAssessmentAsync(string ip = null)
+        {
+            try
+            {
+                if (_aiRiskAssessmentService == null)
+                {
+                    _aiRiskAssessmentService = new AIRiskAssessmentService();
+                }
+
+                var targetIp = string.IsNullOrWhiteSpace(ip) ? TryGetCurrentTargetIp() : ip;
+                var ports = _portScanResults?.ToList() ?? new List<PortScanResult>();
+                var vulns = _vulnerabilityResults?.ToList() ?? new List<VulnerabilityResult>();
+
+                if (ports.Count == 0 && vulns.Count == 0)
+                {
+                    // 没有扫描数据，保持空状态
+                    ShowAiRiskEmptyState();
+                    return;
+                }
+
+                UpdateAiRiskDashboardStatus("分析中...", 30, true);
+
+                // 在后台线程上调用 V5 引擎，避免阻塞 UI
+                var report = await Task.Run(() => _aiRiskAssessmentService.AssessRiskV5Async(ports, vulns, targetIp));
+
+                // 报告返回后切回 UI 线程
+                _currentAiReport = report;
+                if (this.Dispatcher.CheckAccess())
+                {
+                    UpdateAiRiskDashboard(report);
+                }
+                else
+                {
+                    await this.Dispatcher.InvokeAsync(() => UpdateAiRiskDashboard(report));
+                }
+
+                UpdateAiRiskDashboardStatus("分析完成", 100, false);
+            }
+            catch (Exception ex)
+            {
+                Log($"AI 风险评估执行失败: {ex.Message}");
+                UpdateAiRiskDashboardStatus($"分析失败：{ex.Message}", 0, false);
+                // 失败时不抛，避免后台 Task 引发未观察异常
+            }
+        }
+
+        /// <summary>
+        /// 将评估报告渲染到所有仪表盘控件。
+        /// </summary>
+        private void UpdateAiRiskDashboard(AIRiskAssessmentReportV5 report)
+        {
+            if (report == null)
+            {
+                ShowAiRiskEmptyState();
                 return;
             }
 
-            var portList = _portScanResults?.Where(p => p.Status == "开放" || p.Status == "开放或过滤").ToList() ?? new List<PortScanResult>();
-            var vulnList = _vulnerabilityResults?.ToList() ?? new List<VulnerabilityResult>();
+            // 显示数据区，隐藏空状态
+            if (AiRiskDistributionPanel != null) AiRiskDistributionPanel.Visibility = Visibility.Visible;
+            if (AiRiskEmptyStatePanel != null) AiRiskEmptyStatePanel.Visibility = Visibility.Collapsed;
 
-            var attackPaths = _riskAssessmentService.GenerateAttackPathsForAnalysis(vulnList, portList);
+            // 主评分
+            var score = Math.Max(0, Math.Min(10, report.OverallRiskScore));
+            if (AiRiskMainScoreText != null) AiRiskMainScoreText.Text = score.ToString("0.0");
 
-            var attackPathWindow = new Views.AttackPathAnalysisWindow(attackPaths);
-            attackPathWindow.Owner = this;
-            attackPathWindow.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开攻击路径分析窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    private void AttackLogQuery_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var attackLogWindow = new Views.AttackLogWindow();
-            attackLogWindow.Owner = this;
-            attackLogWindow.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开攻击日志查询窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    private void ComplianceCheck_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var complianceWindow = new Views.ComplianceCheckWindow();
-            complianceWindow.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开合规检查窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    private void VulnerabilityKnowledgeBase_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var knowledgeBaseWindow = new Views.VulnerabilityKnowledgeBaseWindow { Owner = this };
-            knowledgeBaseWindow.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开漏洞知识库窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
+            // 风险等级颜色 + 文字
+            var (levelText, levelColor, badgeBgHex) = MapRiskLevel(report.OverallRiskLevel);
+            if (AiRiskLevelText != null) AiRiskLevelText.Text = levelText;
+            if (AiRiskLevelText != null) AiRiskLevelText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(levelColor));
+            if (AiRiskMainScoreText != null) AiRiskMainScoreText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(levelColor));
+            if (AiRiskLevelBadge != null) AiRiskLevelBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(badgeBgHex));
 
-    private void WebPathTracer_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var tracerWindow = new Views.WebPathTracerWindow { Owner = this };
-            tracerWindow.Show();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开网页路径追踪窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    private void PluginManager_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var window = new Views.PluginManagerWindow { Owner = this };
-            window.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开插件管理窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    private void AssetManagement_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var window = new Views.AssetManagementWindow { Owner = this };
-            window.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"打开资产管理窗口失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-    
-    #endregion
+            // 目标 IP
+            if (AiRiskTargetIpText != null)
+                AiRiskTargetIpText.Text = string.IsNullOrWhiteSpace(report.TargetIp) ? "--" : report.TargetIp;
 
-}
+            // 评估时间
+            if (AiRiskAssessmentTimeText != null)
+                AiRiskAssessmentTimeText.Text = report.AssessmentTime == default
+                    ? DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                    : report.AssessmentTime.ToString("yyyy-MM-dd HH:mm:ss");
+
+            // 置信度 / 安全态势 / 就绪度
+            if (AiRiskConfidenceText != null) AiRiskConfidenceText.Text = (report.ConfidenceScore * 100).ToString("0.0") + "%";
+            if (AiRiskPostureText != null) AiRiskPostureText.Text = (report.SecurityPostureScore).ToString("0.0") + " / 100";
+            if (AiRiskReadinessText != null) AiRiskReadinessText.Text = (report.ReadinessScore).ToString("0.0") + " / 100";
+
+            // 四宫格指标
+            var openPortCount = report.PortStatistics?.OpenPortsCount ?? 0;
+            if (AiRiskOpenPortsCountText != null) AiRiskOpenPortsCountText.Text = openPortCount.ToString();
+
+            var vulnCount = report.VulnerabilityCount > 0
+                ? report.VulnerabilityCount
+                : (report.RiskItems?.Count ?? 0);
+            if (AiRiskVulnCountText != null) AiRiskVulnCountText.Text = vulnCount.ToString();
+
+            var highCveCount = (report.CvssBreakdown?.TotalHighCves ?? 0) + (report.CvssBreakdown?.TotalCriticalCves ?? 0);
+            if (AiRiskHighRiskCountText != null) AiRiskHighRiskCountText.Text = highCveCount.ToString();
+
+            // CVE 关联数：取 CvssBreakdown 各类之和
+            var cveTotal = (report.CvssBreakdown?.TotalCriticalCves ?? 0)
+                           + (report.CvssBreakdown?.TotalHighCves ?? 0)
+                           + (report.CvssBreakdown?.TotalMediumCves ?? 0)
+                           + (report.CvssBreakdown?.TotalLowCves ?? 0);
+            if (AiRiskCveCountText != null) AiRiskCveCountText.Text = cveTotal.ToString();
+
+            // 趋势条：根据各项占最大项的比例（最高 100%）
+            // 取各项最大可能值的 80% 作为可视化基准（避免空数据时全部 0%）
+            SetBarProgress(AiRiskOpenPortsBar, Math.Min(100, openPortCount * 4.0));        // 25 个端口满量程
+            SetBarProgress(AiRiskVulnCountBar, Math.Min(100, vulnCount * 8.0));              // 12 个漏洞满量程
+            SetBarProgress(AiRiskHighRiskBar, Math.Min(100, highCveCount * 12.0));          // 8 个高危满量程
+            SetBarProgress(AiRiskCveCountBar, Math.Min(100, cveTotal * 6.0));                // 16 个 CVE 满量程
+
+            // 风险等级统计
+            int critical = 0, high = 0, medium = 0, low = 0;
+            if (report.RiskItems != null)
+            {
+                foreach (var item in report.RiskItems)
+                {
+                    switch (item.Level)
+                    {
+                        case RiskLevelV5.Critical:
+                        case RiskLevelV5.Extreme:
+                            critical++;
+                            break;
+                        case RiskLevelV5.High:
+                            high++;
+                            break;
+                        case RiskLevelV5.Medium:
+                            medium++;
+                            break;
+                        case RiskLevelV5.Low:
+                        case RiskLevelV5.Safe:
+                            low++;
+                            break;
+                    }
+                }
+            }
+            else
+            {
+                critical = report.CvssBreakdown?.TotalCriticalCves ?? 0;
+                high = report.CvssBreakdown?.TotalHighCves ?? 0;
+                medium = report.CvssBreakdown?.TotalMediumCves ?? 0;
+                low = report.CvssBreakdown?.TotalLowCves ?? 0;
+            }
+
+            if (AiRiskCriticalCountText != null) AiRiskCriticalCountText.Text = critical.ToString();
+            if (AiRiskHighCountText != null) AiRiskHighCountText.Text = high.ToString();
+            if (AiRiskMediumCountText != null) AiRiskMediumCountText.Text = medium.ToString();
+            if (AiRiskLowCountText != null) AiRiskLowCountText.Text = low.ToString();
+
+            var maxDist = Math.Max(1, Math.Max(Math.Max(critical, high), Math.Max(medium, low)));
+            SetBarProgress(AiRiskCriticalBar, critical * 100.0 / maxDist);
+            SetBarProgress(AiRiskHighBar, high * 100.0 / maxDist);
+            SetBarProgress(AiRiskMediumBar, medium * 100.0 / maxDist);
+            SetBarProgress(AiRiskLowBar, low * 100.0 / maxDist);
+
+            // 状态文字副标题
+            if (AiRiskStatusSubText != null)
+            {
+                AiRiskStatusSubText.Text = $"目标 {report.TargetIp} · 已分析 {report.RiskItems?.Count ?? 0} 项风险 · 置信度 {(report.ConfidenceScore * 100):0.0}%";
+            }
+
+            // 填充所有图表
+            try { BuildCveSeverityChart(report); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AI] CVE 柱状图: {ex.Message}"); }
+            try { BuildServiceTypeChart(report); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AI] 服务饼图: {ex.Message}"); }
+            try { BuildDimensionalChart(report); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AI] 维度雷达: {ex.Message}"); }
+            try { BuildRemediationChart(report); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AI] 修复柱状图: {ex.Message}"); }
+            try { BuildCategoryChart(report); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AI] 类别饼图: {ex.Message}"); }
+            try { BuildKillChainChart(report); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AI] 杀伤链雷达: {ex.Message}"); }
+            try { BuildGaugeChart(report); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AI] 仪表盘: {ex.Message}"); }
+            try { BuildKeyFindingsList(report); } catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[AI] 关键发现: {ex.Message}"); }
+        }
+
+        /// <summary>
+        /// 构建 CVE 严重度分布柱状图（X = 严重/高危/中危/低危，Y = 数量）
+        /// </summary>
+        private void BuildCveSeverityChart(AIRiskAssessmentReportV5 report)
+        {
+            if (AiRiskCveSeverityChart == null) return;
+            var cvss = report.CvssBreakdown ?? new CvssBreakdownV5();
+            double[] values = new[]
+            {
+            Math.Max(0.0, cvss.TotalCriticalCves),
+            Math.Max(0.0, cvss.TotalHighCves),
+            Math.Max(0.0, cvss.TotalMediumCves),
+            Math.Max(0.0, cvss.TotalLowCves)
+        };
+            var series = new ISeries[]
+            {
+            new ColumnSeries<double>
+            {
+                Name = "CVE 数",
+                Values = values,
+                Fill = CjkPaint(SKColor.Parse("#2563EB")),
+                Stroke = null,
+                MaxBarWidth = 40
+            }
+            };
+            AiRiskCveSeverityChart.Series = series;
+            AiRiskCveSeverityChart.XAxes = new[]
+            {
+            new Axis
+            {
+                Labels = new[] { "严重", "高危", "中危", "低危" },
+                LabelsPaint = CjkPaint(SKColor.Parse("#64748B")),
+                TextSize = 12
+            }
+        };
+            AiRiskCveSeverityChart.YAxes = new[]
+            {
+            new Axis
+            {
+                MinStep = 1,
+                LabelsPaint = CjkPaint(SKColor.Parse("#94A3B8")),
+                TextSize = 11,
+                ShowSeparatorLines = true,
+                SeparatorsPaint = CjkPaint(SKColor.Parse("#E2E8F0"), 1)
+            }
+        };
+            ApplyTooltipPaint(AiRiskCveSeverityChart);
+        }
+
+        /// <summary>
+        /// 构建服务类型分布饼图（ServiceTypeDistribution）
+        /// </summary>
+        private void BuildServiceTypeChart(AIRiskAssessmentReportV5 report)
+        {
+            if (AiRiskServiceTypeChart == null) return;
+            var dist = report.PortStatistics?.ServiceTypeDistribution ?? new Dictionary<string, int>();
+            var colors = new[]
+            {
+            SKColor.Parse("#2563EB"), SKColor.Parse("#10B981"), SKColor.Parse("#F59E0B"),
+            SKColor.Parse("#EF4444"), SKColor.Parse("#8B5CF6"), SKColor.Parse("#EC4899"),
+            SKColor.Parse("#14B8A6"), SKColor.Parse("#F97316"), SKColor.Parse("#6366F1")
+        };
+            var seriesList = new List<ISeries>();
+            if (dist.Count == 0)
+            {
+                // 数据为 0 时仍显示一个空扇区
+                seriesList.Add(new PieSeries<double> { Values = new[] { 0.0001 }, Name = "暂无数据", Fill = CjkPaint(SKColor.Parse("#CBD5E1")) });
+            }
+            else
+            {
+                int idx = 0;
+                foreach (var kv in dist.OrderByDescending(kv => kv.Value).Take(9))
+                {
+                    var color = colors[idx % colors.Length];
+                    seriesList.Add(new PieSeries<double>
+                    {
+                        Values = new[] { (double)kv.Value },
+                        Name = string.IsNullOrEmpty(kv.Key) ? "未知" : kv.Key,
+                        Fill = CjkPaint(color),
+                        Stroke = CjkPaint(SKColors.White, 1)
+                    });
+                    idx++;
+                }
+            }
+            AiRiskServiceTypeChart.Series = seriesList.ToArray();
+            AiRiskServiceTypeChart.LegendTextPaint = CjkPaint(SKColor.Parse("#0F172A"));
+            ApplyTooltipPaint(AiRiskServiceTypeChart);
+        }
+
+        /// <summary>
+        /// 构建 10 维评分雷达图
+        /// </summary>
+        private void BuildDimensionalChart(AIRiskAssessmentReportV5 report)
+        {
+            if (AiRiskDimensionalChart == null) return;
+            var ds = report.DimensionalScores ?? new DimensionalScoresV5();
+            double[] values = new[]
+            {
+            ClampScore(ds.NetworkExposure),
+            ClampScore(ds.ServiceVulnerability),
+            ClampScore(ds.VulnerabilitySeverity),
+            ClampScore(ds.ConfigurationRisk),
+            ClampScore(ds.AccessControl),
+            ClampScore(ds.DataExposure),
+            ClampScore(ds.AuthenticationStrength),
+            ClampScore(ds.EncryptionPosture),
+            ClampScore(ds.PatchingCadence),
+            ClampScore(ds.ComplianceGap)
+        };
+            var series = new ISeries[]
+            {
+            new PolarLineSeries<double>
+            {
+                Values = values,
+                Name = "评分",
+                Fill = CjkPaint(SKColor.Parse("#2563EB").WithAlpha(40)),
+                Stroke = CjkPaint(SKColor.Parse("#2563EB"), 2),
+                GeometryFill = CjkPaint(SKColor.Parse("#2563EB")),
+                GeometryStroke = CjkPaint(SKColors.White, 1),
+                GeometrySize = 8,
+                IsClosed = true
+            }
+            };
+            AiRiskDimensionalChart.Series = series;
+            // LiveChartsCore 2.0.0-rc2 的 PolarChart 没有可设置的 OuterRadius 属性（只有 InnerRadius 与 Relative* 构造器）。
+            // 因此仅通过 Axes 布局来避免标签被裁剪。任务 14 标注的 OuterRadius 在该版本中不存在，已跳过。
+            AiRiskDimensionalChart.AngleAxes = new[]
+            {
+            new PolarAxis
+            {
+                Labels = new[] { "网络暴露", "服务漏洞", "漏洞严重度", "配置风险", "访问控制", "数据暴露", "认证强度", "加密态势", "补丁节奏", "合规差距" },
+                LabelsPaint = CjkPaint(SKColor.Parse("#64748B")),
+                TextSize = 13
+            }
+        };
+            AiRiskDimensionalChart.RadiusAxes = new[]
+            {
+            new PolarAxis
+            {
+                MinLimit = 0,
+                MaxLimit = 10,
+                ForceStepToMin = true,
+                MinStep = 2,
+                LabelsPaint = CjkPaint(SKColor.Parse("#94A3B8")),
+                TextSize = 10,
+                ShowSeparatorLines = true,
+                SeparatorsPaint = CjkPaint(SKColor.Parse("#E2E8F0"), 1)
+            }
+        };
+            ApplyTooltipPaint(AiRiskDimensionalChart);
+        }
+
+        /// <summary>
+        /// 构建修复优先级柱状图（P0-P4）
+        /// </summary>
+        private void BuildRemediationChart(AIRiskAssessmentReportV5 report)
+        {
+            if (AiRiskRemediationChart == null) return;
+            var plan = report.RemediationPlan ?? new RemediationPlanV5();
+            double[] values = new[]
+            {
+            Math.Max(0.0, plan.P0ImmediateCount),
+            Math.Max(0.0, plan.P1UrgentCount),
+            Math.Max(0.0, plan.P2HighCount),
+            Math.Max(0.0, plan.P3NormalCount),
+            Math.Max(0.0, plan.P4LowCount)
+        };
+            var colors = new[]
+            {
+            SKColor.Parse("#DC2626"),
+            SKColor.Parse("#EA580C"),
+            SKColor.Parse("#D97706"),
+            SKColor.Parse("#65A30D"),
+            SKColor.Parse("#16A34A")
+        };
+            var seriesList = new List<ISeries>();
+            for (int i = 0; i < values.Length; i++)
+            {
+                seriesList.Add(new ColumnSeries<double>
+                {
+                    Name = $"P{i}",
+                    Values = new[] { values[i] },
+                    Fill = CjkPaint(colors[i]),
+                    Stroke = null,
+                    MaxBarWidth = 32
+                });
+            }
+            AiRiskRemediationChart.Series = seriesList.ToArray();
+            AiRiskRemediationChart.XAxes = new[]
+            {
+            new Axis
+            {
+                Labels = new[] { "P0 立即", "P1 紧急", "P2 高", "P3 中", "P4 低" },
+                LabelsPaint = CjkPaint(SKColor.Parse("#64748B")),
+                TextSize = 12,
+                LabelsRotation = -25
+            }
+        };
+            AiRiskRemediationChart.YAxes = new[]
+            {
+            new Axis
+            {
+                MinStep = 1,
+                LabelsPaint = CjkPaint(SKColor.Parse("#94A3B8")),
+                TextSize = 11,
+                ShowSeparatorLines = true,
+                SeparatorsPaint = CjkPaint(SKColor.Parse("#E2E8F0"), 1)
+            }
+        };
+            ApplyTooltipPaint(AiRiskRemediationChart);
+        }
+
+        /// <summary>
+        /// 构建风险类别分布饼图（按 RiskItem.Category 聚合）
+        /// </summary>
+        private void BuildCategoryChart(AIRiskAssessmentReportV5 report)
+        {
+            if (AiRiskCategoryChart == null) return;
+            var group = (report.RiskItems ?? new List<AIRiskItemV5>())
+                .GroupBy(it => it.Category)
+                .OrderByDescending(g => g.Count())
+                .ToList();
+            var colors = new[]
+            {
+            SKColor.Parse("#2563EB"), SKColor.Parse("#10B981"), SKColor.Parse("#F59E0B"),
+            SKColor.Parse("#EF4444"), SKColor.Parse("#8B5CF6"), SKColor.Parse("#EC4899"),
+            SKColor.Parse("#14B8A6"), SKColor.Parse("#F97316"), SKColor.Parse("#6366F1")
+        };
+            var seriesList = new List<ISeries>();
+            if (group.Count == 0)
+            {
+                seriesList.Add(new PieSeries<double> { Values = new[] { 0.0001 }, Name = "暂无数据", Fill = CjkPaint(SKColor.Parse("#CBD5E1")) });
+            }
+            else
+            {
+                int idx = 0;
+                foreach (var g in group.Take(9))
+                {
+                    var color = colors[idx % colors.Length];
+                    seriesList.Add(new PieSeries<double>
+                    {
+                        Values = new[] { (double)g.Count() },
+                        Name = MapCategoryName(g.Key),
+                        Fill = CjkPaint(color),
+                        Stroke = CjkPaint(SKColors.White, 1)
+                    });
+                    idx++;
+                }
+            }
+            AiRiskCategoryChart.Series = seriesList.ToArray();
+            AiRiskCategoryChart.LegendTextPaint = CjkPaint(SKColor.Parse("#0F172A"));
+            ApplyTooltipPaint(AiRiskCategoryChart);
+        }
+
+        /// <summary>
+        /// 构建杀伤链覆盖度雷达图（KillChain）
+        /// </summary>
+        private void BuildKillChainChart(AIRiskAssessmentReportV5 report)
+        {
+            if (AiRiskKillChainChart == null) return;
+            var kc = report.AttackChainAnalysis?.KillChain ?? new List<KillChainPhaseV5>();
+            // 选取 8 个核心阶段（Reconnaissance, InitialAccess, Execution, PrivilegeEscalation, CredentialAccess, Discovery, LateralMovement, Impact）
+            var phaseOrder = new[]
+            {
+            AttackPhaseV5.Reconnaissance, AttackPhaseV5.InitialAccess, AttackPhaseV5.Execution,
+            AttackPhaseV5.PrivilegeEscalation, AttackPhaseV5.CredentialAccess, AttackPhaseV5.Discovery,
+            AttackPhaseV5.LateralMovement, AttackPhaseV5.Impact
+        };
+            var phaseLabels = new[] { "侦察", "初始访问", "执行", "提权", "凭据访问", "发现", "横向移动", "影响" };
+            // 构造 values：未覆盖的阶段用 0；覆盖度归一化到 0-10
+            var values = new double[phaseOrder.Length];
+            var phaseMap = kc.ToDictionary(p => p.Phase, p => p);
+            for (int i = 0; i < phaseOrder.Length; i++)
+            {
+                if (phaseMap.TryGetValue(phaseOrder[i], out var phase))
+                {
+                    // likelihood 0-1 → 0-10
+                    values[i] = Math.Max(0, Math.Min(10, phase.Likelihood * 10));
+                }
+                else
+                {
+                    values[i] = 0;
+                }
+            }
+            var series = new ISeries[]
+            {
+            new PolarLineSeries<double>
+            {
+                Values = values,
+                Name = "覆盖度",
+                Fill = CjkPaint(SKColor.Parse("#EA580C").WithAlpha(40)),
+                Stroke = CjkPaint(SKColor.Parse("#EA580C"), 2),
+                GeometryFill = CjkPaint(SKColor.Parse("#EA580C")),
+                GeometryStroke = CjkPaint(SKColors.White, 1),
+                GeometrySize = 7,
+                IsClosed = true
+            }
+            };
+            AiRiskKillChainChart.Series = series;
+            // LiveChartsCore 2.0.0-rc2 的 PolarChart 没有可设置的 OuterRadius 属性（只有 InnerRadius 与 Relative* 构造器）。
+            // 因此仅通过 Axes 布局来避免标签被裁剪。任务 14 标注的 OuterRadius 在该版本中不存在，已跳过。
+            AiRiskKillChainChart.AngleAxes = new[]
+            {
+            new PolarAxis
+            {
+                Labels = phaseLabels,
+                LabelsPaint = CjkPaint(SKColor.Parse("#64748B")),
+                TextSize = 13
+            }
+        };
+            AiRiskKillChainChart.RadiusAxes = new[]
+            {
+            new PolarAxis
+            {
+                MinLimit = 0,
+                MaxLimit = 10,
+                ForceStepToMin = true,
+                MinStep = 2,
+                LabelsPaint = CjkPaint(SKColor.Parse("#94A3B8")),
+                TextSize = 10,
+                ShowSeparatorLines = true,
+                SeparatorsPaint = CjkPaint(SKColor.Parse("#E2E8F0"), 1)
+            }
+        };
+            ApplyTooltipPaint(AiRiskKillChainChart);
+        }
+
+        /// <summary>
+        /// 构建综合风险评分小仪表盘（PieChart 模拟 Gauge）
+        /// </summary>
+        private void BuildGaugeChart(AIRiskAssessmentReportV5 report)
+        {
+            if (AiRiskGaugeChart == null) return;
+            var score = Math.Max(0, Math.Min(10, report.OverallRiskScore));
+            // 仪表盘 = 实际值 + 剩余（10-score）
+            double actual = score;
+            double remaining = Math.Max(0, 10 - score);
+            var (levelText, levelColor, _) = MapRiskLevel(report.OverallRiskLevel);
+            SKColor mainColor = SKColor.Parse(levelColor);
+            var series = new ISeries[]
+            {
+            new PieSeries<double>
+            {
+                Values = new[] { actual },
+                Name = "已用",
+                Fill = CjkPaint(mainColor),
+                Stroke = null,
+                InnerRadius = 28,
+                Pushout = 0,
+                MaxRadialColumnWidth = 18
+            },
+            new PieSeries<double>
+            {
+                Values = new[] { remaining },
+                Name = "剩余",
+                Fill = CjkPaint(SKColor.Parse("#E2E8F0")),
+                Stroke = null,
+                InnerRadius = 28,
+                Pushout = 0,
+                MaxRadialColumnWidth = 18
+            }
+            };
+            AiRiskGaugeChart.Series = series;
+            AiRiskGaugeChart.InitialRotation = 135;
+            AiRiskGaugeChart.MaxAngle = 270;
+            ApplyTooltipPaint(AiRiskGaugeChart);
+        }
+
+        /// <summary>
+        /// 填充关键发现列表（最多 8 条）
+        /// </summary>
+        private void BuildKeyFindingsList(AIRiskAssessmentReportV5 report)
+        {
+            if (AiRiskKeyFindingsList == null) return;
+            var items = new List<string>();
+            if (report.KeyFindingsSummary != null && report.KeyFindingsSummary.Count > 0)
+            {
+                items.AddRange(report.KeyFindingsSummary.Where(s => !string.IsNullOrWhiteSpace(s)).Take(8));
+            }
+            // 退化逻辑：基于 TopRiskScenarios / NarrativeThreatOverview
+            if (items.Count == 0)
+            {
+                var top = report.AttackChainAnalysis?.TopRiskScenarios;
+                if (top != null && top.Count > 0)
+                {
+                    items.AddRange(top.Where(s => !string.IsNullOrWhiteSpace(s)).Take(8));
+                }
+            }
+            if (items.Count == 0 && !string.IsNullOrWhiteSpace(report.ExecutiveSummary))
+            {
+                items.Add(report.ExecutiveSummary);
+            }
+            if (items.Count == 0)
+            {
+                items.Add("暂无关键发现");
+            }
+            AiRiskKeyFindingsList.ItemsSource = items;
+        }
+
+        /// <summary>
+        /// 将任意评分裁剪到 0-10。
+        /// </summary>
+        private static double ClampScore(double v)
+        {
+            if (double.IsNaN(v) || double.IsInfinity(v)) return 0;
+            return Math.Max(0, Math.Min(10, v));
+        }
+
+        /// <summary>
+        /// 将 RiskItemCategoryV5 翻译为中文。
+        /// </summary>
+        private static string MapCategoryName(RiskItemCategoryV5 c)
+        {
+            switch (c)
+            {
+                case RiskItemCategoryV5.PortExposure: return "端口暴露";
+                case RiskItemCategoryV5.ServiceVulnerability: return "服务漏洞";
+                case RiskItemCategoryV5.CveVulnerability: return "CVE 漏洞";
+                case RiskItemCategoryV5.ConfigurationRisk: return "配置风险";
+                case RiskItemCategoryV5.AccessControl: return "访问控制";
+                case RiskItemCategoryV5.DataExposure: return "数据暴露";
+                case RiskItemCategoryV5.AttackVector: return "攻击向量";
+                case RiskItemCategoryV5.RiskPattern: return "风险模式";
+                case RiskItemCategoryV5.Compliance: return "合规";
+                default: return c.ToString();
+            }
+        }
+
+        /// <summary>
+        /// 更新状态条文字 + 进度 + 按钮可用性。
+        /// </summary>
+        private void UpdateAiRiskDashboardStatus(string status, int progress, bool isRunning)
+        {
+            if (this.Dispatcher.CheckAccess())
+            {
+                if (AiRiskStatusText != null) AiRiskStatusText.Text = status ?? string.Empty;
+                if (AiRiskProgressBar != null) AiRiskProgressBar.Value = Math.Max(0, Math.Min(100, progress));
+                if (AiRiskRefreshButton != null) AiRiskRefreshButton.IsEnabled = !isRunning;
+            }
+            else
+            {
+                this.Dispatcher.Invoke(() =>
+                {
+                    if (AiRiskStatusText != null) AiRiskStatusText.Text = status ?? string.Empty;
+                    if (AiRiskProgressBar != null) AiRiskProgressBar.Value = Math.Max(0, Math.Min(100, progress));
+                    if (AiRiskRefreshButton != null) AiRiskRefreshButton.IsEnabled = !isRunning;
+                });
+            }
+        }
+
+        /// <summary>
+        /// 显示空状态提示，隐藏所有数据卡片。
+        /// </summary>
+        private void ShowAiRiskEmptyState()
+        {
+            if (this.Dispatcher.CheckAccess())
+            {
+                ShowAiRiskEmptyStateCore();
+            }
+            else
+            {
+                this.Dispatcher.Invoke(ShowAiRiskEmptyStateCore);
+            }
+        }
+
+        private void ShowAiRiskEmptyStateCore()
+        {
+            // 隐藏数据区
+            if (AiRiskDistributionPanel != null) AiRiskDistributionPanel.Visibility = Visibility.Collapsed;
+
+            // 显示空状态
+            if (AiRiskEmptyStatePanel != null) AiRiskEmptyStatePanel.Visibility = Visibility.Visible;
+
+            // 重置状态条
+            if (AiRiskStatusText != null) AiRiskStatusText.Text = "就绪";
+            if (AiRiskStatusSubText != null) AiRiskStatusSubText.Text = "等待扫描数据";
+            if (AiRiskProgressBar != null) AiRiskProgressBar.Value = 0;
+            if (AiRiskRefreshButton != null) AiRiskRefreshButton.IsEnabled = false;
+
+            // 重置主评分区
+            if (AiRiskMainScoreText != null) AiRiskMainScoreText.Text = "0.0";
+            if (AiRiskMainScoreText != null) AiRiskMainScoreText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16A34A"));
+            if (AiRiskLevelText != null) AiRiskLevelText.Text = "无风险";
+            if (AiRiskLevelText != null) AiRiskLevelText.Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#16A34A"));
+            if (AiRiskLevelBadge != null) AiRiskLevelBadge.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#F0FDF4"));
+            if (AiRiskTargetIpText != null) AiRiskTargetIpText.Text = "--";
+            if (AiRiskAssessmentTimeText != null) AiRiskAssessmentTimeText.Text = "--";
+            if (AiRiskConfidenceText != null) AiRiskConfidenceText.Text = "--";
+            if (AiRiskPostureText != null) AiRiskPostureText.Text = "--";
+            if (AiRiskReadinessText != null) AiRiskReadinessText.Text = "--";
+
+            // 重置四宫格
+            if (AiRiskOpenPortsCountText != null) AiRiskOpenPortsCountText.Text = "0";
+            if (AiRiskVulnCountText != null) AiRiskVulnCountText.Text = "0";
+            if (AiRiskHighRiskCountText != null) AiRiskHighRiskCountText.Text = "0";
+            if (AiRiskCveCountText != null) AiRiskCveCountText.Text = "0";
+            SetBarProgress(AiRiskOpenPortsBar, 0);
+            SetBarProgress(AiRiskVulnCountBar, 0);
+            SetBarProgress(AiRiskHighRiskBar, 0);
+            SetBarProgress(AiRiskCveCountBar, 0);
+
+            // 重置分布条
+            if (AiRiskCriticalCountText != null) AiRiskCriticalCountText.Text = "0";
+            if (AiRiskHighCountText != null) AiRiskHighCountText.Text = "0";
+            if (AiRiskMediumCountText != null) AiRiskMediumCountText.Text = "0";
+            if (AiRiskLowCountText != null) AiRiskLowCountText.Text = "0";
+            SetBarProgress(AiRiskCriticalBar, 0);
+            SetBarProgress(AiRiskHighBar, 0);
+            SetBarProgress(AiRiskMediumBar, 0);
+            SetBarProgress(AiRiskLowBar, 0);
+
+            // 清空所有图表
+            try { if (AiRiskCveSeverityChart != null) AiRiskCveSeverityChart.Series = new ISeries[0]; } catch { }
+            try { if (AiRiskServiceTypeChart != null) AiRiskServiceTypeChart.Series = new ISeries[0]; } catch { }
+            try { if (AiRiskDimensionalChart != null) AiRiskDimensionalChart.Series = new ISeries[0]; } catch { }
+            try { if (AiRiskRemediationChart != null) AiRiskRemediationChart.Series = new ISeries[0]; } catch { }
+            try { if (AiRiskCategoryChart != null) AiRiskCategoryChart.Series = new ISeries[0]; } catch { }
+            try { if (AiRiskKillChainChart != null) AiRiskKillChainChart.Series = new ISeries[0]; } catch { }
+            try { if (AiRiskGaugeChart != null) AiRiskGaugeChart.Series = new ISeries[0]; } catch { }
+            try { if (AiRiskKeyFindingsList != null) AiRiskKeyFindingsList.ItemsSource = null; } catch { }
+        }
+
+        /// <summary>
+        /// 将任意非负数值以"占 100"的方式写入 ProgressBar。
+        /// </summary>
+        private void SetBarProgress(ProgressBar bar, double value)
+        {
+            if (bar == null) return;
+            if (this.Dispatcher.CheckAccess())
+            {
+                bar.Value = Math.Max(0, Math.Min(100, value));
+            }
+            else
+            {
+                this.Dispatcher.Invoke(() => bar.Value = Math.Max(0, Math.Min(100, value)));
+            }
+        }
+
+        /// <summary>
+        /// 将 RiskLevelV5 映射为中文文字 + 主色 + 徽章背景。
+        /// </summary>
+        private static (string Text, string ColorHex, string BadgeBgHex) MapRiskLevel(RiskLevelV5 level)
+        {
+            switch (level)
+            {
+                case RiskLevelV5.Safe: return ("无风险", "#16A34A", "#F0FDF4");
+                case RiskLevelV5.Low: return ("低风险", "#65A30D", "#F7FEE7");
+                case RiskLevelV5.Medium: return ("中风险", "#D97706", "#FFFBEB");
+                case RiskLevelV5.High: return ("高风险", "#EA580C", "#FFF7ED");
+                case RiskLevelV5.Critical: return ("严重风险", "#DC2626", "#FEF2F2");
+                case RiskLevelV5.Extreme: return ("极严重", "#DC2626", "#FEF2F2");
+                default: return ("无风险", "#16A34A", "#F0FDF4");
+            }
+        }
+
+        /// <summary>
+        /// 尝试从主窗口当前输入控件中获取目标 IP；找不到则返回 null。
+        /// </summary>
+        private string TryGetCurrentTargetIp()
+        {
+            try
+            {
+                var tb = this.FindName("TargetIpTextBox") as TextBox;
+                if (tb != null && !string.IsNullOrWhiteSpace(tb.Text)) return tb.Text.Trim();
+
+                // 兜底：使用最近一次扫描结果中的 IP
+                if (_portScanResults != null && _portScanResults.Count > 0)
+                {
+                    var ip = _portScanResults[0].TargetIp;
+                    if (!string.IsNullOrWhiteSpace(ip)) return ip;
+                }
+                if (_vulnerabilityResults != null && _vulnerabilityResults.Count > 0)
+                {
+                    var ip = _vulnerabilityResults[0].Target;
+                    if (!string.IsNullOrWhiteSpace(ip)) return ip;
+                }
+            }
+            catch
+            {
+                // 静默，返回 null
+            }
+            return null;
+        }
+
+        #endregion
+
+    }
 }

@@ -12,9 +12,11 @@ namespace NetSecurityScanner.Services
     {
         private readonly string _licenseDirectory;
         private readonly string _licenseFilePath;
-        private static readonly string _aesPassword = "NSS2026LicKey!@#";
+        private static readonly string _aesPassword =
+            Environment.GetEnvironmentVariable("NSS_AES_PASSWORD") ?? "NSS2026LicKey!@#";
         private static readonly byte[] _aesSalt = { 0x4E, 0x53, 0x53, 0x4C, 0x69, 0x63, 0x32, 0x30 };
-        private static readonly string _hmacKey = "NSS2026Hmac!@#Lic";
+        private static readonly string _hmacKey =
+            Environment.GetEnvironmentVariable("NSS_HMAC_KEY") ?? "NSS2026Hmac!@#Lic";
         private const string PublicKeyXml = "<RSAKeyValue><Modulus>xLb4Z7t6d/jwQl/wby9+qVznmdB5nELC6yJxAzRZfKA6/nCcan0DV+PFFEsQTSpPvDiA124VzsPEcJwbZMnOon2NgoEUD3hQWOPq+qnOgEO9yrmV1enOVM9wdLHgkC6dq2c13tryf109LAtiHj0f58dvyuu6QkjH8b5MYG3q2FEZgnvm9cajSnY9P6DfD1OTalfkgGWTO7+CVJCWfE4IOD69t3bpC1nWgmIOoz7AVDjhg6/BO6ixHG/kkkgnpLi5noutxhYOjDZWu3umDfOODQ34EYZlgsAL4HlJwMpqBX+Iw33pbpBrn3/1lI7eQJT8e7U4HJXLefI0QMMiOu0qnQ==</Modulus><Exponent>AQAB</Exponent></RSAKeyValue>";
 
         public LicenseService()

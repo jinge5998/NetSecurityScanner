@@ -6,6 +6,7 @@ using System.IO.Pipes;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using NetSecurityScanner.Core.Models;
@@ -22,7 +23,7 @@ namespace NetSecurityScanner.Services
     }
 
     /// <summary>
-    /// Rust 扫描服务 v1.0.0.8
+    /// Rust 扫描服务 v1.0.2.1
     /// 通过命名管道或 TCP 与 Rust 扫描服务通信
     /// </summary>
     public class RustScannerClient : IDisposable
@@ -30,7 +31,9 @@ namespace NetSecurityScanner.Services
         private readonly string _pipeName = "NetSecurityScannerIPC";
         private readonly int _tcpPort = 9527;
         private readonly bool _usePipe = false;
-        private readonly string _version = "1.0.0.8";
+#pragma warning disable CS0414
+        private readonly string _version = "1.0.2.0";
+#pragma warning restore CS0414
         private NamedPipeClientStream? _pipeClient;
         private TcpClient? _tcpClient;
         private Process? _rustProcess;
@@ -80,6 +83,22 @@ namespace NetSecurityScanner.Services
         {
             try
             {
+                // 复用已存在的服务：端口 9527 若已被监听，说明上一次的 Rust 服务仍在运行
+                // （例如上次扫描异常退出未清理进程、或打开了多个专家模式窗口）。
+                // 此时若再启动新进程，Rust 端 bind 会失败并直接退出：
+                //   Error: 通常每个套接字地址(协议/网络地址/端口)只允许使用一次。 (os error 10048)
+                // 因此先探测并复用，避免无谓的启动失败。
+                if (await IsPortInUseAsync(_tcpPort).ConfigureAwait(false))
+                {
+                    OnLog?.Invoke(this, $"ℹ️ 检测到端口 {_tcpPort} 已有服务在监听，尝试复用现有 Rust 扫描服务");
+                    if (await ConnectAsync().ConfigureAwait(false))
+                    {
+                        OnLog?.Invoke(this, "✅ 已复用现有 Rust 扫描服务（未启动新进程）");
+                        return true;
+                    }
+                    OnLog?.Invoke(this, "⚠️ 端口被占用但无法连接（可能是其它程序占用），仍尝试启动新服务");
+                }
+
                 // 检查 Rust 可执行文件是否存在
                 if (!File.Exists(rustExePath))
                 {
@@ -98,6 +117,21 @@ namespace NetSecurityScanner.Services
                     RedirectStandardOutput = true,
                     RedirectStandardError = true
                 };
+
+                // Windows 中文环境下 Rust 子进程按系统 ANSI 代码页（GBK, 936）输出中文，
+                // 而 .NET 默认以 UTF-8 解码，会把 "通常每个套接字地址..." 显示成
+                // "閫氬父姣忎釜濂楁帴瀛楀湴鍧€..." 这类乱码，导致错误信息无法阅读。
+                // 显式指定 GBK 编码即可正常显示（仅在支持设置编码的运行时上生效）。
+                try
+                {
+                    var gb2312 = Encoding.GetEncoding("GB2312");
+                    startInfo.StandardOutputEncoding = gb2312;
+                    startInfo.StandardErrorEncoding = gb2312;
+                }
+                catch
+                {
+                    // 某些平台/运行时不支持设置编码，忽略即可（退化为默认 UTF-8）
+                }
 
                 _rustProcess = Process.Start(startInfo);
                 if (_rustProcess == null)
@@ -130,15 +164,28 @@ namespace NetSecurityScanner.Services
                         catch { }
 
                         OnLog?.Invoke(this, $"❌ Rust扫描服务启动后退出 (退出码: {_rustProcess.ExitCode})");
-                        OnLog?.Invoke(this, "   可能原因: 参数错误、缺少运行库、防火墙拦截等");
+
                         // 读取 stderr 获取详细错误
+                        string stderrText = string.Empty;
                         try
                         {
-                            var stderr = await _rustProcess.StandardError.ReadToEndAsync();
-                            if (!string.IsNullOrEmpty(stderr))
-                                OnLog?.Invoke(this, $"   stderr: {stderr.Trim()}");
+                            stderrText = await _rustProcess.StandardError.ReadToEndAsync();
+                            if (!string.IsNullOrEmpty(stderrText))
+                                OnLog?.Invoke(this, $"   stderr: {stderrText.Trim()}");
                         }
                         catch { }
+
+                        // 针对 os error 10048（端口被占用）给出精准提示，
+                        // 避免统一提示"缺少运行库/防火墙"误导排查方向。
+                        if (stderrText.Contains("10048"))
+                        {
+                            OnLog?.Invoke(this, $"   ➜ 端口 {_tcpPort} 已被占用：上一个 Rust 扫描服务进程可能未退出。");
+                            OnLog?.Invoke(this, "   ➜ 处理：关闭其它扫描窗口，或在任务管理器结束残留的 rust-scanner-service 进程后重试。");
+                        }
+                        else
+                        {
+                            OnLog?.Invoke(this, "   可能原因: 参数错误、缺少运行库、防火墙拦截等");
+                        }
 
                         _rustProcess.Dispose();
                         _rustProcess = null;
@@ -163,6 +210,35 @@ namespace NetSecurityScanner.Services
         }
 
         /// <summary>
+        /// Rust tracing 输出的 ANSI 颜色/样式转义序列。保留它们会严重干扰日志阅读与检索。
+        /// </summary>
+        private static readonly Regex AnsiEscapeRegex =
+            new Regex(@"\x1B\[[0-9;]*[A-Za-z]", RegexOptions.Compiled);
+
+        /// <summary>
+        /// 判断 Rust 子进程的输出行是否应丢弃。
+        ///
+        /// 背景：Rust 端以 tracing 的 INFO 级别逐端口打印日志，形如
+        ///   scan_tcp_port: 211.137.75.166 65327 -> filtered
+        ///   [result] 211.137.75.166:80
+        /// 全端口扫描（65535 端口）会产生 6 万行以上，实测单个日志文件膨胀到 40MB，
+        /// 既拖慢扫描也几乎无法检索。而这些逐端口行对排查问题没有价值——
+        /// 扫描结果已通过 IPC 协议返回给 C#，不需要再从日志里读。
+        ///
+        /// 因此只保留 WARN / ERROR 以及无级别标记的行（如 panic、自定义输出）。
+        /// </summary>
+        private static bool ShouldSkipRustOutput(string rawLine)
+        {
+            var line = AnsiEscapeRegex.Replace(rawLine, "").Trim();
+            if (line.Length == 0) return true;                                  // 空行
+            if (line.StartsWith("at ", StringComparison.Ordinal)) return true;  // tracing 位置行 at src\...rs:NNN
+            if (line.IndexOf(" INFO ", StringComparison.Ordinal) >= 0) return true;
+            if (line.IndexOf(" DEBUG ", StringComparison.Ordinal) >= 0) return true;
+            if (line.IndexOf(" TRACE ", StringComparison.Ordinal) >= 0) return true;
+            return false;
+        }
+
+        /// <summary>
         /// 异步读取 Rust 子进程输出流，防止缓冲区满导致子进程阻塞
         /// </summary>
         private async Task ReadStreamAsync(StreamReader reader, string prefix, CancellationToken cancellationToken)
@@ -181,7 +257,10 @@ namespace NetSecurityScanner.Services
                     if (line == null)
                         break;
 
-                    OnLog?.Invoke(this, $"[Rust {prefix}] {line}");
+                    // 过滤逐端口的 INFO 噪音，并剥离 ANSI 转义码后写入
+                    if (ShouldSkipRustOutput(line)) continue;
+
+                    OnLog?.Invoke(this, $"[Rust {prefix}] {AnsiEscapeRegex.Replace(line, "").TrimEnd()}");
                 }
             }
             catch (OperationCanceledException) { }
@@ -190,6 +269,41 @@ namespace NetSecurityScanner.Services
             catch (Exception ex)
             {
                 try { OnLog?.Invoke(this, $"[Rust {prefix}] 读取流异常: {ex.Message}"); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 探测本机指定 TCP 端口是否已被监听。
+        /// 用于判断 Rust 扫描服务是否已在运行（避免重复启动导致 os error 10048）。
+        /// </summary>
+        private static async Task<bool> IsPortInUseAsync(int port)
+        {
+            TcpClient? probe = null;
+            try
+            {
+                probe = new TcpClient();
+                // 用超时任务兜底：端口无监听时 ConnectAsync 会等待系统超时（可能数秒）
+                var connectTask = probe.ConnectAsync("127.0.0.1", port);
+                var timeoutTask = Task.Delay(700);
+                var completed = await Task.WhenAny(connectTask, timeoutTask).ConfigureAwait(false);
+
+                if (completed != connectTask)
+                {
+                    // 超时：未连上，视为端口未被监听
+                    _ = connectTask.ContinueWith(t => { _ = t.Exception; }, TaskScheduler.Default);
+                    return false;
+                }
+
+                await connectTask.ConfigureAwait(false); // 消化异常，避免未观察任务异常
+                return probe.Connected;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                try { probe?.Dispose(); } catch { }
             }
         }
 
@@ -206,7 +320,7 @@ namespace NetSecurityScanner.Services
                 {
                     if (_usePipe)
                     {
-                        _pipeClient?.Dispose();
+                        try { _pipeClient?.Dispose(); } catch { }
                         _pipeClient = new NamedPipeClientStream(".", _pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
                         await _pipeClient.ConnectAsync(3000);
                         _isConnected = true;
@@ -215,7 +329,7 @@ namespace NetSecurityScanner.Services
                     }
                     else
                     {
-                        _tcpClient?.Dispose();
+                        try { _tcpClient?.Dispose(); } catch { }
                         _tcpClient = new TcpClient();
                         await _tcpClient.ConnectAsync("127.0.0.1", _tcpPort);
                         _isConnected = true;
@@ -227,6 +341,17 @@ namespace NetSecurityScanner.Services
                 {
                     OnLog?.Invoke(this, $"⚠️ 连接Rust服务失败(第{attempt}次): {ex.Message}");
                     _isConnected = false;
+                    // 清理失败的连接资源
+                    if (_usePipe)
+                    {
+                        try { _pipeClient?.Dispose(); } catch { }
+                        _pipeClient = null;
+                    }
+                    else
+                    {
+                        try { _tcpClient?.Dispose(); } catch { }
+                        _tcpClient = null;
+                    }
                     if (attempt < 3)
                         await Task.Delay(500);
                 }
@@ -280,7 +405,12 @@ namespace NetSecurityScanner.Services
                     Protocol = protocol,
                     Concurrency = profileConfig?.TcpConcurrency ?? concurrency,
                     TcpTimeoutMs = profileConfig?.TimeoutMs ?? tcpTimeoutMs,
-                    UdpTimeoutMs = profileConfig?.TimeoutMs ?? udpTimeoutMs,
+                    // UDP 超时必须独立于 TCP：此前误用 profileConfig.TimeoutMs（即 TCP 超时），
+                    // 导致 UDP 探测沿用过短的 TCP 超时，UDP 端口被大量误判为关闭/过滤。
+                    // UdpTimeoutMs 为 0 表示调用方未单独配置，此时回退到 udpTimeoutMs 参数。
+                    UdpTimeoutMs = (profileConfig?.UdpTimeoutMs ?? 0) > 0
+                        ? profileConfig!.UdpTimeoutMs
+                        : udpTimeoutMs,
                     DetectService = profileConfig?.EnableServiceDetection ?? detectService,
                     IncludeClosed = includeClosed,
                     TcpConcurrency = profileConfig?.TcpConcurrency ?? concurrency,
@@ -315,10 +445,11 @@ namespace NetSecurityScanner.Services
                 while (!cancellationToken.IsCancellationRequested)
                 {
                     // 心跳检查: 15秒未收到任何消息则触发心跳超时
-                    if (DateTime.UtcNow - lastMessageTime > TimeSpan.FromSeconds(15))
+                    if (DateTime.UtcNow - lastMessageTime > TimeSpan.FromSeconds(heartbeatTimeoutSeconds))
                     {
                         var idle = (DateTime.UtcNow - lastMessageTime).TotalSeconds;
-                        OnLog?.Invoke(this, $"❌ Rust扫描服务 15 秒无响应，触发心跳超时 ({idle:F0}s 未收到任何消息)");
+                        OnLog?.Invoke(this, $"❌ Rust扫描服务 {heartbeatTimeoutSeconds} 秒无响应，触发心跳超时 ({idle:F0}s 未收到任何消息)");
+                        _isConnected = false; // 标记连接已断开
                         StopService();
                         throw new RustScannerTimeoutException("Rust扫描服务 15 秒无响应，已触发心跳超时");
                     }
@@ -334,12 +465,14 @@ namespace NetSecurityScanner.Services
                     catch (IOException ex)
                     {
                         OnLog?.Invoke(this, $"⚠️ 读取异常: {ex.Message}");
+                        _isConnected = false; // 标记连接已断开
                         break;
                     }
 
                     if (n == 0)
                     {
                         OnLog?.Invoke(this, "⚠️ Rust 服务关闭了连接");
+                        _isConnected = false; // 标记连接已断开
                         break;
                     }
 
@@ -379,12 +512,24 @@ namespace NetSecurityScanner.Services
                                     break;
 
                                 case "result":
-                                    var result = JsonSerializer.Deserialize<RustPortResult>(line, SnakeCaseOptions);
-                                    if (result != null)
+                                    try
                                     {
-                                        result.Type = "result";
-                                        results.Add(result);
-                                        OnResultReceived?.Invoke(this, result);
+                                        var result = JsonSerializer.Deserialize<RustPortResult>(line, SnakeCaseOptions);
+                                        if (result != null)
+                                        {
+                                            result.Type = "result";
+                                            results.Add(result);
+                                            OnResultReceived?.Invoke(this, result);
+                                            OnLog?.Invoke(this, $"📥 收到结果: {result.TargetIp}:{result.Port} [{result.Status}] svc={result.Service}");
+                                        }
+                                        else
+                                        {
+                                            OnLog?.Invoke(this, $"⚠️ 反序列化 result 返回 null: {line.Substring(0, Math.Min(line.Length, 200))}");
+                                        }
+                                    }
+                                    catch (JsonException jsonEx)
+                                    {
+                                        OnLog?.Invoke(this, $"❌ 反序列化 result 失败: {jsonEx.Message} | 内容: {line.Substring(0, Math.Min(line.Length, 200))}");
                                     }
                                     break;
 
@@ -677,32 +822,91 @@ namespace NetSecurityScanner.Services
         /// <summary>
         /// 在常见路径中查找 Rust 扫描服务可执行文件。
         /// 返回完整路径，未找到则返回 null。
+        /// 搜索顺序（从最可能到最不可能）：
+        ///   1. 应用根目录（发布/启动脚本场景）
+        ///   2. tools/、rust/ 子目录
+        ///   3. publish-* 平级目录（dev 启动器场景）
+        ///   4. src\rust-scanner-service\target\release|debug（开发编译场景）
         /// </summary>
         public static string? FindRustScannerExecutable()
         {
             var appDir = AppDomain.CurrentDomain.BaseDirectory;
+
+            // 规范化: 展开 ..\..\ 之类, 方便后续比较
+            string Norm(string p)
+            {
+                try { return Path.GetFullPath(p); } catch { return p; }
+            }
+
             var candidates = new List<string>
             {
+                // 1. 应用根目录直接放置
                 Path.Combine(appDir, "rust-scanner-service.exe"),
                 Path.Combine(appDir, "rust_scanner_service.exe"),
+                // 2. 子目录放置
                 Path.Combine(appDir, "tools", "rust-scanner-service.exe"),
                 Path.Combine(appDir, "rust", "rust-scanner-service.exe"),
-                Path.GetFullPath(Path.Combine(appDir, "..", "..", "..", "..", "rust-scanner-service", "target", "release", "rust-scanner-service.exe")),
-                Path.GetFullPath(Path.Combine(appDir, "..", "..", "..", "..", "rust-scanner-service", "target", "debug", "rust-scanner-service.exe")),
+                Path.Combine(appDir, "engines", "rust-scanner-service.exe"),
+                Path.Combine(appDir, "native", "rust-scanner-service.exe"),
             };
 
-            foreach (var path in candidates)
+            // 3. publish-v* 平级目录（dev 启动器从 publish-v1.0.1.6 启动时，需要回溯到 NetSecurityScanner 根目录）
+            try
             {
+                var parent = Directory.GetParent(appDir)?.FullName;
+                while (parent != null)
+                {
+                    // 1) 父目录直接放 exe
+                    candidates.Add(Path.Combine(parent, "rust-scanner-service.exe"));
+                    // 2) 父目录的 publish-v* 子目录
+                    foreach (var sub in Directory.EnumerateDirectories(parent, "publish-v*"))
+                    {
+                        candidates.Add(Path.Combine(sub, "rust-scanner-service.exe"));
+                        candidates.Add(Path.Combine(sub, "tools", "rust-scanner-service.exe"));
+                    }
+                    // 3) 父目录的 rust-scanner-service 源码构建产物
+                    candidates.Add(Path.Combine(parent, "src", "rust-scanner-service", "target", "release", "rust-scanner-service.exe"));
+                    candidates.Add(Path.Combine(parent, "src", "rust-scanner-service", "target", "debug", "rust-scanner-service.exe"));
+                    // 4) NetSecurityScanner 项目根的 tools 目录
+                    candidates.Add(Path.Combine(parent, "tools", "rust-scanner-service.exe"));
+                    // 到 NetSecurityScanner 根目录即可停止上溯
+                    if (Path.GetFileName(parent).Equals("NetSecurityScanner", StringComparison.OrdinalIgnoreCase))
+                        break;
+                    parent = Directory.GetParent(parent)?.FullName;
+                }
+            }
+            catch { /* 忽略上溯失败 */ }
+
+            // 4. 兼容 ../../../../ 相对路径（开发期 dotnet run）
+            candidates.Add(Path.GetFullPath(Path.Combine(appDir, "..", "..", "..", "..", "rust-scanner-service", "target", "release", "rust-scanner-service.exe")));
+            candidates.Add(Path.GetFullPath(Path.Combine(appDir, "..", "..", "..", "..", "rust-scanner-service", "target", "debug", "rust-scanner-service.exe")));
+
+            // 去重 + 校验
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var raw in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                var path = Norm(raw);
+                if (!seen.Add(path)) continue;
                 try
                 {
-                    var fullPath = Path.GetFullPath(path);
-                    if (File.Exists(fullPath))
-                        return fullPath;
+                    if (File.Exists(path))
+                        return path;
                 }
                 catch { }
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// 返回找到的 Rust 引擎目录（用于 UI 展示和"打开所在文件夹"），未找到返回 null。
+        /// </summary>
+        public static string? FindRustScannerDirectory()
+        {
+            var exe = FindRustScannerExecutable();
+            if (exe == null) return null;
+            try { return Path.GetDirectoryName(exe); } catch { return null; }
         }
 
         public void Dispose()

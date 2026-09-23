@@ -16,7 +16,7 @@ namespace NetSecurityScanner.Utils
         {
             var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
             var version = assembly.GetName().Version;
-            return version != null ? $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}" : "1.0.0.0";
+            return version != null ? $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}" : "1.0.2.1";
         }
     }
 }

@@ -22,32 +22,32 @@ namespace NetSecurityScanner.Utils
         private static int _successfulOperations;
         private static int _failedOperations;
         private static int _retriedOperations;
-        
+
         /// <summary>
         /// 总操作次数
         /// </summary>
         public static int TotalOperations => _totalOperations;
-        
+
         /// <summary>
         /// 成功操作次数
         /// </summary>
         public static int SuccessfulOperations => _successfulOperations;
-        
+
         /// <summary>
         /// 失败操作次数
         /// </summary>
         public static int FailedOperations => _failedOperations;
-        
+
         /// <summary>
         /// 重试操作次数
         /// </summary>
         public static int RetriedOperations => _retriedOperations;
-        
+
         /// <summary>
         /// 操作成功率
         /// </summary>
         public static double SuccessRate => _totalOperations > 0 ? (double)_successfulOperations / _totalOperations * 100 : 0;
-        
+
         /// <summary>
         /// 执行安全的网络操作（带重试）
         /// </summary>
@@ -66,16 +66,16 @@ namespace NetSecurityScanner.Utils
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _totalOperations);
-            
+
             Exception lastException = null;
-            
+
             for (int i = 0; i <= maxRetries; i++)
             {
                 try
                 {
                     if (cancellationToken.IsCancellationRequested)
                         return defaultValue;
-                    
+
                     var result = await operation().ConfigureAwait(false);
                     Interlocked.Increment(ref _successfulOperations);
                     return result;
@@ -120,12 +120,12 @@ namespace NetSecurityScanner.Utils
                     throw new NetworkOperationException($"网络操作失败: {ex.Message}", ex);
                 }
             }
-            
+
             Interlocked.Increment(ref _failedOperations);
             LogNetworkError("达到最大重试次数", lastException, maxRetries);
             return defaultValue;
         }
-        
+
         /// <summary>
         /// 执行安全的无返回值网络操作（带重试）
         /// </summary>
@@ -140,16 +140,16 @@ namespace NetSecurityScanner.Utils
             CancellationToken cancellationToken = default)
         {
             Interlocked.Increment(ref _totalOperations);
-            
+
             Exception lastException = null;
-            
+
             for (int i = 0; i <= maxRetries; i++)
             {
                 try
                 {
                     if (cancellationToken.IsCancellationRequested)
                         return;
-                    
+
                     await operation().ConfigureAwait(false);
                     Interlocked.Increment(ref _successfulOperations);
                     return;
@@ -182,11 +182,11 @@ namespace NetSecurityScanner.Utils
                     throw new NetworkOperationException($"网络操作失败: {ex.Message}", ex);
                 }
             }
-            
+
             Interlocked.Increment(ref _failedOperations);
             throw new NetworkOperationException($"网络操作在{maxRetries}次重试后仍然失败: {lastException?.Message}", lastException);
         }
-        
+
         /// <summary>
         /// 安全地连接TCP端口
         /// </summary>
@@ -203,7 +203,7 @@ namespace NetSecurityScanner.Utils
                     using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
                     {
                         cts.CancelAfter(timeoutMs);
-                        
+
                         try
                         {
                             await client.ConnectAsync(host, port, cts.Token);
@@ -217,7 +217,7 @@ namespace NetSecurityScanner.Utils
                 }
             }, false, 2, 500, cancellationToken);
         }
-        
+
         /// <summary>
         /// 安全地发送HTTP请求
         /// </summary>
@@ -237,7 +237,7 @@ namespace NetSecurityScanner.Utils
                 }
             }, string.Empty, 2, 1000, cancellationToken);
         }
-        
+
         /// <summary>
         /// 指数退避延迟
         /// </summary>
@@ -246,12 +246,12 @@ namespace NetSecurityScanner.Utils
             // 指数退避：delay = baseDelay * 2^retryCount + random jitter
             int delay = baseDelayMs * (int)Math.Pow(2, retryCount);
             delay = Math.Min(delay, 30000); // 最大30秒
-            
+
             // 添加随机抖动（避免惊群效应）
             var random = new Random();
             int jitter = random.Next(0, delay / 4);
             delay += jitter;
-            
+
             try
             {
                 await Task.Delay(delay, cancellationToken);
@@ -261,7 +261,7 @@ namespace NetSecurityScanner.Utils
                 // 取消时不抛出，让上层处理
             }
         }
-        
+
         /// <summary>
         /// 判断是否为可重试的Socket错误
         /// </summary>
@@ -279,12 +279,12 @@ namespace NetSecurityScanner.Utils
                 case SocketError.TryAgain:
                 case SocketError.AddressNotAvailable:
                     return true;
-                    
+
                 default:
                     return false;
             }
         }
-        
+
         /// <summary>
         /// 判断是否为可重试的Web错误
         /// </summary>
@@ -301,25 +301,20 @@ namespace NetSecurityScanner.Utils
                 case WebExceptionStatus.RequestCanceled:
                 case WebExceptionStatus.ConnectionClosed:
                     return true;
-                    
+
                 default:
                     return false;
             }
         }
-        
+
         /// <summary>
         /// 判断是否为可重试的IO错误
         /// </summary>
         private static bool IsRetryableIoError(IOException ex)
         {
-            // IO错误通常可以重试一次
-            return !(
-                ex is UnauthorizedAccessException ||
-                ex is ArgumentException ||
-                ex is ArgumentNullException
-            );
+            return true;
         }
-        
+
         /// <summary>
         /// 记录网络错误日志
         /// </summary>
@@ -327,7 +322,7 @@ namespace NetSecurityScanner.Utils
         {
             System.Diagnostics.Debug.WriteLine($"[SafeNetwork] {context} (尝试 {attempt + 1}): {ex?.GetType().Name}: {ex?.Message}");
         }
-        
+
         /// <summary>
         /// 重置统计数据
         /// </summary>
@@ -338,7 +333,7 @@ namespace NetSecurityScanner.Utils
             Interlocked.Exchange(ref _failedOperations, 0);
             Interlocked.Exchange(ref _retriedOperations, 0);
         }
-        
+
         /// <summary>
         /// 获取性能统计信息
         /// </summary>

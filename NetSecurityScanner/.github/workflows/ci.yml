@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - ".github/**"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+
+      - name: Restore dependencies
+        run: |
+          dotnet restore src/NetSecurityScanner.Core/NetSecurityScanner.Core.csproj
+          dotnet restore src/NetSecurityScanner.Desktop/NetSecurityScanner.Desktop.csproj
+          dotnet restore src/NetSecurityScanner.Core.Tests/NetSecurityScanner.Core.Tests.csproj
+
+      - name: Build Core
+        run: dotnet build src/NetSecurityScanner.Core/NetSecurityScanner.Core.csproj -c Release --no-restore
+
+      - name: Build Desktop
+        run: dotnet build src/NetSecurityScanner.Desktop/NetSecurityScanner.Desktop.csproj -c Release --no-restore
+
+      - name: Build Tests
+        run: dotnet build src/NetSecurityScanner.Core.Tests/NetSecurityScanner.Core.Tests.csproj -c Release --no-restore
+
+      - name: Run tests
+        run:
+          dotnet test src/NetSecurityScanner.Core.Tests/NetSecurityScanner.Core.Tests.csproj -c Release --no-restore `
+          --logger "console;verbosity=normal" `
+          --collect:"XPlat Code Coverage" `
+          --results-directory TestResults
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-results
+          path: TestResults/
+          retention-days: 30
+
+  security-scan:
+    runs-on: windows-latest
+    needs: build-and-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Check for vulnerable packages
+        run: |
+          dotnet list src/NetSecurityScanner.Core/NetSecurityScanner.Core.csproj --vulnerable
+          dotnet list src/NetSecurityScanner.Desktop/NetSecurityScanner.Desktop.csproj --vulnerable
+          dotnet list src/NetSecurityScanner.Core.Tests/NetSecurityScanner.Core.Tests.csproj --vulnerable
