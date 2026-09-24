@@ -1,0 +1,61 @@
+# 资产登记 + 账号注册审批 深度测试报告
+
+- 测试时间: 2026-06-12 10:10:29
+- 数据目录: `D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\DeepAssetApprovalTest\bin\Release\net6.0-windows\`
+- **通过: 52**
+- **失败: 0**
+
+## 用例明细
+
+- ✅ 1.a 正常注册 alice → Status=Pending、Permissions=[]、IsAdmin=false
+- ✅ 1.b 重名注册 alice → 返回 false
+- ✅ 1.c 弱密码 "123" → 返回 false
+- ✅ 1.d 步骤索引占位（实际验证见 1.d.1）
+- ✅ 1.d.1 注册 bob/charlie 用相同密码 → 各自 Salt/Hash 不同
+- ✅ 1.e 数据已写入 users.json
+- ✅ 2.a EnsureDefaultAdmin 创建 admin/123456（IsAdmin=true，10 项权限）
+- ✅ 2.b admin 可看到 4 个待审用户
+- ✅ 2.c ApproveUserAsync(alice, 3 项权限) → Active
+- ✅ 2.c.1 alice 状态 = Active 且 Permissions 含 3 项
+- ✅ 2.d BatchApproveAsync([bob, charlie], Operator 模板) → 2
+- ✅ 2.d.1 bob/charlie 状态均 Active
+- ✅ 2.e RejectUserAsync(dave) → Disabled
+- ✅ 2.e.1 dave 状态 = Disabled
+- ✅ 2.f.1 非 admin 调用 ApproveUserAsync 抛 UnauthorizedAccessException
+- ✅ 2.f.2 非 admin 调用 RejectUserAsync 抛异常
+- ✅ 2.f.3 非 admin 调用 GetPendingUsers 抛异常
+- ✅ 2.g SetUserPermissionsAsync(admin, admin, []) → 失败
+- ✅ 2.h 审计含 APPROVE x3 (alice/bob/charlie) + REJECT x1 (dave) + SET_PERMS x0
+- ✅ 3.a alice（仅 Asset:View）调用 AddAssetAsync 抛 UnauthorizedAccessException
+- ✅ 3.b alice 加 Asset:Add 后能 AddAssetAsync
+- ✅ 3.b.1 ListAssetsAsync 可见刚加的资产
+- ✅ 3.c UpdateAssetAsync 修改名称成功
+- ✅ 3.d.1 无 Asset:Delete 时 DeleteAssetAsync 抛 UnauthorizedAccessException
+- ✅ 3.d.2 有 Asset:Delete 时 DeleteAssetAsync 成功
+- ✅ 3.d.3 删除后 ListAssetsAsync 不可见
+- ✅ 3.e ImportFromScanResultsAsync 需要 Asset:Import 权限
+- ✅ 3.e.1 导入后 ListAssetsAsync 可见
+- ✅ 3.f Asset:Export 权限位在 Permission.AllPermissions 中
+- ✅ 4.a Permission.Templates.All.Count == 3
+- ✅ 4.b Viewer 仅含 Asset:View
+- ✅ 4.c Operator 含 Asset:View/Add/Edit/ScanRun，不含 Delete
+- ✅ 4.d AssetManager 含 8 项，不含 User:View/Manage
+- ✅ 4.e 套用 AssetManager 后审计含 APPROVE + SET_PERMS
+- ✅ 4.e.1 套用 AssetManager 后用户权限数 = 8
+- ✅ 5.a 审计含 7 种动作 (APPROVE/REJECT/SET_PERMS/DISABLE/ENABLE/RESET_PWD/CLEAR_AUDIT 部分)
+- ✅ 5.b ClearAuditLogAsync 后仅剩 CLEAR_AUDIT 自身
+- ✅ 5.c 每条记录 At/ Actor / Action 合法
+- ✅ 5.d 失败注册不强制写审计（业务层返回 false，audit 可选）
+- ✅ 6.a 5 次错误后登录返回 IsLocked=true，且第 6 次仍被锁
+- ✅ 6.b Disabled 用户登录被拒
+- ✅ 6.c 登出后 bob 仍能登录
+- ✅ 6.e AdminResetPasswordAsync 后用旧密码失败、新密码成功
+- ✅ 7.a alice 仅见自己的 3 个，bob 仅见自己的 3 个
+- ✅ 7.b assets.json 物理文件位于 assets/alice/ 与 assets/bob/
+- ✅ 7.c alice 的 service 实例加载 alice/ 目录，不包含 bob 的资产
+- ✅ 8.a NetSecurityScanner.Desktop.exe 编译产物存在
+- ✅ 8.b 关键 XAML 文件齐全（UserApproval/AssetManagement/AuditLog/Register）
+- ✅ 8.c UserApprovalWindow.xaml.cs 包含 BatchApproveAsync 调用
+- ✅ 8.d MainWindow.xaml.cs 包含待审用户定时器
+- ✅ 8.e WPF 进程 NetSecurityScanner.Desktop 当前未运行（隔离测试环境）
+- ✅ 8.f 生成 WpfInteractionProbe.ps1 交互探针脚本

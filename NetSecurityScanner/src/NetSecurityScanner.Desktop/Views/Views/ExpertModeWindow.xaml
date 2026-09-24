@@ -1,0 +1,2864 @@
+<Window x:Class="NetSecurityScanner.Views.ExpertModeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="专家模式 - 高级扫描配置"
+        Height="800"
+        Width="1100"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
+        Background="#F5F7FA">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题区域 -->
+        <Border Grid.Row="0">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0"
+                                     EndPoint="1,0">
+                    <GradientStop Color="#2C3E50"
+                                  Offset="0"/>
+                    <GradientStop Color="#3498DB"
+                                  Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Border CornerRadius="6"
+                    Padding="20,15">
+                <StackPanel>
+                    <TextBlock Text="🔧 专家模式 - 高级扫描配置"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                    <TextBlock Text="自定义所有扫描参数，精细控制扫描行为，适用于高级安全测试场景"
+                               FontSize="13"
+                               Foreground="#BDC3C7"
+                               Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- 主内容区域 -->
+        <TabControl Grid.Row="1"
+                    Margin="0,15,0,0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Name="ExpertTabControl"
+                    SelectionChanged="ExpertTabControl_SelectionChanged">
+            <!-- Tab 1: 目标配置 -->
+            <TabItem Header="🎯 目标配置">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="12">
+                        <!-- 目标类型 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,8"
+                                Background="White">
+                            <StackPanel Margin="12">
+                                <TextBlock Text="目标类型"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <WrapPanel>
+                                    <RadioButton Name="SingleIpRadio"
+                                                 Content="单个IP/域名"
+                                                 GroupName="TargetType"
+                                                 IsChecked="True"
+                                                 Margin="0,0,20,5"
+                                                 Checked="TargetTypeRadio_Checked"/>
+                                    <RadioButton Name="IpRangeRadio"
+                                                 Content="IP段范围"
+                                                 GroupName="TargetType"
+                                                 Margin="0,0,20,5"
+                                                 Checked="TargetTypeRadio_Checked"/>
+                                    <RadioButton Name="CidrRadio"
+                                                 Content="CIDR网段"
+                                                 GroupName="TargetType"
+                                                 Margin="0,0,20,5"
+                                                 Checked="TargetTypeRadio_Checked"/>
+                                    <RadioButton Name="FileRadio"
+                                                 Content="文件列表"
+                                                 GroupName="TargetType"
+                                                 Margin="0,0,20,5"
+                                                 Checked="TargetTypeRadio_Checked"/>
+                                    <RadioButton Name="RegexRadio"
+                                                 Content="正则模式"
+                                                 GroupName="TargetType"
+                                                 Margin="0,0,0,5"
+                                                 Checked="TargetTypeRadio_Checked"/>
+                                </WrapPanel>
+                                <TextBox Name="TargetInputTextBox"
+                                         Height="55"
+                                         TextWrapping="Wrap"
+                                         AcceptsReturn="True"
+                                         VerticalScrollBarVisibility="Auto"
+                                         Margin="0,8,0,5"
+                                         BorderBrush="#BDC3C7"
+                                         BorderThickness="1"
+                                         Padding="5"/>
+                                <TextBlock Name="TargetHintTextBlock"
+                                           Text="提示：输入单个IP地址，如 192.168.1.1 或 www.example.com"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"
+                                           Margin="0,0,0,5"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,5,0,0">
+                                    <Button Name="ImportFileButton"
+                                            Content="📁 导入文件"
+                                            Width="100"
+                                            Height="28"
+                                            Background="#3498DB"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ImportFileButton_Click"/>
+                                    <Button Name="PasteFromClipboardButton"
+                                            Content="📋 从剪贴板粘贴"
+                                            Width="130"
+                                            Height="28"
+                                            Background="#27AE60"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="PasteFromClipboardButton_Click"
+                                            Margin="5,0,0,0"/>
+                                    <TextBlock Name="TargetCountTextBlock"
+                                               Text="目标数量: 1"
+                                               Margin="15,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="#27AE60"
+                                               FontWeight="SemiBold"/>
+                                    <Button Name="DeduplicateButton"
+                                            Content="🔄 去重"
+                                            Width="80"
+                                            Height="28"
+                                            Background="#1ABC9C"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="DeduplicateButton_Click"
+                                            Margin="10,0,0,0"/>
+                                    <Button Name="PreviewTargetsButton"
+                                            Content="👁️ 预览"
+                                            Width="80"
+                                            Height="28"
+                                            Background="#34495E"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="PreviewTargetsButton_Click"
+                                            Margin="5,0,0,0"/>
+                                    <Button Name="ExportTargetsButton"
+                                            Content="📤 导出"
+                                            Width="80"
+                                            Height="28"
+                                            Background="#2ECC71"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ExportTargetsButton_Click"
+                                            Margin="5,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 高级目标选项 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,8"
+                                Background="White">
+                            <StackPanel Margin="12">
+                                <TextBlock Text="高级目标选项"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,8"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,10">
+                                    <CheckBox Name="ReverseDnsCheckBox"
+                                              Content="启用反向DNS解析"
+                                              Margin="0,0,20,0"/>
+                                    <CheckBox Name="HostDiscoveryCheckBox"
+                                              Content="先进行主机发现"
+                                              IsChecked="True"
+                                              Margin="0,0,0,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,5">
+                                    <Label Content="排除主机："
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,5,0"/>
+                                    <TextBox Name="ExcludeHostsTextBox"
+                                             Width="300"
+                                             Height="25"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"/>
+                                </StackPanel>
+                                <TextBlock Text="多个主机用逗号分隔，如：192.168.1.100,10.0.0.0/24"
+                                           FontSize="10"
+                                           Foreground="#95A5A6"
+                                           Margin="0,0,0,5"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 目标分组管理 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,8"
+                                Background="White">
+                            <StackPanel Margin="12">
+                                <TextBlock Text="📁 目标分组管理"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,8"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,8">
+                                    <ComboBox Name="TargetGroupComboBox"
+                                              Width="180"
+                                              Height="28"
+                                              SelectedIndex="0">
+                                        <ComboBoxItem Content="全部分组"
+                                                      Tag="all"/>
+                                    </ComboBox>
+                                    <Button Name="AddGroupButton"
+                                            Content="➕ 新建分组"
+                                            Width="90"
+                                            Height="28"
+                                            Background="#3498DB"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="AddGroupButton_Click"
+                                            Margin="8,0,0,0"/>
+                                    <Button Name="DeleteGroupButton"
+                                            Content="🗑️ 删除分组"
+                                            Width="90"
+                                            Height="28"
+                                            Background="#E74C3C"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="DeleteGroupButton_Click"
+                                            Margin="5,0,0,0"/>
+                                    <Button Name="AssignGroupButton"
+                                            Content="📌 分配到分组"
+                                            Width="100"
+                                            Height="28"
+                                            Background="#27AE60"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="AssignGroupButton_Click"
+                                            Margin="5,0,0,0"/>
+                                </StackPanel>
+                                <TextBlock Name="GroupInfoTextBlock"
+                                           Text="当前分组：全部分组 | 目标数：0"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 智能推荐 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,8"
+                                Background="White">
+                            <StackPanel Margin="12">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,5">
+                                    <TextBlock Text="智能推荐"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="#2C3E50"
+                                               Margin="0,0,15,0"/>
+                                    <Button Name="RecommendButton"
+                                            Content="💡 推荐模式"
+                                            Width="110"
+                                            Height="28"
+                                            Background="#9B59B6"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="RecommendButton_Click"/>
+                                </StackPanel>
+                                <TextBlock Name="RecommendResultTextBlock"
+                                           Text="点击「推荐模式」按钮，根据目标数量和网络条件自动推荐扫描参数"
+                                           FontSize="12"
+                                           Foreground="#7F8C8D"
+                                           TextWrapping="Wrap"
+                                           Margin="0,3,0,0"/>
+                                <Button Name="ApplyRecommendButton"
+                                        Content="✅ 应用推荐"
+                                        Width="110"
+                                        Height="26"
+                                        Margin="0,8,0,0"
+                                        Background="#27AE60"
+                                        Foreground="White"
+                                        BorderThickness="0"
+                                        Visibility="Collapsed"
+                                        Click="ApplyRecommendButton_Click"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 实时扫描日志 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="📝 扫描日志"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="#2C3E50"/>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <Button Name="ExportLogButton"
+                                                Content="📥 导出日志"
+                                                Width="90"
+                                                Height="28"
+                                                Background="#16A085"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="ExportLogButton_Click"
+                                                Margin="0,0,5,0"/>
+                                        <Button Name="ClearLogButton"
+                                                Content="🗑️ 清空日志"
+                                                Width="90"
+                                                Height="28"
+                                                Background="#95A5A6"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="ClearLogButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                                <TextBox Name="ScanLogTextBox"
+                                         Height="120"
+                                         IsReadOnly="True"
+                                         VerticalScrollBarVisibility="Auto"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas"
+                                         FontSize="11"
+                                         Background="#1E1E1E"
+                                         Foreground="#D4D4D4"
+                                         BorderBrush="#BDC3C7"
+                                         BorderThickness="1"
+                                         Padding="8"
+                                         TextWrapping="NoWrap"
+                                         AcceptsReturn="True"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 2: 端口与服务 -->
+            <TabItem Header="🔌 端口与服务">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <!-- 端口扫描模式 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="端口扫描模式"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <WrapPanel>
+                                    <RadioButton Name="CommonPortsRadio"
+                                                 Content="常用端口(Top 1000)"
+                                                 GroupName="PortMode"
+                                                 IsChecked="True"
+                                                 Margin="0,0,15,5"/>
+                                    <RadioButton Name="SensitivePortsRadio"
+                                                 Content="敏感端口"
+                                                 GroupName="PortMode"
+                                                 Margin="0,0,15,5"/>
+                                    <RadioButton Name="AllPortsRadio"
+                                                 Content="全部端口(1-65535)"
+                                                 GroupName="PortMode"
+                                                 Margin="0,0,15,5"/>
+                                    <RadioButton Name="CustomPortsRadio"
+                                                 Content="自定义端口"
+                                                 GroupName="PortMode"
+                                                 Margin="0,0,0,5"/>
+                                </WrapPanel>
+                                <TextBox Name="CustomPortsTextBox"
+                                         Height="60"
+                                         TextWrapping="Wrap"
+                                         AcceptsReturn="True"
+                                         VerticalScrollBarVisibility="Auto"
+                                         Margin="0,10,0,5"
+                                         IsEnabled="False"
+                                         BorderBrush="#BDC3C7"
+                                         BorderThickness="1"
+                                         Padding="5"
+                                         Text="21,22,23,25,53,80,110,143,443,993,995,1433,3306,3389,5432,6379,8080,8443,9200,27017"/>
+                                <TextBlock Text="支持范围格式：22,80,443,8000-9000"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"
+                                           Margin="0,0,0,10"/>
+                                <!-- 预设场景下拉框 -->
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,5,0,0">
+                                    <Label Content="预设场景："
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,5,0"/>
+                                    <ComboBox Name="PortPresetComboBox"
+                                              Width="220"
+                                              Height="28"
+                                              SelectionChanged="PortPresetComboBox_SelectionChanged">
+                                        <ComboBoxItem Content="-- 请选择预设场景 --"
+                                                      Tag="-1"/>
+                                        <ComboBoxItem Content="🌐 Web 服务器"
+                                                      Tag="WebServer"/>
+                                        <ComboBoxItem Content="🗄️ 数据库"
+                                                      Tag="Database"/>
+                                        <ComboBoxItem Content="🐳 容器/编排"
+                                                      Tag="Container"/>
+                                        <ComboBoxItem Content="🔑 远程访问"
+                                                      Tag="RemoteAccess"/>
+                                        <ComboBoxItem Content="📧 邮件服务"
+                                                      Tag="MailServer"/>
+                                        <ComboBoxItem Content="📁 文件共享"
+                                                      Tag="FileShare"/>
+                                        <ComboBoxItem Content="⚙️ DevOps 工具"
+                                                      Tag="DevOps"/>
+                                        <ComboBoxItem Content="📡 IoT 设备"
+                                                      Tag="IoTDevice"/>
+                                        <ComboBoxItem Content="📊 监控运维"
+                                                      Tag="Monitoring"/>
+                                        <ComboBoxItem Content="⚠️ 高危端口（重点）"
+                                                      Tag="HighRisk"/>
+                                    </ComboBox>
+                                    <Button Name="ApplyPresetButton"
+                                            Content="✅ 应用预设"
+                                            Width="100"
+                                            Height="28"
+                                            Margin="10,0,0,0"
+                                            Background="#16A085"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyPresetButton_Click"/>
+                                    <TextBlock Name="PresetDescriptionTextBlock"
+                                               Text=""
+                                               Margin="10,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="#7F8C8D"
+                                               FontSize="11"
+                                               TextWrapping="NoWrap"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 协议与检测 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="协议与检测"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,10">
+                                    <CheckBox Name="TcpScanCheckBox"
+                                              Content="TCP扫描"
+                                              IsChecked="True"
+                                              Margin="0,0,15,0"/>
+                                    <CheckBox Name="UdpScanCheckBox"
+                                              Content="UDP扫描"
+                                              Margin="0,0,15,0"/>
+                                    <CheckBox Name="SynScanCheckBox"
+                                              Content="SYN半开扫描"
+                                              Margin="0,0,0,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,5">
+                                    <CheckBox Name="ServiceVersionCheckBox"
+                                              Content="服务版本检测"
+                                              IsChecked="True"
+                                              Margin="0,0,15,0"/>
+                                    <CheckBox Name="OsDetectCheckBox"
+                                              Content="操作系统识别"
+                                              Margin="0,0,15,0"/>
+                                    <CheckBox Name="ScriptScanCheckBox"
+                                              Content="NSE脚本扫描"
+                                              Margin="0,0,0,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,10,0,5">
+                                    <Label Content="服务检测强度："
+                                           VerticalAlignment="Center"/>
+                                    <ComboBox Name="ServiceIntensityComboBox"
+                                              Width="200"
+                                              Height="28"
+                                              SelectedIndex="1">
+                                        <ComboBoxItem Content="0 - 仅常用端口"/>
+                                        <ComboBoxItem Content="1 - 标准检测"/>
+                                        <ComboBoxItem Content="2 - 增强检测"/>
+                                        <ComboBoxItem Content="3 - 全部检测"/>
+                                        <ComboBoxItem Content="4 - 暴力检测"/>
+                                        <ComboBoxItem Content="5 - 强度5（nmap 7）"/>
+                                        <ComboBoxItem Content="6 - 强度6（nmap 8）"/>
+                                        <ComboBoxItem Content="7 - 强度7（nmap 9）"/>
+                                        <ComboBoxItem Content="8 - 强度8"/>
+                                        <ComboBoxItem Content="9 - 强度9（最深度）"/>
+                                    </ComboBox>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 端口排除 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="端口排除列表"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <TextBox Name="ExcludePortsTextBox"
+                                         Height="40"
+                                         TextWrapping="Wrap"
+                                         BorderBrush="#BDC3C7"
+                                         BorderThickness="1"
+                                         Padding="5"
+                                         Text=""/>
+                                <TextBlock Text="不扫描的端口，用逗号分隔"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"
+                                           Margin="0,5,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 3: 性能调优 -->
+            <TabItem Header="⚡ 性能调优">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <!-- 扫描引擎 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="扫描引擎"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,5">
+                                    <RadioButton Name="RustEngineRadio"
+                                                 Content="Rust引擎（推荐，高速）"
+                                                 GroupName="ScanEngine"
+                                                 IsChecked="True"
+                                                 Margin="0,0,20,0"
+                                                 Checked="ScanEngineRadio_Checked"/>
+                                    <RadioButton Name="BuiltInEngineRadio"
+                                                 Content="内置C#引擎（兼容模式）"
+                                                 GroupName="ScanEngine"
+                                                 Margin="0,0,0,0"
+                                                 Checked="ScanEngineRadio_Checked"/>
+                                </StackPanel>
+                                <TextBlock Name="EngineStatusTextBlock"
+                                           Text="Rust引擎就绪"
+                                           FontSize="11"
+                                           Foreground="#27AE60"
+                                           Margin="0,5,0,0"/>
+                                <TextBlock Name="EnginePathTextBlock"
+                                           Text=""
+                                           FontSize="10"
+                                           Foreground="#7F8C8D"
+                                           Margin="0,2,0,0"
+                                           TextWrapping="Wrap"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,8,0,0">
+                                    <Button Name="TestRustEngineButton"
+                                            Content="🧪 自检引擎"
+                                            Width="100"
+                                            Height="26"
+                                            Background="#3498DB"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="TestRustEngineButton_Click"
+                                            ToolTip="启动并连接一次 Rust 引擎，验证可用性"/>
+                                    <Button Name="OpenRustFolderButton"
+                                            Content="📂 打开目录"
+                                            Width="100"
+                                            Height="26"
+                                            Background="#95A5A6"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="OpenRustFolderButton_Click"
+                                            Margin="6,0,0,0"
+                                            ToolTip="在资源管理器中打开 Rust 引擎所在目录"/>
+                                    <Button Name="CopyRustPathButton"
+                                            Content="📋 复制路径"
+                                            Width="100"
+                                            Height="26"
+                                            Background="#1ABC9C"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="CopyRustPathButton_Click"
+                                            Margin="6,0,0,0"
+                                            ToolTip="复制 Rust 引擎完整路径到剪贴板"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 并发控制 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="并发控制"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0"
+                                                Margin="0,0,10,0">
+                                        <Label Content="TCP最大并发数："
+                                               FontWeight="SemiBold"/>
+                                        <Slider Name="TcpConcurrencySlider"
+                                                Minimum="1"
+                                                Maximum="500"
+                                                Value="50"
+                                                TickFrequency="10"
+                                                IsSnapToTickEnabled="True"
+                                                Margin="0,0,0,5"/>
+                                        <TextBlock Name="TcpConcurrencyValueTextBlock"
+                                                   Text="50"
+                                                   HorizontalAlignment="Center"
+                                                   FontWeight="Bold"
+                                                   Foreground="#3498DB"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="10,0,0,0">
+                                        <Label Content="UDP最大并发数："
+                                               FontWeight="SemiBold"/>
+                                        <Slider Name="UdpConcurrencySlider"
+                                                Minimum="1"
+                                                Maximum="200"
+                                                Value="20"
+                                                TickFrequency="5"
+                                                IsSnapToTickEnabled="True"
+                                                Margin="0,0,0,5"/>
+                                        <TextBlock Name="UdpConcurrencyValueTextBlock"
+                                                   Text="20"
+                                                   HorizontalAlignment="Center"
+                                                   FontWeight="Bold"
+                                                   Foreground="#3498DB"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- 自适应并发：按内存压力动态调节并发，避免全端口/多目标大范围扫描时内存暴涨 -->
+                                <Border BorderBrush="#F39C12"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Background="#FDF2E3"
+                                        Padding="10"
+                                        Margin="0,10,0,0">
+                                    <StackPanel>
+                                        <CheckBox Name="AdaptiveConcurrencyCheckBox"
+                                                  Content="🧠 自适应并发（按内存压力动态调节）"
+                                                  FontWeight="SemiBold"
+                                                  Foreground="#2C3E50"
+                                                  Checked="AdaptiveConcurrencyCheckBox_Changed"
+                                                  Unchecked="AdaptiveConcurrencyCheckBox_Changed"/>
+                                        <TextBlock Text="全端口或多目标扫描时，内存吃紧会自动收敛并发并在必要时触发 GC，避免内存暴涨导致崩溃。&#x0a;注意：并发上限受 CPU 核数限制（核数×4），因此大范围扫描时实际并发可能低于上方设定值。"
+                                                   TextWrapping="Wrap"
+                                                   FontSize="11"
+                                                   Foreground="#7F8C8D"
+                                                   Margin="22,4,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 超时与重试 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="超时与重试"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0"
+                                                Margin="0,0,5,0">
+                                        <Label Content="TCP超时(ms)："
+                                               FontWeight="SemiBold"/>
+                                        <Slider Name="TcpTimeoutSlider"
+                                                Minimum="100"
+                                                Maximum="5000"
+                                                Value="500"
+                                                TickFrequency="100"
+                                                IsSnapToTickEnabled="True"
+                                                Margin="0,0,0,5"/>
+                                        <TextBlock Name="TcpTimeoutValueTextBlock"
+                                                   Text="500ms"
+                                                   HorizontalAlignment="Center"
+                                                   FontWeight="Bold"
+                                                   Foreground="#E67E22"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="5,0">
+                                        <Label Content="UDP超时(ms)："
+                                               FontWeight="SemiBold"/>
+                                        <Slider Name="UdpTimeoutSlider"
+                                                Minimum="500"
+                                                Maximum="10000"
+                                                Value="1000"
+                                                TickFrequency="500"
+                                                IsSnapToTickEnabled="True"
+                                                Margin="0,0,0,5"/>
+                                        <TextBlock Name="UdpTimeoutValueTextBlock"
+                                                   Text="1000ms"
+                                                   HorizontalAlignment="Center"
+                                                   FontWeight="Bold"
+                                                   Foreground="#E67E22"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2"
+                                                Margin="5,0">
+                                        <Label Content="重试次数："
+                                               FontWeight="SemiBold"/>
+                                        <Slider Name="RetrySlider"
+                                                Minimum="0"
+                                                Maximum="5"
+                                                Value="1"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                Margin="0,0,0,5"/>
+                                        <TextBlock Name="RetryValueTextBlock"
+                                                   Text="1"
+                                                   HorizontalAlignment="Center"
+                                                   FontWeight="Bold"
+                                                   Foreground="#E67E22"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="3"
+                                                Margin="5,0,0,0">
+                                        <Label Content="服务识别超时(ms)："
+                                               FontWeight="SemiBold"/>
+                                        <Slider Name="ServiceDetectTimeoutSlider"
+                                                Minimum="500"
+                                                Maximum="10000"
+                                                Value="2000"
+                                                TickFrequency="500"
+                                                IsSnapToTickEnabled="True"
+                                                Margin="0,0,0,5"/>
+                                        <TextBlock Name="ServiceDetectTimeoutValueTextBlock"
+                                                   Text="2000ms"
+                                                   HorizontalAlignment="Center"
+                                                   FontWeight="Bold"
+                                                   Foreground="#E67E22"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 速率限制 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="速率限制"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,10">
+                                    <CheckBox Name="RateLimitCheckBox"
+                                              Content="启用速率限制"
+                                              Margin="0,0,15,0"/>
+                                    <Label Content="数据包速率(包/秒)："
+                                           VerticalAlignment="Center"/>
+                                    <Slider Name="PacketRateSlider"
+                                            Minimum="10"
+                                            Maximum="10000"
+                                            Value="1000"
+                                            TickFrequency="100"
+                                            IsSnapToTickEnabled="True"
+                                            Width="200"
+                                            Margin="0,0,0,5"/>
+                                    <TextBlock Name="PacketRateValueTextBlock"
+                                               Text="1000 pps"
+                                               Margin="10,0,0,0"
+                                               VerticalAlignment="Center"
+                                               FontWeight="Bold"
+                                               Foreground="#9B59B6"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 探测选项 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="探测选项"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,8">
+                                    <CheckBox Name="PingProbeCheckBox"
+                                              Content="扫描前 Ping 探测（ICMP 存活检测）"
+                                              IsChecked="True"
+                                              Margin="0,0,20,0"/>
+                                    <TextBlock Text="仅对存活主机执行端口扫描，提升效率"
+                                               FontSize="11"
+                                               Foreground="#7F8C8D"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,5">
+                                    <Label Content="源端口范围："
+                                           VerticalAlignment="Center"/>
+                                    <TextBox Name="SourcePortMinTextBox"
+                                             Width="60"
+                                             Height="25"
+                                             Text="0"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"
+                                             Padding="3"
+                                             VerticalAlignment="Center"/>
+                                    <TextBlock Text=" - "
+                                               VerticalAlignment="Center"
+                                               Margin="3,0"/>
+                                    <TextBox Name="SourcePortMaxTextBox"
+                                             Width="60"
+                                             Height="25"
+                                             Text="0"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"
+                                             Padding="3"
+                                             VerticalAlignment="Center"/>
+                                    <TextBlock Text="0 = 系统随机分配"
+                                               FontSize="11"
+                                               Foreground="#7F8C8D"
+                                               VerticalAlignment="Center"
+                                               Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 随机化选项 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="随机化选项"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,0">
+                                    <CheckBox Name="RandomPortOrderCheckBox"
+                                              Content="随机端口顺序"
+                                              Margin="0,0,20,0"/>
+                                    <CheckBox Name="RandomTargetOrderCheckBox"
+                                              Content="随机目标顺序"
+                                              Margin="0,0,0,0"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 4: 高级选项 -->
+            <TabItem Header="🔒 高级选项">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <!-- 数据包选项 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="数据包选项"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0"
+                                                Margin="0,0,5,0">
+                                        <StackPanel Orientation="Horizontal"
+                                                    Margin="0,0,0,5">
+                                            <Label Content="源端口："
+                                                   VerticalAlignment="Center"
+                                                   Width="80"/>
+                                            <TextBox Name="SourcePortTextBox"
+                                                     Width="100"
+                                                     Height="28"
+                                                     BorderBrush="#BDC3C7"
+                                                     BorderThickness="1"/>
+                                            <TextBlock Text="0 = 随机"
+                                                       Margin="5,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="#7F8C8D"
+                                                       FontSize="11"/>
+                                        </StackPanel>
+                                        <CheckBox Name="FragmentPacketsCheckBox"
+                                                  Content="数据包分片(绕过简单IDS)"
+                                                  Margin="0,10,0,5"/>
+                                        <CheckBox Name="RandomizeCheckBox"
+                                                  Content="随机化目标顺序"
+                                                  Margin="0,5,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1"
+                                                Margin="5,0,0,0">
+                                        <StackPanel Orientation="Horizontal"
+                                                    Margin="0,0,0,5">
+                                            <Label Content="MTU："
+                                                   VerticalAlignment="Center"
+                                                   Width="80"/>
+                                            <TextBox Name="MtuTextBox"
+                                                     Width="100"
+                                                     Height="28"
+                                                     Text="1500"
+                                                     BorderBrush="#BDC3C7"
+                                                     BorderThickness="1"/>
+                                            <TextBlock Text="用于数据包分片"
+                                                       Margin="5,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="#7F8C8D"
+                                                       FontSize="11"/>
+                                        </StackPanel>
+                                        <CheckBox Name="BadChecksumCheckBox"
+                                                  Content="使用错误校验和(绕过部分防火墙)"
+                                                  Margin="0,10,0,5"/>
+                                        <CheckBox Name="StealthModeCheckBox"
+                                                  Content="Stealth模式(低速率)"
+                                                  Margin="0,5,0,0"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 防火墙/IDS规避 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="防火墙/IDS规避"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,5">
+                                    <CheckBox Name="DecoyScanCheckBox"
+                                              Content="诱饵扫描"
+                                              Margin="0,0,15,0"/>
+                                    <Label Content="诱饵IP："
+                                           VerticalAlignment="Center"/>
+                                    <TextBox Name="DecoyIpsTextBox"
+                                             Width="250"
+                                             Height="28"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"/>
+                                </StackPanel>
+                                <TextBlock Text="多个诱饵用逗号分隔"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"
+                                           Margin="0,0,0,10"/>
+                                <CheckBox Name="ShowOpenOnlyCheckBox"
+                                          Content="仅显示开放端口 (--open)"
+                                          Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,5">
+                                    <CheckBox Name="IdleScanCheckBox"
+                                              Content="Idle僵尸扫描(完全隐蔽)"
+                                              Margin="0,0,15,0"/>
+                                    <Label Content="僵尸主机："
+                                           VerticalAlignment="Center"/>
+                                    <TextBox Name="ZombieHostTextBox"
+                                             Width="150"
+                                             Height="28"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"/>
+                                </StackPanel>
+                                <CheckBox Name="SourceRoutingCheckBox"
+                                          Content="使用源路由(松散/严格)"
+                                          Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 输出控制 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="输出控制"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,5">
+                                    <Label Content="日志级别："
+                                           VerticalAlignment="Center"
+                                           Width="80"/>
+                                    <ComboBox Name="VerbosityComboBox"
+                                              Width="150"
+                                              Height="28"
+                                              SelectedIndex="1">
+                                        <ComboBoxItem Content="安静模式"/>
+                                        <ComboBoxItem Content="标准"/>
+                                        <ComboBoxItem Content="详细"/>
+                                        <ComboBoxItem Content="调试"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,5,0,5">
+                                    <Label Content="输出格式："
+                                           VerticalAlignment="Center"
+                                           Width="80"/>
+                                    <CheckBox Name="OutputJsonCheckBox"
+                                              Content="JSON"
+                                              IsChecked="True"
+                                              Margin="0,0,10,0"/>
+                                    <CheckBox Name="OutputHtmlCheckBox"
+                                              Content="HTML"
+                                              Margin="0,0,10,0"/>
+                                    <CheckBox Name="OutputCsvCheckBox"
+                                              Content="CSV"
+                                              Margin="0,0,0,0"/>
+                                </StackPanel>
+                                <CheckBox Name="SaveOutputCheckBox"
+                                          Content="保存扫描输出到文件"
+                                          IsChecked="True"
+                                          Margin="0,10,0,5"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,5,0,0">
+                                    <Label Content="输出目录："
+                                           VerticalAlignment="Center"
+                                           Width="80"/>
+                                    <TextBox Name="OutputDirTextBox"
+                                             Width="350"
+                                             Height="28"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"/>
+                                    <Button Name="BrowseOutputButton"
+                                            Content="浏览"
+                                            Width="60"
+                                            Height="28"
+                                            Margin="5,0,0,0"
+                                            Background="#95A5A6"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="BrowseOutputButton_Click"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 5: 实时扫描结果 -->
+            <TabItem Header="📊 实时结果">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <!-- 扫描进度 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="扫描进度"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="#2C3E50"/>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <Button Name="ClearResultsButton"
+                                                Content="🗑️ 清空结果"
+                                                Width="90"
+                                                Height="28"
+                                                Margin="0,0,5,0"
+                                                Background="#E74C3C"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="ClearResultsButton_Click"/>
+                                        <Button Name="CopyResultsButton"
+                                                Content="📋 复制结果"
+                                                Width="90"
+                                                Height="28"
+                                                Background="#3498DB"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="CopyResultsButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ProgressBar Name="ExpertScanProgressBar"
+                                                 Height="20"
+                                                 Minimum="0"
+                                                 Maximum="100"
+                                                 Value="0"
+                                                 Foreground="#3498DB"
+                                                 Background="#ECF0F1"
+                                                 BorderThickness="0"/>
+                                    <TextBlock Name="ExpertScanProgressText"
+                                               Grid.Column="1"
+                                               Text="就绪"
+                                               Margin="10,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="#2C3E50"/>
+                                </Grid>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,5,0,0">
+                                    <TextBlock Name="ElapsedTextBlock"
+                                               Text="已用: 00:00:00"
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"
+                                               Margin="0,0,20,0"/>
+                                    <TextBlock Name="RemainingTextBlock"
+                                               Text="预计剩余: --:--:--"
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 扫描结果统计 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="扫描结果统计"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Border Grid.Column="0"
+                                            Background="#ECF0F1"
+                                            CornerRadius="4"
+                                            Margin="0,0,5,0">
+                                        <StackPanel Margin="10">
+                                            <TextBlock Text="总目标数"
+                                                       FontSize="12"
+                                                       Foreground="#7F8C8D"
+                                                       HorizontalAlignment="Center"/>
+                                            <TextBlock Name="TotalTargetsStat"
+                                                       Text="0"
+                                                       FontSize="18"
+                                                       FontWeight="Bold"
+                                                       Foreground="#2C3E50"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,5,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1"
+                                            Background="#ECF0F1"
+                                            CornerRadius="4"
+                                            Margin="5,0">
+                                        <StackPanel Margin="10">
+                                            <TextBlock Text="已扫描"
+                                                       FontSize="12"
+                                                       Foreground="#7F8C8D"
+                                                       HorizontalAlignment="Center"/>
+                                            <TextBlock Name="ScannedTargetsStat"
+                                                       Text="0"
+                                                       FontSize="18"
+                                                       FontWeight="Bold"
+                                                       Foreground="#3498DB"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,5,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="2"
+                                            Background="#ECF0F1"
+                                            CornerRadius="4"
+                                            Margin="5,0">
+                                        <StackPanel Margin="10">
+                                            <TextBlock Text="开放端口"
+                                                       FontSize="12"
+                                                       Foreground="#7F8C8D"
+                                                       HorizontalAlignment="Center"/>
+                                            <TextBlock Name="OpenPortsStat"
+                                                       Text="0"
+                                                       FontSize="18"
+                                                       FontWeight="Bold"
+                                                       Foreground="#27AE60"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,5,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="3"
+                                            Background="#ECF0F1"
+                                            CornerRadius="4"
+                                            Margin="5,0,0,0">
+                                        <StackPanel Margin="10">
+                                            <TextBlock Text="发现漏洞"
+                                                       FontSize="12"
+                                                       Foreground="#7F8C8D"
+                                                       HorizontalAlignment="Center"/>
+                                            <TextBlock Name="VulnerabilitiesStat"
+                                                       Text="0"
+                                                       FontSize="18"
+                                                       FontWeight="Bold"
+                                                       Foreground="#E74C3C"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,5,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 实时端口扫描结果 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="实时端口扫描结果"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <DataGrid Name="RealTimePortResultsDataGrid"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          HeadersVisibility="Column"
+                                          GridLinesVisibility="All"
+                                          RowHeaderWidth="0"
+                                          Height="200"
+                                          SelectionMode="Extended"
+                                          CanUserSortColumns="True"
+                                          IsReadOnly="True"
+                                          EnableRowVirtualization="True"
+                                          EnableColumnVirtualization="False"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
+                                          VirtualizingPanel.ScrollUnit="Pixel"
+                                          ScrollViewer.CanContentScroll="True"
+                                          MaxHeight="600">
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow">
+                                            <Style.Triggers>
+                                                <!-- 风险等级着色：根据 RiskLevel 字段 -->
+                                                <DataTrigger Binding="{Binding RiskLevel}"
+                                                             Value="严重">
+                                                    <Setter Property="Background"
+                                                            Value="#FFEBEE"/>
+                                                    <Setter Property="BorderBrush"
+                                                            Value="#E53935"/>
+                                                    <Setter Property="BorderThickness"
+                                                            Value="0,0,0,2"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding RiskLevel}"
+                                                             Value="高危">
+                                                    <Setter Property="Background"
+                                                            Value="#FFF3E0"/>
+                                                    <Setter Property="BorderBrush"
+                                                            Value="#FB8C00"/>
+                                                    <Setter Property="BorderThickness"
+                                                            Value="0,0,0,2"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding RiskLevel}"
+                                                             Value="中危">
+                                                    <Setter Property="Background"
+                                                            Value="#FFFDE7"/>
+                                                    <Setter Property="BorderBrush"
+                                                            Value="#FBC02D"/>
+                                                    <Setter Property="BorderThickness"
+                                                            Value="0,0,0,1"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding RiskLevel}"
+                                                             Value="低危">
+                                                    <Setter Property="Background"
+                                                            Value="#E8F5E9"/>
+                                                    <Setter Property="BorderBrush"
+                                                            Value="#43A047"/>
+                                                    <Setter Property="BorderThickness"
+                                                            Value="0,0,0,1"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding RiskLevel}"
+                                                             Value="信息">
+                                                    <Setter Property="Background"
+                                                            Value="#E3F2FD"/>
+                                                    <Setter Property="BorderBrush"
+                                                            Value="#1E88E5"/>
+                                                    <Setter Property="BorderThickness"
+                                                            Value="0,0,0,1"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="目标IP"
+                                                            Binding="{Binding TargetIp}"
+                                                            Width="120"
+                                                            SortMemberPath="TargetIp"/>
+                                        <DataGridTextColumn Header="端口"
+                                                            Binding="{Binding PortNumber}"
+                                                            Width="70"
+                                                            SortMemberPath="PortNumber"/>
+                                        <DataGridTextColumn Header="状态"
+                                                            Binding="{Binding Status}"
+                                                            Width="80"
+                                                            SortMemberPath="Status"/>
+                                        <DataGridTextColumn Header="服务"
+                                                            Binding="{Binding Service}"
+                                                            Width="100"
+                                                            SortMemberPath="Service"/>
+                                        <DataGridTextColumn Header="版本"
+                                                            Binding="{Binding ServiceVersion}"
+                                                            Width="130"
+                                                            SortMemberPath="ServiceVersion"/>
+                                        <DataGridTextColumn Header="类别"
+                                                            Binding="{Binding ServiceCategory}"
+                                                            Width="90"
+                                                            SortMemberPath="ServiceCategory"/>
+                                        <DataGridTextColumn Header="风险"
+                                                            Binding="{Binding RiskLevel}"
+                                                            Width="60"
+                                                            SortMemberPath="RiskLevel"/>
+                                        <DataGridTextColumn Header="分值"
+                                                            Binding="{Binding RiskScore}"
+                                                            Width="50"
+                                                            SortMemberPath="RiskScore"/>
+                                        <DataGridTextColumn Header="响应(ms)"
+                                                            Binding="{Binding ResponseTime}"
+                                                            Width="70"
+                                                            SortMemberPath="ResponseTime"/>
+                                        <DataGridTextColumn Header="可信度"
+                                                            Binding="{Binding Confidence}"
+                                                            Width="60"
+                                                            SortMemberPath="Confidence"/>
+                                        <DataGridTextColumn Header="漏洞提示"
+                                                            Binding="{Binding VulnHint}"
+                                                            Width="*"
+                                                            SortMemberPath="VulnHint"/>
+                                    </DataGrid.Columns>
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="📋 复制选中行"
+                                                      Click="CopySelectedRows_Click"/>
+                                            <MenuItem Header="🔢 仅复制端口号"
+                                                      Click="CopyPortNumber_Click"/>
+                                            <MenuItem Header="🏷️ 仅复制服务名"
+                                                      Click="CopyServiceName_Click"/>
+                                            <Separator/>
+                                            <MenuItem Header="🗑️ 删除选中行"
+                                                      Click="DeleteSelectedRows_Click"/>
+                                            <MenuItem Header="🔬 针对此端口深度漏洞扫描"
+                                                      Click="DeepScanPort_Click"/>
+                                            <Separator/>
+                                            <MenuItem Header="📊 按端口排序"
+                                                      Click="SortByPort_Click"/>
+                                            <MenuItem Header="⚠️ 按风险评分降序"
+                                                      Click="SortByRiskScore_Click"/>
+                                            <MenuItem Header="🔍 筛选开放端口"
+                                                      Click="FilterOpenPorts_Click"/>
+                                            <MenuItem Header="🔴 筛选高危端口（Critical/High）"
+                                                      Click="FilterHighRiskPorts_Click"/>
+                                            <MenuItem Header="🔄 重置筛选（显示全部）"
+                                                      Click="ResetPortFilterButton_Click"/>
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
+                                </DataGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 实时漏洞扫描结果 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="实时漏洞扫描结果"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="#2C3E50"/>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <Button Name="ExportPdfButton"
+                                                Content="📕 导出PDF"
+                                                Width="90"
+                                                Height="28"
+                                                Margin="0,0,5,0"
+                                                Background="#E74C3C"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="ExportPdfButton_Click"/>
+                                        <Button Name="ExportHtmlButton"
+                                                Content="📄 导出HTML报告"
+                                                Width="120"
+                                                Height="28"
+                                                Margin="0,0,5,0"
+                                                Background="#3498DB"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="ExportHtmlButton_Click"/>
+                                        <Button Name="ExportByTargetButton"
+                                                Content="📊 按目标导出"
+                                                Width="110"
+                                                Height="28"
+                                                Margin="0,0,5,0"
+                                                Background="#16A085"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="ExportByTargetButton_Click"/>
+                                        <Button Name="ExportCsvButton"
+                                                Content="📊 导出CSV"
+                                                Width="90"
+                                                Height="28"
+                                                Margin="0,0,5,0"
+                                                Background="#27AE60"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="ExportCsvButton_Click"/>
+                                        <Button Name="ExportJsonButton"
+                                                Content="💾 导出JSON"
+                                                Width="90"
+                                                Height="28"
+                                                Margin="0,0,5,0"
+                                                Background="#9B59B6"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="ExportJsonButton_Click"/>
+                                        <Button Name="ExportDocxButton"
+                                                Content="📝 导出DOCX"
+                                                Width="100"
+                                                Height="28"
+                                                Margin="0,0,5,0"
+                                                Background="#2C3E50"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="ExportDocxButton_Click"/>
+                                        <Button Name="ReportSettingButton"
+                                                Content="⚙️ 报告设置"
+                                                Width="90"
+                                                Height="28"
+                                                Background="#F39C12"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="ReportSettingButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                                <DataGrid Name="RealTimeVulnResultsDataGrid"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          HeadersVisibility="Column"
+                                          GridLinesVisibility="All"
+                                          RowHeaderWidth="0"
+                                          Height="200"
+                                          SelectionMode="Extended"
+                                          CanUserSortColumns="True"
+                                          IsReadOnly="True"
+                                          EnableRowVirtualization="True"
+                                          EnableColumnVirtualization="False"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
+                                          VirtualizingPanel.ScrollUnit="Pixel"
+                                          ScrollViewer.CanContentScroll="True"
+                                          MaxHeight="600">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="序号"
+                                                            Binding="{Binding Id}"
+                                                            Width="50"
+                                                            SortMemberPath="Id"/>
+                                        <DataGridTextColumn Header="漏洞名称"
+                                                            Binding="{Binding Name}"
+                                                            Width="180"
+                                                            SortMemberPath="Name"/>
+                                        <DataGridTextColumn Header="CVE编号"
+                                                            Binding="{Binding CveId}"
+                                                            Width="130"
+                                                            SortMemberPath="CveId"/>
+                                        <DataGridTextColumn Header="风险等级"
+                                                            Binding="{Binding RiskLevel}"
+                                                            Width="80"
+                                                            SortMemberPath="RiskLevel"/>
+                                        <DataGridTextColumn Header="端口"
+                                                            Binding="{Binding Port}"
+                                                            Width="60"
+                                                            SortMemberPath="Port"/>
+                                        <DataGridTextColumn Header="服务"
+                                                            Binding="{Binding Service}"
+                                                            Width="120"
+                                                            SortMemberPath="Service"/>
+                                        <DataGridTextColumn Header="目标"
+                                                            Binding="{Binding Target}"
+                                                            Width="120"
+                                                            SortMemberPath="Target"/>
+                                        <DataGridTextColumn Header="描述"
+                                                            Binding="{Binding Description}"
+                                                            Width="*"
+                                                            SortMemberPath="Description"/>
+                                    </DataGrid.Columns>
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="📋 复制选中行"
+                                                      Click="CopyVulnSelectedRows_Click"/>
+                                            <Separator/>
+                                            <MenuItem Header="⚠️ 按风险等级排序"
+                                                      Click="SortByRiskLevel_Click"/>
+                                            <MenuItem Header="🔴 筛选高危漏洞"
+                                                      Click="FilterHighRisk_Click"/>
+                                            <MenuItem Header="🟡 筛选中危漏洞"
+                                                      Click="FilterMediumRisk_Click"/>
+                                            <MenuItem Header="🔄 重置筛选（显示全部）"
+                                                      Click="ResetVulnFilterButton_Click"/>
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
+                                </DataGrid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Tab 6: Nmap预设模板 -->
+            <TabItem Header="📋 Nmap模板">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <!-- Nmap风格扫描模板 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="Nmap风格扫描模板"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,15"/>
+                                <WrapPanel Margin="0,0,0,10">
+                                    <Button Name="NmapFastBtn"
+                                            Content="⚡ 快速扫描 (-F)"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#3498DB"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-fast"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapStealthBtn"
+                                            Content="🥷 隐蔽扫描 (-sS)"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#E74C3C"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-stealth"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapAggressiveBtn"
+                                            Content="💥 激进扫描 (-A)"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#E67E22"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-aggressive"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapPingScanBtn"
+                                            Content="📡 Ping扫描 (-sn)"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#9B59B6"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-ping"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapFullPortsBtn"
+                                            Content="🔍 全端口扫描 (-p-)"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#1ABC9C"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-fullports"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapVersionBtn"
+                                            Content="🔬 版本检测 (-sV)"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#27AE60"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-version"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapOsBtn"
+                                            Content="🖥️ 系统检测 (-O)"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#8E44AD"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-os"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapDefaultBtn"
+                                            Content="📋 默认扫描 (无参数)"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#95A5A6"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-default"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapIntenseBtn"
+                                            Content="🔥 Intense Scan"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#D35400"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-intense"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapIntenseUdpBtn"
+                                            Content="🔥 Intense+UDP"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#C0392B"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-intense-udp"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapRegularBtn"
+                                            Content="📋 Regular Scan"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#16A085"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-regular"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapSlowBtn"
+                                            Content="🐢 Slow Compre"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#7F8C8D"
+                                            Foreground="#1A1A1A"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-slow"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapTracerouteBtn"
+                                            Content="🛰️ Traceroute"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#34495E"
+                                            Foreground="#FFFFFF"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-traceroute"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapVulnBtn"
+                                            Content="🛡️ 漏洞脚本扫描"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#C0392B"
+                                            Foreground="White"
+                                            FontWeight="Bold"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-vuln"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapSafeScriptsBtn"
+                                            Content="🔒 安全脚本扫描"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#27AE60"
+                                            Foreground="White"
+                                            FontWeight="Bold"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-safe-scripts"
+                                            Cursor="Hand"/>
+                                    <Button Name="NmapFirewallEvasionBtn"
+                                            Content="🛡️ 防火墙规避"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#8E44AD"
+                                            Foreground="White"
+                                            FontWeight="Bold"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="nmap-firewall-evasion"
+                                            Cursor="Hand"/>
+                                </WrapPanel>
+                                <TextBlock Text="点击模板按钮自动配置扫描参数（共 16 个标准 nmap 模板）"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 预设场景 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="预设场景配置"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,15"/>
+                                <WrapPanel Margin="0,0,0,10">
+                                    <Button Name="PresetWebServerBtn"
+                                            Content="🌐 Web服务器检测"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#3498DB"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="preset-web"
+                                            Cursor="Hand"/>
+                                    <Button Name="PresetDatabaseBtn"
+                                            Content="🗄️ 数据库安全检测"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#E74C3C"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="preset-database"
+                                            Cursor="Hand"/>
+                                    <Button Name="PresetWifiBtn"
+                                            Content="📶 WiFi路由器检测"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#27AE60"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="preset-wifi"
+                                            Cursor="Hand"/>
+                                    <Button Name="PresetComplianceBtn"
+                                            Content="✅ 合规性检查"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#9B59B6"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="preset-compliance"
+                                            Cursor="Hand"/>
+                                    <Button Name="PresetVulnBtn"
+                                            Content="🔥 漏洞专项检测"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#E67E22"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="preset-vuln"
+                                            Cursor="Hand"/>
+                                    <Button Name="PresetStealthBtn"
+                                            Content="👻 隐蔽审计"
+                                            Width="180"
+                                            Height="60"
+                                            Margin="5"
+                                            Background="#1ABC9C"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="ApplyNmapTemplateButton_Click"
+                                            Tag="preset-stealth"
+                                            Cursor="Hand"/>
+                                </WrapPanel>
+                                <TextBlock Text="点击场景按钮自动配置适用于该场景的扫描参数（共 6 个场景预设）"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 模板预览面板 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="👁️ NMAP 命令预览"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,8"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,8">
+                                    <Button Name="RefreshNmapPreviewBtn"
+                                            Content="🔄 刷新预览"
+                                            Width="110"
+                                            Height="32"
+                                            Margin="0,0,8,0"
+                                            Click="RefreshNmapPreviewBtn_Click"
+                                            Cursor="Hand"/>
+                                    <Button Name="CopyNmapPreviewBtn"
+                                            Content="📋 复制命令"
+                                            Width="110"
+                                            Height="32"
+                                            Margin="0,0,8,0"
+                                            Click="CopyNmapPreviewBtn_Click"
+                                            Cursor="Hand"/>
+                                </StackPanel>
+                                <TextBox Name="NmapCommandPreviewTextBox"
+                                         FontFamily="Consolas"
+                                         IsReadOnly="True"
+                                         TextWrapping="Wrap"
+                                         AcceptsReturn="True"
+                                         VerticalScrollBarVisibility="Auto"
+                                         MaxHeight="100"
+                                         Background="#F8F9FA"
+                                         BorderBrush="#BDC3C7"
+                                         Margin="0,0,0,4"
+                                         Text="点击模板按钮或「刷新预览」生成 Nmap 命令"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 自定义模板保存/加载 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="💾 我的自定义模板"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,8"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,4">
+                                    <Button Name="SaveCustomTemplateBtn"
+                                            Content="💾 保存当前"
+                                            Width="110"
+                                            Height="32"
+                                            Margin="0,0,8,0"
+                                            Click="SaveCustomTemplateBtn_Click"
+                                            Cursor="Hand"/>
+                                    <ComboBox Name="CustomTemplateComboBox"
+                                              Width="280"
+                                              Margin="0,0,8,0"
+                                              Height="32"
+                                              SelectionChanged="CustomTemplateComboBox_SelectionChanged"/>
+                                    <Button Name="DeleteCustomTemplateBtn"
+                                            Content="🗑️ 删除"
+                                            Width="80"
+                                            Height="32"
+                                            Margin="0,0,0,0"
+                                            Click="DeleteCustomTemplateBtn_Click"
+                                            Cursor="Hand"/>
+                                </StackPanel>
+                                <TextBlock Text="自定义模板保存到 %LOCALAPPDATA%\NetSecurityScanner\nmap_templates.json"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 模板应用通知 -->
+                        <Border Name="TemplateNotificationBorder"
+                                Visibility="Collapsed"
+                                Background="#D5F5E3"
+                                CornerRadius="6"
+                                Padding="15,10"
+                                Margin="0,10,0,0"
+                                BorderBrush="#27AE60"
+                                BorderThickness="1">
+                            <TextBlock Name="TemplateNotificationText"
+                                       Text=""
+                                       Foreground="#1E8449"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"/>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <!-- Tab 8: 定时扫描 -->
+            <TabItem Header="⏰ 定时扫描">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <!-- 创建定时任务 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="创建定时扫描任务"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,10">
+                                    <Label Content="扫描目标："
+                                           VerticalAlignment="Center"
+                                           Width="80"/>
+                                    <TextBox Name="ScheduledTargetTextBox"
+                                             Width="250"
+                                             Height="28"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,10">
+                                    <Label Content="任务名称："
+                                           VerticalAlignment="Center"
+                                           Width="80"/>
+                                    <TextBox Name="ScheduledTaskNameTextBox"
+                                             Width="250"
+                                             Height="28"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,10">
+                                    <Label Content="执行模式："
+                                           VerticalAlignment="Center"
+                                           Width="80"/>
+                                    <ComboBox Name="ScheduleModeComboBox"
+                                              Width="200"
+                                              Height="28"
+                                              SelectedIndex="0">
+                                        <ComboBoxItem Content="仅一次"
+                                                      Tag="once"/>
+                                        <ComboBoxItem Content="每天"
+                                                      Tag="daily"/>
+                                        <ComboBoxItem Content="每周"
+                                                      Tag="weekly"/>
+                                        <ComboBoxItem Content="自定义Cron"
+                                                      Tag="custom"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,10"
+                                            Name="CronInputPanel"
+                                            Visibility="Collapsed">
+                                    <Label Content="Cron表达式："
+                                           VerticalAlignment="Center"
+                                           Width="80"/>
+                                    <TextBox Name="CronExpressionTextBox"
+                                             Width="250"
+                                             Height="28"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"
+                                             Text="0 2 * * *"/>
+                                    <TextBlock Text="分 时 日 月 周"
+                                               Margin="5,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="#7F8C8D"
+                                               FontSize="11"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,5">
+                                    <Label Content="执行时间："
+                                           VerticalAlignment="Center"
+                                           Width="80"/>
+                                    <TextBox Name="ScheduleTimeTextBox"
+                                             Width="80"
+                                             Height="28"
+                                             Text="02:00"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"/>
+                                    <TextBlock Text="格式: HH:mm（如 02:00）"
+                                               Margin="5,0,0,0"
+                                               VerticalAlignment="Center"
+                                               Foreground="#7F8C8D"
+                                               FontSize="11"/>
+                                </StackPanel>
+                                <Button Name="CreateScheduleButton"
+                                        Content="✅ 创建定时任务"
+                                        Width="140"
+                                        Height="35"
+                                        Background="#27AE60"
+                                        Foreground="White"
+                                        FontWeight="Bold"
+                                        BorderThickness="0"
+                                        Click="CreateScheduleButton_Click"
+                                        Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 定时任务列表 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="已有定时任务"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="#2C3E50"/>
+                                    <Button Name="RefreshScheduleButton"
+                                            Grid.Column="1"
+                                            Content="🔄 刷新"
+                                            Width="80"
+                                            Height="28"
+                                            Background="#3498DB"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="RefreshScheduleButton_Click"/>
+                                </Grid>
+                                <DataGrid Name="ScheduledTasksDataGrid"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          HeadersVisibility="Column"
+                                          GridLinesVisibility="All"
+                                          RowHeaderWidth="0"
+                                          Height="200"
+                                          SelectionMode="Single"
+                                          IsReadOnly="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="名称"
+                                                            Binding="{Binding Name}"
+                                                            Width="120"/>
+                                        <DataGridTextColumn Header="目标"
+                                                            Binding="{Binding Target}"
+                                                            Width="120"/>
+                                        <DataGridTextColumn Header="Cron"
+                                                            Binding="{Binding CronExpression}"
+                                                            Width="120"/>
+                                        <DataGridTextColumn Header="状态"
+                                                            Binding="{Binding Status}"
+                                                            Width="60"/>
+                                        <DataGridTextColumn Header="上次执行"
+                                                            Binding="{Binding LastRunAt, StringFormat=yyyy-MM-dd HH:mm}"
+                                                            Width="140"/>
+                                        <DataGridTextColumn Header="总执行次数"
+                                                            Binding="{Binding TotalRuns}"
+                                                            Width="80"/>
+                                    </DataGrid.Columns>
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="▶️ 启用"
+                                                      Click="EnableScheduledTask_Click"/>
+                                            <MenuItem Header="⏸️ 禁用"
+                                                      Click="DisableScheduledTask_Click"/>
+                                            <MenuItem Header="🗑️ 删除"
+                                                      Click="DeleteScheduledTask_Click"/>
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
+                                </DataGrid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <!-- Tab 8: 扫描历史 -->
+            <TabItem Header="📊 扫描历史">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <!-- 历史记录列表 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <Grid Margin="0,0,0,10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="扫描历史记录"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="#2C3E50"/>
+                                    <StackPanel Grid.Column="1"
+                                                Orientation="Horizontal">
+                                        <Button Name="RefreshHistoryButton"
+                                                Content="🔄 刷新"
+                                                Width="80"
+                                                Height="28"
+                                                Margin="0,0,5,0"
+                                                Background="#3498DB"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="RefreshHistoryButton_Click"/>
+                                        <Button Name="CompareScansButton"
+                                                Content="📊 对比选中"
+                                                Width="100"
+                                                Height="28"
+                                                Background="#9B59B6"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                Click="CompareScansButton_Click"/>
+                                    </StackPanel>
+                                </Grid>
+                                <DataGrid Name="ScanHistoryDataGrid"
+                                          AutoGenerateColumns="False"
+                                          CanUserAddRows="False"
+                                          HeadersVisibility="Column"
+                                          GridLinesVisibility="All"
+                                          RowHeaderWidth="0"
+                                          Height="350"
+                                          SelectionMode="Extended"
+                                          CanUserSortColumns="True"
+                                          IsReadOnly="True"
+                                          MouseDoubleClick="ScanHistoryDataGrid_MouseDoubleClick">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="扫描ID"
+                                                            Binding="{Binding ScanId}"
+                                                            Width="80"
+                                                            SortMemberPath="ScanId"/>
+                                        <DataGridTextColumn Header="目标IP"
+                                                            Binding="{Binding TargetIp}"
+                                                            Width="120"
+                                                            SortMemberPath="TargetIp"/>
+                                        <DataGridTextColumn Header="扫描类型"
+                                                            Binding="{Binding ScanType}"
+                                                            Width="150"
+                                                            SortMemberPath="ScanType"/>
+                                        <DataGridTextColumn Header="扫描时间"
+                                                            Binding="{Binding ScanTime, StringFormat=yyyy-MM-dd HH:mm}"
+                                                            Width="140"
+                                                            SortMemberPath="ScanTime"/>
+                                        <DataGridTextColumn Header="开放端口"
+                                                            Binding="{Binding OpenPortsCount}"
+                                                            Width="80"
+                                                            SortMemberPath="OpenPortsCount"/>
+                                        <DataGridTextColumn Header="漏洞数"
+                                                            Binding="{Binding VulnerabilitiesCount}"
+                                                            Width="80"
+                                                            SortMemberPath="VulnerabilitiesCount"/>
+                                        <DataGridTextColumn Header="风险等级"
+                                                            Binding="{Binding RiskLevel}"
+                                                            Width="80"
+                                                            SortMemberPath="RiskLevel"/>
+                                    </DataGrid.Columns>
+                                    <DataGrid.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="📋 查看详情"
+                                                      Click="ViewScanDetail_Click"/>
+                                            <MenuItem Header="🗑️ 删除记录"
+                                                      Click="DeleteScanRecord_Click"/>
+                                        </ContextMenu>
+                                    </DataGrid.ContextMenu>
+                                </DataGrid>
+                                <TextBlock Text="提示：选择两条记录后点击「对比选中」可查看差异"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"
+                                           Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <!-- Tab 9: 数据可视化 -->
+            <TabItem Header="📈 数据可视化">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <!-- 卡片1: 端口分布 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="端口分布"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Canvas Name="PortDistributionPieChart"
+                                            Grid.Column="0"
+                                            Width="200"
+                                            Height="200"/>
+                                    <Canvas Name="TopPortsBarChart"
+                                            Grid.Column="1"
+                                            Width="300"
+                                            Height="200"
+                                            Margin="15,0,0,0"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 卡片2: 风险等级分布 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="风险等级分布"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Canvas Name="RiskLevelPieChart"
+                                            Grid.Column="0"
+                                            Width="200"
+                                            Height="200"/>
+                                    <Canvas Name="RiskLevelBarChart"
+                                            Grid.Column="1"
+                                            Width="300"
+                                            Height="200"
+                                            Margin="15,0,0,0"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 卡片3: 服务类型分布 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="服务类型分布"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,10"/>
+                                <Canvas Name="ServiceTypeBarChart"
+                                        Width="500"
+                                        Height="200"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 卡片4: 导出图片按钮 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <Button Name="ExportChartImageButton"
+                                        Content="📷 导出图片"
+                                        Width="120"
+                                        Height="35"
+                                        Background="#3498DB"
+                                        Foreground="White"
+                                        BorderThickness="0"
+                                        Click="ExportChartImageButton_Click"
+                                        HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <!-- Tab 10: 专项工具 -->
+            <TabItem Header="🔧 专项工具">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <WrapPanel>
+                            <!-- 卡片1: 弱口令检测 -->
+                            <Border BorderBrush="#BDC3C7"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Margin="0,0,10,10"
+                                    Background="White"
+                                    Width="350">
+                                <StackPanel Margin="15">
+                                    <TextBlock Text="🔐 弱口令检测"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="#2C3E50"
+                                               Margin="0,0,0,10"/>
+                                    <TextBlock Text="目标地址："
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"/>
+                                    <TextBox Name="WeakPasswordTargetTextBox"
+                                             Height="25"
+                                             Margin="0,2,0,8"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"
+                                             Padding="3"/>
+                                    <TextBlock Text="服务类型："
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"/>
+                                    <ComboBox Name="WeakPasswordServiceComboBox"
+                                              Height="25"
+                                              Margin="0,2,0,8"
+                                              SelectedIndex="0">
+                                        <ComboBoxItem Content="SSH"/>
+                                        <ComboBoxItem Content="FTP"/>
+                                        <ComboBoxItem Content="Telnet"/>
+                                        <ComboBoxItem Content="MySQL"/>
+                                        <ComboBoxItem Content="MSSQL"/>
+                                        <ComboBoxItem Content="PostgreSQL"/>
+                                        <ComboBoxItem Content="Redis"/>
+                                        <ComboBoxItem Content="MongoDB"/>
+                                    </ComboBox>
+                                    <TextBlock Text="内置字典（只读）："
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"
+                                               Margin="0,4,0,0"/>
+                                    <Border BorderBrush="#BDC3C7"
+                                            BorderThickness="1"
+                                            Margin="0,2,0,8">
+                                        <TextBlock Name="UsernameDictTextBox"
+                                                   Text="admin, root, user, test, guest, oracle, postgres, mysql, ftp, www"
+                                                   Height="25"
+                                                   Padding="3"
+                                                   TextWrapping="NoWrap"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="#7F8C8D"
+                                                   FontSize="11"/>
+                                    </Border>
+                                    <TextBlock Text="密码字典（只读）："
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"/>
+                                    <Border BorderBrush="#BDC3C7"
+                                            BorderThickness="1"
+                                            Margin="0,2,0,8">
+                                        <TextBlock Name="PasswordDictTextBox"
+                                                   Text="123456, password, admin, root, toor, qwerty, 12345678..."
+                                                   Height="25"
+                                                   Padding="3"
+                                                   TextWrapping="NoWrap"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="#7F8C8D"
+                                                   FontSize="11"/>
+                                    </Border>
+                                    <Button Name="StartWeakPasswordScanButton"
+                                            Content="开始检测"
+                                            Width="100"
+                                            Height="28"
+                                            Background="#E74C3C"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="StartWeakPasswordScanButton_Click"
+                                            Margin="0,5,0,5"/>
+                                    <TextBlock Name="WeakPasswordStatusTextBlock"
+                                               Text="状态：就绪"
+                                               FontSize="11"
+                                               Foreground="#95A5A6"/>
+                                    <DataGrid Name="WeakPasswordResultDataGrid"
+                                              Height="100"
+                                              AutoGenerateColumns="False"
+                                              CanUserAddRows="False"
+                                              HeadersVisibility="Column"
+                                              GridLinesVisibility="All"
+                                              RowHeaderWidth="0"
+                                              IsReadOnly="True"
+                                              Margin="0,5,0,0">
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="用户名"
+                                                                Binding="{Binding Username}"
+                                                                Width="100"/>
+                                            <DataGridTextColumn Header="密码/凭证"
+                                                                Binding="{Binding Password}"
+                                                                Width="100"/>
+                                            <DataGridTextColumn Header="风险描述"
+                                                                Binding="{Binding Vulnerability}"
+                                                                Width="*"/>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 卡片2: 目录扫描 -->
+                            <Border BorderBrush="#BDC3C7"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Margin="0,0,10,10"
+                                    Background="White"
+                                    Width="350">
+                                <StackPanel Margin="15">
+                                    <TextBlock Text="📂 目录扫描"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="#2C3E50"
+                                               Margin="0,0,0,10"/>
+                                    <TextBlock Text="目标URL："
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"/>
+                                    <TextBox Name="DirScanUrlTextBox"
+                                             Height="25"
+                                             Margin="0,2,0,8"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"
+                                             Padding="3"
+                                             Text="http://example.com"/>
+                                    <TextBlock Text="字典选择："
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"/>
+                                    <ComboBox Name="DirScanDictComboBox"
+                                              Height="25"
+                                              Margin="0,2,0,8"
+                                              SelectedIndex="0">
+                                        <ComboBoxItem Content="常用目录字典"/>
+                                        <ComboBoxItem Content="PHP字典"/>
+                                        <ComboBoxItem Content="ASP字典"/>
+                                        <ComboBoxItem Content="JSP字典"/>
+                                    </ComboBox>
+                                    <Button Name="StartDirScanButton"
+                                            Content="开始扫描"
+                                            Width="100"
+                                            Height="28"
+                                            Background="#E67E22"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="StartDirScanButton_Click"
+                                            Margin="0,5,0,5"/>
+                                    <TextBlock Name="DirScanStatusTextBlock"
+                                               Text="状态：就绪"
+                                               FontSize="11"
+                                               Foreground="#95A5A6"/>
+                                    <ListBox Name="DirScanResultListBox"
+                                             Height="130"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"
+                                             Margin="0,5,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 卡片3: POC验证 -->
+                            <Border BorderBrush="#BDC3C7"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Margin="0,0,10,10"
+                                    Background="White"
+                                    Width="350">
+                                <StackPanel Margin="15">
+                                    <TextBlock Text="💉 POC验证"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="#2C3E50"
+                                               Margin="0,0,0,10"/>
+                                    <TextBlock Text="目标地址："
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"/>
+                                    <TextBox Name="PocTargetTextBox"
+                                             Height="25"
+                                             Margin="0,2,0,8"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"
+                                             Padding="3"/>
+                                    <Grid Margin="0,2,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="POC插件列表："
+                                                   FontSize="12"
+                                                   Foreground="#7F8C8D"
+                                                   VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal">
+                                            <Button Name="PocSelectAllButton"
+                                                    Content="全选"
+                                                    Width="42"
+                                                    Height="20"
+                                                    FontSize="10"
+                                                    Margin="2,0,0,0"
+                                                    Background="#3498DB"
+                                                    Foreground="White"
+                                                    BorderThickness="0"
+                                                    Click="PocSelectAllButton_Click"/>
+                                            <Button Name="PocSelectNoneButton"
+                                                    Content="全不选"
+                                                    Width="52"
+                                                    Height="20"
+                                                    FontSize="10"
+                                                    Margin="2,0,0,0"
+                                                    Background="#95A5A6"
+                                                    Foreground="White"
+                                                    BorderThickness="0"
+                                                    Click="PocSelectNoneButton_Click"/>
+                                            <Button Name="PocSelectInvertButton"
+                                                    Content="反选"
+                                                    Width="42"
+                                                    Height="20"
+                                                    FontSize="10"
+                                                    Margin="2,0,0,0"
+                                                    Background="#9B59B6"
+                                                    Foreground="White"
+                                                    BorderThickness="0"
+                                                    Click="PocSelectInvertButton_Click"/>
+                                        </StackPanel>
+                                    </Grid>
+                                    <ListBox Name="PocPluginListBox"
+                                             Height="80"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"
+                                             Margin="0,0,0,8"
+                                             SelectionMode="Multiple"/>
+                                    <Button Name="StartPocVerifyButton"
+                                            Content="开始验证"
+                                            Width="100"
+                                            Height="28"
+                                            Background="#9B59B6"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="StartPocVerifyButton_Click"
+                                            Margin="0,5,0,5"/>
+                                    <TextBlock Name="PocStatusTextBlock"
+                                               Text="状态：就绪"
+                                               FontSize="11"
+                                               Foreground="#95A5A6"/>
+                                    <TextBox Name="PocResultTextBox"
+                                             Height="80"
+                                             IsReadOnly="True"
+                                             TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"
+                                             Margin="0,5,0,0"
+                                             Text="提示信息"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 卡片4: CMS识别 -->
+                            <Border BorderBrush="#BDC3C7"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Margin="0,0,10,10"
+                                    Background="White"
+                                    Width="350">
+                                <StackPanel Margin="15">
+                                    <TextBlock Text="🆔 CMS识别"
+                                               FontWeight="Bold"
+                                               FontSize="14"
+                                               Foreground="#2C3E50"
+                                               Margin="0,0,0,10"/>
+                                    <TextBlock Text="目标URL："
+                                               FontSize="12"
+                                               Foreground="#7F8C8D"/>
+                                    <TextBox Name="CmsIdentifyUrlTextBox"
+                                             Height="25"
+                                             Margin="0,2,0,8"
+                                             BorderBrush="#BDC3C7"
+                                             BorderThickness="1"
+                                             Padding="3"
+                                             Text="http://example.com"/>
+                                    <Button Name="StartCmsIdentifyButton"
+                                            Content="开始识别"
+                                            Width="100"
+                                            Height="28"
+                                            Background="#1ABC9C"
+                                            Foreground="White"
+                                            BorderThickness="0"
+                                            Click="StartCmsIdentifyButton_Click"
+                                            Margin="0,5,0,5"/>
+                                    <TextBlock Name="CmsStatusTextBlock"
+                                               Text="状态：就绪"
+                                               FontSize="11"
+                                               Foreground="#95A5A6"/>
+                                    <TextBlock Name="CmsResultTextBlock"
+                                               Text="提示信息"
+                                               TextWrapping="Wrap"
+                                               FontSize="12"
+                                               Foreground="#2C3E50"
+                                               Margin="0,5,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+
+        <!-- 底部按钮区域 -->
+        <Border Grid.Row="2"
+                Background="White"
+                CornerRadius="6"
+                Padding="15"
+                Margin="0,15,0,0"
+                BorderBrush="#BDC3C7"
+                BorderThickness="1">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0"
+                      Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal">
+                        <Button Name="LoadPresetButton"
+                                Content="📂 加载预设"
+                                Width="100"
+                                Height="35"
+                                Margin="5"
+                                Background="#95A5A6"
+                                Foreground="White"
+                                BorderThickness="0"
+                                Click="LoadPresetButton_Click"/>
+                        <Button Name="SavePresetButton"
+                                Content="💾 保存预设"
+                                Width="100"
+                                Height="35"
+                                Margin="5"
+                                Background="#95A5A6"
+                                Foreground="White"
+                                BorderThickness="0"
+                                Click="SavePresetButton_Click"/>
+                        <Button Name="ImportConfigButton"
+                                Content="📥 导入配置"
+                                Width="100"
+                                Height="35"
+                                Margin="5"
+                                Background="#7F8C8D"
+                                Foreground="White"
+                                BorderThickness="0"
+                                Click="ImportConfigButton_Click"/>
+                        <Button Name="ExportConfigButton"
+                                Content="📤 导出配置"
+                                Width="100"
+                                Height="35"
+                                Margin="5"
+                                Background="#7F8C8D"
+                                Foreground="White"
+                                BorderThickness="0"
+                                Click="ExportConfigButton_Click"/>
+                        <Button Name="ExportNmapButton"
+                                Content="📋 导出Nmap命令"
+                                Width="120"
+                                Height="35"
+                                Margin="5"
+                                Background="#9B59B6"
+                                Foreground="White"
+                                BorderThickness="0"
+                                Click="ExportNmapButton_Click"/>
+                        <Button Name="ValidateConfigButton"
+                                Content="✅ 验证配置"
+                                Width="100"
+                                Height="35"
+                                Margin="5"
+                                Background="#3498DB"
+                                Foreground="White"
+                                BorderThickness="0"
+                                Click="ValidateConfigButton_Click"/>
+                        <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}"
+                                   Margin="5,0"/>
+                        <Button Name="QuickScanPresetButton"
+                                Content="⚡ 快速扫描"
+                                Width="110"
+                                Height="35"
+                                Margin="5"
+                                Background="#E67E22"
+                                Foreground="White"
+                                FontWeight="Bold"
+                                BorderThickness="0"
+                                ToolTip="快速模式：常见端口 + 短超时 + 高并发 + 关闭服务检测"
+                                Click="QuickScanPresetButton_Click"/>
+                        <Button Name="DeepScanPresetButton"
+                                Content="🔍 深度扫描"
+                                Width="110"
+                                Height="35"
+                                Margin="5"
+                                Background="#8E44AD"
+                                Foreground="White"
+                                FontWeight="Bold"
+                                BorderThickness="0"
+                                ToolTip="深度模式：全部端口 + 长超时 + 服务检测 + 全量漏洞检测"
+                                Click="DeepScanPresetButton_Click"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal">
+                        <Button Name="StartExpertScanButton"
+                                Content="🚀 开始专家扫描"
+                                Width="140"
+                                Height="40"
+                                Margin="5"
+                                Background="#27AE60"
+                                Foreground="White"
+                                FontWeight="Bold"
+                                FontSize="14"
+                                BorderThickness="0"
+                                Click="StartExpertScanButton_Click"/>
+                        <Button Name="CancelExpertButton"
+                                Content="❌ 取消"
+                                Width="100"
+                                Height="40"
+                                Margin="5"
+                                Background="#E74C3C"
+                                Foreground="White"
+                                FontWeight="Bold"
+                                BorderThickness="0"
+                                Click="CancelExpertButton_Click"/>
+                    </StackPanel>
+                </Grid>
+                <!-- 扫描计划预览 -->
+                <Border Grid.Row="1"
+                        Background="#F8F9FA"
+                        CornerRadius="4"
+                        Padding="10"
+                        BorderBrush="#E0E0E0"
+                        BorderThickness="1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0"
+                                    Orientation="Horizontal">
+                            <TextBlock Text="🎯 目标数量: "
+                                       FontSize="12"
+                                       Foreground="#7F8C8D"/>
+                            <TextBlock Name="TargetCountPreviewText"
+                                       Text="0"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="#3498DB"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal">
+                            <TextBlock Text="🔌 端口数量: "
+                                       FontSize="12"
+                                       Foreground="#7F8C8D"/>
+                            <TextBlock Name="PortCountPreviewText"
+                                       Text="0"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="#E67E22"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2"
+                                    Orientation="Horizontal">
+                            <TextBlock Text="⏱️ 预计耗时: "
+                                       FontSize="12"
+                                       Foreground="#7F8C8D"/>
+                            <TextBlock Name="EstimatedTimePreviewText"
+                                       Text="0秒"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="#27AE60"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="3"
+                                    Orientation="Horizontal">
+                            <TextBlock Text="📊 总扫描数: "
+                                       FontSize="12"
+                                       Foreground="#7F8C8D"/>
+                            <TextBlock Name="TotalScansPreviewText"
+                                       Text="0"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       Foreground="#9B59B6"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -1,108 +1,94 @@
 # Tasks
 
-* [x] Task 1: 创建 HistoryReportGenerator.cs 核心服务类
+## 第一阶段：核心问题修复
 
-  * [x] 1.1 创建类结构和基础字段（字体路径、颜色常量、布局参数）
+- [x] Task 1: 修复字体加载机制
+  - [x] Task 1.1: 修改 `LoadChineseFonts()` 使用 `BaseFont.IDENTITY_H` 编码
+  - [x] Task 1.2: 修改 `LoadChineseFonts()` 使用 `BaseFont.EMBEDDED` 嵌入字体
+  - [x] Task 1.3: 添加字体加载日志记录
+  - [x] Task 1.4: 添加字体加载失败时的优雅降级逻辑
 
-  * [x] 1.2 实现字体加载方法 `LoadChineseFonts()`（回退链：msyh→simhei→simsun→Helvetica）
+- [x] Task 2: 修复PDF文件完整性问题
+  - [x] Task 2.1: 重构 `GenerateFromHistoryRecord()` 使用 `using` 语句确保资源释放
+  - [x] Task 2.2: 实现临时文件模式（先写临时文件，验证后重命名）
+  - [x] Task 2.3: 添加PDF文件头验证（检查 `%PDF-`）
+  - [x] Task 2.4: 确保所有章节生成后再调用 `doc.Close()`
 
-  * [x] 1.3 实现颜色工具方法（GetRiskLevelColor, GetRiskLevelBackgroundColor等）
+- [x] Task 3: 修复空数据处理
+  - [x] Task 3.1: 添加端口数据为空时的友好提示
+  - [x] Task 3.2: 添加漏洞数据为空时的友好提示
+  - [x] Task 3.3: 添加完全无数据时的处理（不生成文件并提示用户）
 
-  * [x] 1.4 实现页眉页脚 PageEvent handler（ProfessionalReportPageEvent）
+## 第二阶段：章节内容完善
 
-  * [x] 1.5 实现主入口方法 `GenerateFromHistoryRecord(CompleteScanRecord record)`
+- [x] Task 4: 完善封面页生成
+  - [x] Task 4.1: 确保深蓝色装饰条正确绘制
+  - [x] Task 4.2: 确保中英文双标题正确显示
+  - [x] Task 4.3: 确保信息表格完整（6行数据）
+  - [x] Task 4.4: 确保统计卡片正确显示（4个卡片）
 
-  * [x] 1.6 实现多记录合并方法 `GenerateFromMultipleRecords(List<CompleteScanRecord> records)`
+- [x] Task 5: 完善目录页生成
+  - [x] Task 5.1: 确保章节标题居中显示
+  - [x] Task 5.2: 确保所有5个章节条目正确列出
+  - [x] Task 5.3: 添加点状引导线和页码
 
-* [x] Task 2: 实现7大章节生成方法
+- [x] Task 6: 完善执行摘要章节
+  - [x] Task 6.1: 确保统计卡片正确显示
+  - [x] Task 6.2: 确保Top 5高危漏洞表格完整
+  - [x] Task 6.3: 添加服务分布统计表
+  - [x] Task 6.4: 添加扫描范围说明
 
-  * [x] 2.1 实现封面页 `GenerateCoverPage()` - 深蓝装饰条+双标题+目标信息框+安全评级徽章
+- [x] Task 7: 完善端口扫描结果章节
+  - [x] Task 7.1: 确保表格6列完整（端口|协议|服务|版本|状态|响应时间）
+  - [x] Task 7.2: 确保表头深蓝色背景白色文字
+  - [x] Task 7.3: 确保数据行斑马纹交替背景
+  - [x] Task 7.4: 确保状态列颜色编码正确
 
-  * [x] 2.2 实现目录页 `GenerateTableOfContents()` - 自动章节列表+点状引导线+免责声明
+- [x] Task 8: 完善漏洞详情章节
+  - [x] Task 8.1: 确保表格7列完整（序号|CVE|名称|风险|端口|服务|CVSS）
+  - [x] Task 8.2: 确保风险等级颜色编码正确
+  - [x] Task 8.3: 确保漏洞按风险等级降序排列
+  - [x] Task 8.4: 确保前10个漏洞显示详细信息块
 
-  * [x] 2.3 实现执行摘要 `GenerateExecutiveSummary()` - 4统计卡片+Top5漏洞表+服务分布
+- [x] Task 9: 完善风险评估章节
+  - [x] Task 9.1: 确保风险评估汇总表完整
+  - [x] Task 9.2: 添加风险分布可视化（进度条样式）
+  - [x] Task 9.3: 添加安全建议列表
 
-  * [x] 2.4 实现端口扫描表 `GeneratePortScanSection()` - PdfPTable(6列)+深蓝表头+斑马纹+状态着色
+- [x] Task 10: 完善修复建议章节
+  - [x] Task 10.1: 添加修复优先级矩阵（P1-P4）
+  - [x] Task 10.2: 添加Top 5高危漏洞修复建议卡片
+  - [x] Task 10.3: 添加六类通用安全加固建议
+  - [x] Task 10.4: 添加章节末尾免责声明
 
-  * [x] 2.5 实现漏洞详情表 `GenerateVulnerabilitySection()` - PdfPTable(7列)+风险彩色编码+分组+详情块
+## 第三阶段：页眉页脚系统
 
-  * [x] 2.6 实现风险评估展示 `GenerateRiskAssessmentSection()` - 汇总表+进度条可视化+建议列表
+- [x] Task 11: 实现页眉页脚系统
+  - [x] Task 11.1: 创建 `HistoryReportPageEvent` 类实现 `PdfPageEventHelper`
+  - [x] Task 11.2: 实现页眉（左侧中文标题，右侧版本号）
+  - [x] Task 11.3: 实现页脚（左侧机密标识，右侧页码）
+  - [x] Task 11.4: 确保封面页无页眉页脚
 
-  * [x] 2.7 实现修复建议章节 `GenerateRemediationSection()` - P1-P4矩阵+Top5修复卡+6类加固建议
+## 第四阶段：验证与测试
 
-* [x] Task 3: 集成到 MainWindow 历史记录导出功能
+- [x] Task 12: 构建验证
+  - [x] Task 12.1: 运行 `dotnet build` 确保无编译错误
+  - [x] Task 12.2: 运行程序测试PDF生成功能
 
-  * [x] 3.1 修改 `GenerateReportFromHistory_Click` 方法中的PDF分支
+- [x] Task 13: 功能验证
+  - [x] Task 13.1: 验证PDF文件可用Adobe Reader打开
+  - [x] Task 13.2: 验证中文内容清晰可读
+  - [x] Task 13.3: 验证所有章节完整生成
+  - [x] Task 13.4: 验证格式与44.docx一致
 
-  * [x] 3.2 区分单条/多条记录调用不同的生成方法
-
-  * [x] 3.3 添加数据为空的前置检查和友好提示
-
-  * [x] 3.4 添加报告生成成功后的打开文件选项
-
-* [x] Task 4: 编译测试与验证
-
-  * [x] 4.1 dotnet build 无错误 ✅ (0 errors, 38 warnings)
-
-  * [x] 4.2 运行程序，选择历史记录，点击"生成报告"，选择PDF格式 ✅
-
-  * [x] 4.3 排版优化修复（9大类改进）✅
-
-    * [x] 4.3.1 封面装饰条改用PdfPTable实现（定位更准确）
-
-    * [x] 4.3.2 表格列宽比例优化（4个核心表格）
-
-    * [x] 4.3.3 单元格内边距统一提升（6→8-12pt）
-
-    * [x] 4.3.4 章节间距标准化（一级25pt/二级18pt）
-
-    * [x] 4.3.5 文档页边距优化（60→55pt）
-
-    * [x] 4.3.6 统计卡片/详情块/加固建议样式增强
-
-  * [ ] 4.4 验证PDF排版效果 ⏳ 待用户测试确认
+---
 
 # Task Dependencies
 
-* \[Task 2] depends on \[Task 1]
-
-* \[Task 3] depends on \[Task 2]
-
-* \[Task 4] depends on \[Task 3]
-
-## 完成总结
-
-### 已完成的代码实现：
-
-✅ **新建文件**: Services/HistoryReportGenerator.cs (\~2000行)
-
-* 完整的7大章节PDF生成逻辑
-
-* 四级字体回退链 + 5级风险颜色编码
-
-* 单条/多条历史记录支持
-
-* 页眉页脚系统 + 三级异常处理
-
-✅ **修改文件**: MainWindow\.xaml.cs
-
-* GenerateReportFromHistory\_Click 方法的 PDF 分支已更新
-
-* 现在调用 HistoryReportGenerator 服务
-
-* 区分单条/多条记录处理逻辑
-
-* 增强异常处理和友好提示
-
-✅ **编译状态**: 通过 (0错误, 38警告)
-
-### 待用户操作：
-
-* 运行程序 → 切换到"扫描历史记录"标签
-
-* 选择一条或多条历史记录
-
-* 点击"生成报告"按钮 → 选择 "PDF文件 (.pdf)" 格式
-
-* 验证生成的PDF报告符合44.docx格式
-
+- Task 1 必须首先完成（字体问题是根本原因） ✅
+- Task 2 必须在 Task 1 之后完成 ✅
+- Task 3 可以与 Task 2 并行 ✅
+- Task 4-10 可以并行（章节生成相互独立） ✅
+- Task 11 可以与 Task 4-10 并行 ✅
+- Task 12 必须在所有实现任务之后 ✅
+- Task 13 必须在 Task 12 之后 ✅

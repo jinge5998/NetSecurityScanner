@@ -1,0 +1,636 @@
+<Window x:Class="NetSecurityScanner.Views.ScanVisualizationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+        Title="📊 扫描结果可视化分析"
+        Height="900"
+        Width="1300"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize"
+        Background="#F0F2F5">
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 + 周期选择 -->
+        <Grid Grid.Row="0"
+              Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0"
+                    CornerRadius="8"
+                    Padding="18,12">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0"
+                                         EndPoint="1,0">
+                        <GradientStop Color="#667eea"
+                                      Offset="0"/>
+                        <GradientStop Color="#764ba2"
+                                      Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel>
+                    <TextBlock Text="📊 扫描可视化智能分析中心"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                    <TextBlock Text="基于历史扫描数据的多维度、多时间周期可视化分析 | 自动更新统计"
+                               FontSize="13"
+                               Foreground="#E8DAEF"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
+            </Border>
+            <StackPanel Grid.Column="1"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Right"
+                        Margin="8,0,0,0">
+                <TextBlock Text="时间周期："
+                           VerticalAlignment="Center"
+                           Foreground="#2d3436"
+                           Margin="0,0,6,0"
+                           FontWeight="SemiBold"/>
+                <ComboBox Name="PeriodComboBox"
+                          Width="140"
+                          Height="36"
+                          SelectionChanged="PeriodComboBox_SelectionChanged">
+                    <ComboBoxItem Content="📅 日 (7天)"
+                                  Tag="Daily"/>
+                    <ComboBoxItem Content="📆 周 (12周)"
+                                  Tag="Weekly"
+                                  IsSelected="True"/>
+                    <ComboBoxItem Content="🗓️ 月 (12月)"
+                                  Tag="Monthly"/>
+                    <ComboBoxItem Content="📊 季度 (8季)"
+                                  Tag="Quarterly"/>
+                    <ComboBoxItem Content="🏆 年度 (5年)"
+                                  Tag="Yearly"/>
+                </ComboBox>
+                <Button Name="RefreshButton"
+                        Content="🔄 刷新"
+                        Width="80"
+                        Height="36"
+                        Margin="8,0,0,0"
+                        Background="#3498DB"
+                        Foreground="White"
+                        BorderThickness="0"
+                        FontWeight="SemiBold"
+                        Click="RefreshButton_Click"/>
+                <Button Name="MockButton"
+                        Content="🧪 演示数据"
+                        Width="90"
+                        Height="36"
+                        Margin="6,0,0,0"
+                        Background="#95a5a6"
+                        Foreground="White"
+                        BorderThickness="0"
+                        FontWeight="SemiBold"
+                        Click="MockButton_Click"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- 5个周期的概览卡片 -->
+        <Grid Grid.Row="1"
+              Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="0,0,6,0"
+                    Effect="{x:Null}">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock Text="今日"
+                                   FontSize="12"
+                                   Foreground="#7f8c8d"
+                                   DockPanel.Dock="Top"/>
+                        <TextBlock Name="DayScanText"
+                                   Text="0 次"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#2c3e50"
+                                   Margin="0,2"/>
+                        <TextBlock Name="DayVulnText"
+                                   Text="漏洞 0"
+                                   FontSize="12"
+                                   Foreground="#e74c3c"/>
+                        <TextBlock Name="DayTrendText"
+                                   Text="📈 0%"
+                                   FontSize="11"
+                                   Foreground="#27ae60"
+                                   Margin="0,3,0,0"/>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="3,0">
+                <StackPanel>
+                    <TextBlock Text="本周"
+                               FontSize="12"
+                               Foreground="#7f8c8d"/>
+                    <TextBlock Name="WeekScanText"
+                               Text="0 次"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="#2c3e50"
+                               Margin="0,2"/>
+                    <TextBlock Name="WeekVulnText"
+                               Text="漏洞 0"
+                               FontSize="12"
+                               Foreground="#e74c3c"/>
+                    <TextBlock Name="WeekTrendText"
+                               Text="📈 0%"
+                               FontSize="11"
+                               Foreground="#27ae60"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="3,0">
+                <StackPanel>
+                    <TextBlock Text="本月"
+                               FontSize="12"
+                               Foreground="#7f8c8d"/>
+                    <TextBlock Name="MonthScanText"
+                               Text="0 次"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="#2c3e50"
+                               Margin="0,2"/>
+                    <TextBlock Name="MonthVulnText"
+                               Text="漏洞 0"
+                               FontSize="12"
+                               Foreground="#e74c3c"/>
+                    <TextBlock Name="MonthTrendText"
+                               Text="📈 0%"
+                               FontSize="11"
+                               Foreground="#27ae60"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="3"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="3,0">
+                <StackPanel>
+                    <TextBlock Text="本季度"
+                               FontSize="12"
+                               Foreground="#7f8c8d"/>
+                    <TextBlock Name="QuarterScanText"
+                               Text="0 次"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="#2c3e50"
+                               Margin="0,2"/>
+                    <TextBlock Name="QuarterVulnText"
+                               Text="漏洞 0"
+                               FontSize="12"
+                               Foreground="#e74c3c"/>
+                    <TextBlock Name="QuarterTrendText"
+                               Text="📈 0%"
+                               FontSize="11"
+                               Foreground="#27ae60"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="4"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="6,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="本年度"
+                               FontSize="12"
+                               Foreground="#7f8c8d"/>
+                    <TextBlock Name="YearScanText"
+                               Text="0 次"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="#2c3e50"
+                               Margin="0,2"/>
+                    <TextBlock Name="YearVulnText"
+                               Text="漏洞 0"
+                               FontSize="12"
+                               Foreground="#e74c3c"/>
+                    <TextBlock Name="YearTrendText"
+                               Text="📈 0%"
+                               FontSize="11"
+                               Foreground="#27ae60"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- 核心KPI指标 -->
+        <Grid Grid.Row="2"
+              Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="0,0,6,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0"
+                                         EndPoint="1,1">
+                        <GradientStop Color="#E74C3C"
+                                      Offset="0"/>
+                        <GradientStop Color="#C0392B"
+                                      Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel>
+                    <TextBlock Text="🔴 严重漏洞"
+                               Foreground="#FADBD8"
+                               FontSize="12"/>
+                    <TextBlock Name="CriticalKpiText"
+                               Text="0"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                    <TextBlock Name="CriticalKpiExtra"
+                               Text="选中周期内"
+                               Foreground="#FADBD8"
+                               FontSize="11"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="3,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0"
+                                         EndPoint="1,1">
+                        <GradientStop Color="#E67E22"
+                                      Offset="0"/>
+                        <GradientStop Color="#D35400"
+                                      Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel>
+                    <TextBlock Text="🟠 高危漏洞"
+                               Foreground="#FDEBD0"
+                               FontSize="12"/>
+                    <TextBlock Name="HighKpiText"
+                               Text="0"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                    <TextBlock Name="HighKpiExtra"
+                               Text="选中周期内"
+                               Foreground="#FDEBD0"
+                               FontSize="11"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="3,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0"
+                                         EndPoint="1,1">
+                        <GradientStop Color="#F39C12"
+                                      Offset="0"/>
+                        <GradientStop Color="#D68910"
+                                      Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel>
+                    <TextBlock Text="🟡 中危漏洞"
+                               Foreground="#FEF9E7"
+                               FontSize="12"/>
+                    <TextBlock Name="MediumKpiText"
+                               Text="0"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                    <TextBlock Name="MediumKpiExtra"
+                               Text="选中周期内"
+                               Foreground="#FEF9E7"
+                               FontSize="11"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="3"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="3,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0"
+                                         EndPoint="1,1">
+                        <GradientStop Color="#27AE60"
+                                      Offset="0"/>
+                        <GradientStop Color="#1E8449"
+                                      Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel>
+                    <TextBlock Text="🔵 目标覆盖"
+                               Foreground="#D5F5E3"
+                               FontSize="12"/>
+                    <TextBlock Name="TargetsKpiText"
+                               Text="0"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                    <TextBlock Name="TargetsKpiExtra"
+                               Text="个独立IP"
+                               Foreground="#D5F5E3"
+                               FontSize="11"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="4"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="3,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0"
+                                         EndPoint="1,1">
+                        <GradientStop Color="#2980B9"
+                                      Offset="0"/>
+                        <GradientStop Color="#1F618D"
+                                      Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel>
+                    <TextBlock Text="📡 开放端口"
+                               Foreground="#D6EAF8"
+                               FontSize="12"/>
+                    <TextBlock Name="PortsKpiText"
+                               Text="0"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                    <TextBlock Name="PortsKpiExtra"
+                               Text="累计暴露端口"
+                               Foreground="#D6EAF8"
+                               FontSize="11"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="5"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="6,0,0,0">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0"
+                                         EndPoint="1,1">
+                        <GradientStop Color="#8E44AD"
+                                      Offset="0"/>
+                        <GradientStop Color="#6C3483"
+                                      Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel>
+                    <TextBlock Text="🎯 风险指数"
+                               Foreground="#E8DAEF"
+                               FontSize="12"/>
+                    <TextBlock Name="RiskIndexKpiText"
+                               Text="0"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                    <TextBlock Name="RiskLevelKpiText"
+                               Text="安全"
+                               FontSize="11"
+                               FontWeight="Bold"
+                               Foreground="White"
+                               Margin="0,3,0,0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- 中间：左侧趋势图 + 右侧风险分布 -->
+        <Grid Grid.Row="3"
+              Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="14"
+                    Margin="0,0,6,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <DockPanel Grid.Row="0"
+                               Margin="0,0,0,8">
+                        <TextBlock Text="📈 扫描趋势与风险演进"
+                                   FontSize="16"
+                                   FontWeight="Bold"
+                                   Foreground="#2c3e50"
+                                   DockPanel.Dock="Left"/>
+                        <TextBlock Name="PeriodRangeText"
+                                   Text=""
+                                   FontSize="12"
+                                   Foreground="#7f8c8d"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Right"/>
+                    </DockPanel>
+                    <lvc:CartesianChart Name="TrendMultiChart"
+                                        Grid.Row="1"
+                                        LegendPosition="Top"
+                                        Height="260"/>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Background="White"
+                    CornerRadius="8"
+                    Padding="14"
+                    Margin="6,0,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="🥧 风险等级构成"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Foreground="#2c3e50"
+                               Margin="0,0,0,8"/>
+                    <lvc:PieChart Name="RiskMixPieChart"
+                                  Grid.Row="1"
+                                  LegendPosition="Bottom"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- 下方左：堆叠风险面积图 -->
+        <Border Grid.Row="4"
+                Background="White"
+                CornerRadius="8"
+                Padding="14"
+                Margin="0,0,8,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0"
+                           Text="📊 漏洞等级堆叠分析（按等级展开）"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="#2c3e50"
+                           Margin="0,0,0,8"/>
+                <lvc:CartesianChart Grid.Row="1"
+                                    Name="StackedRiskChart"
+                                    LegendPosition="Top"/>
+            </Grid>
+        </Border>
+
+        <!-- 下方右：扫描类型 + 目标TOP -->
+        <Grid Grid.Row="4"
+              Grid.ColumnSpan="1"
+              Margin="8,0,0,0">
+            <!-- 由于上面只用到列0，这里直接把row4 col1放TOP端口 -->
+        </Grid>
+
+        <!-- 需要调整布局，把 Row5 改成另一行图表 -->
+
+        <!-- 修正：Row4分成两列 -->
+        <Border Grid.Column="1"
+                Grid.Row="4"
+                Background="White"
+                CornerRadius="8"
+                Padding="14"
+                Margin="0,0,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0"
+                           Text="🎯 TOP 10 目标扫描频次"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="#2c3e50"
+                           Margin="0,0,0,8"/>
+                <lvc:CartesianChart Grid.Row="1"
+                                    Name="TopTargetsBarChart"/>
+            </Grid>
+        </Border>
+
+        <!-- Row 5：两个并排图表 -->
+        <Border Grid.Row="5"
+                Grid.Column="0"
+                Background="White"
+                CornerRadius="8"
+                Padding="14"
+                Margin="0,8,8,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0"
+                           Text="⚔️ 端口 vs 漏洞 相关性对比"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="#2c3e50"
+                           Margin="0,0,0,8"/>
+                <lvc:CartesianChart Grid.Row="1"
+                                    Name="PortVsVulnChart"
+                                    LegendPosition="Top"/>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="5"
+                Grid.Column="1"
+                Background="White"
+                CornerRadius="8"
+                Padding="14"
+                Margin="8,8,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0"
+                           Text="📋 周期扫描明细"
+                           FontSize="16"
+                           FontWeight="Bold"
+                           Foreground="#2c3e50"
+                           Margin="0,0,0,8"/>
+                <DataGrid Name="PeriodDetailGrid"
+                          Grid.Row="1"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="Column"
+                          AlternatingRowBackground="#F8F9FA">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="周期"
+                                            Binding="{Binding Label}"
+                                            Width="*"/>
+                        <DataGridTextColumn Header="扫描次数"
+                                            Binding="{Binding ScanCount}"
+                                            Width="70"/>
+                        <DataGridTextColumn Header="漏洞"
+                                            Binding="{Binding TotalVulnerabilities}"
+                                            Width="60"/>
+                        <DataGridTextColumn Header="严重"
+                                            Binding="{Binding CriticalCount}"
+                                            Width="50"/>
+                        <DataGridTextColumn Header="高危"
+                                            Binding="{Binding HighCount}"
+                                            Width="50"/>
+                        <DataGridTextColumn Header="目标数"
+                                            Binding="{Binding UniqueTargets}"
+                                            Width="60"/>
+                        <DataGridTextColumn Header="开放端口"
+                                            Binding="{Binding OpenPorts}"
+                                            Width="70"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

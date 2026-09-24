@@ -1,0 +1,218 @@
+<Window x:Class="NetSecurityScanner.Views.AssetManagementWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="💼 资产管理" Height="760" Width="1280"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题 -->
+        <Border Grid.Row="0" Background="#e17055" CornerRadius="8" Padding="20" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="💼 资产管理" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="管理IT资产，追踪变更历史" FontSize="13" Foreground="#ffeaa7" Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- 登录状态栏 v1.0.1.2 -->
+        <Border Grid.Row="1" Background="#f8f9fa" CornerRadius="8" Padding="12,8" Margin="0,0,0,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Name="RoleBadgeText" Text="🔒 未登录" FontSize="14" FontWeight="Bold"
+                               Foreground="#636e72" VerticalAlignment="Center"/>
+                    <TextBlock Name="CurrentUserText" Text="" FontSize="13" Foreground="#2d3436"
+                               VerticalAlignment="Center" Margin="8,0,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Name="LoginLogoutButton" Content="🔑 登录" Width="90" Height="30"
+                            Margin="4,0" Click="LoginLogoutButton_Click"/>
+                    <Button Name="ViewChangeLogButton" Content="📜 完整变更日志" Width="130" Height="30"
+                            Margin="4,0" Click="ViewChangeLogButton_Click" IsEnabled="False"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 工具栏 -->
+        <ToolBarTray Grid.Row="2" Margin="0,0,0,10">
+            <ToolBar>
+                <Button Name="AddAssetButton" Click="AddAssetButton_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="➕" FontSize="16" Margin="0,0,5,0"/>
+                        <TextBlock Text="添加资产"/>
+                    </StackPanel>
+                </Button>
+                <Separator/>
+                <Button Name="EditAssetButton" Click="EditAssetButton_Click" IsEnabled="False">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="✏️" FontSize="16" Margin="0,0,5,0"/>
+                        <TextBlock Text="编辑"/>
+                    </StackPanel>
+                </Button>
+                <Button Name="DeleteAssetButton" Click="DeleteAssetButton_Click" IsEnabled="False">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="🗑️" FontSize="16" Margin="0,0,5,0"/>
+                        <TextBlock Text="删除"/>
+                    </StackPanel>
+                </Button>
+                <Separator/>
+                <TextBlock Text="类型:" VerticalAlignment="Center" Margin="4,0,4,0"/>
+                <ComboBox Name="AssetTypeFilter" Width="130" Height="28" SelectionChanged="AssetTypeFilter_SelectionChanged">
+                    <ComboBoxItem Content="全部" Tag="" IsSelected="True"/>
+                    <ComboBoxItem Content="Server" Tag="Server"/>
+                    <ComboBoxItem Content="Workstation" Tag="Workstation"/>
+                    <ComboBoxItem Content="NetworkDevice" Tag="NetworkDevice"/>
+                    <ComboBoxItem Content="SecurityDevice" Tag="SecurityDevice"/>
+                    <ComboBoxItem Content="Database" Tag="Database"/>
+                    <ComboBoxItem Content="Application" Tag="Application"/>
+                    <ComboBoxItem Content="Other" Tag="Other"/>
+                </ComboBox>
+                <TextBlock Text="状态:" VerticalAlignment="Center" Margin="8,0,4,0"/>
+                <ComboBox Name="AssetStatusFilter" Width="120" Height="28" SelectionChanged="AssetStatusFilter_SelectionChanged">
+                    <ComboBoxItem Content="全部" Tag="" IsSelected="True"/>
+                    <ComboBoxItem Content="在线" Tag="Online"/>
+                    <ComboBoxItem Content="离线" Tag="Offline"/>
+                    <ComboBoxItem Content="维护中" Tag="Maintenance"/>
+                    <ComboBoxItem Content="已退役" Tag="Retired"/>
+                </ComboBox>
+                <Separator/>
+                <TextBox Name="SearchTextBox" Width="180" Height="30" Padding="5"
+                         ToolTip="搜索资产"/>
+                <Button Name="SearchButton" Content="🔍 搜索" Click="SearchButton_Click"/>
+                <Separator/>
+                <Button Name="RefreshButton" Content="🔄 刷新" Click="RefreshButton_Click"/>
+            </ToolBar>
+        </ToolBarTray>
+
+        <!-- 主内容 -->
+        <Grid Grid.Row="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="320"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 资产列表 -->
+            <Border Grid.Column="0" BorderBrush="#dfe6e9" BorderThickness="1" CornerRadius="8" Margin="0,0,10,0">
+                <DataGrid Name="AssetsDataGrid" AutoGenerateColumns="False"
+                          CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                          AlternatingRowBackground="#f8f9fa" BorderThickness="0"
+                          SelectionChanged="AssetsDataGrid_SelectionChanged"
+                          MouseDoubleClick="AssetsDataGrid_MouseDoubleClick"
+                          HorizontalScrollBarVisibility="Auto">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="名称" Binding="{Binding Name}" Width="140"/>
+                        <DataGridTextColumn Header="IP地址" Binding="{Binding IPAddress}" Width="120"/>
+                        <DataGridTextColumn Header="MAC地址" Binding="{Binding MacAddress}" Width="130"/>
+                        <DataGridTextColumn Header="类型" Binding="{Binding AssetType}" Width="100"/>
+                        <DataGridTextColumn Header="操作系统" Binding="{Binding OperatingSystem}" Width="110"/>
+                        <DataGridTextColumn Header="部门" Binding="{Binding Department}" Width="100"/>
+                        <DataGridTextColumn Header="负责人" Binding="{Binding Owner}" Width="100"/>
+                        <DataGridTextColumn Header="位置" Binding="{Binding Location}" Width="100"/>
+                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="80">
+                            <DataGridTextColumn.ElementStyle>
+                                <Style TargetType="TextBlock">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Status}" Value="Online">
+                                            <Setter Property="Foreground" Value="#00b894"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Status}" Value="Offline">
+                                            <Setter Property="Foreground" Value="#e74c3c"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Status}" Value="Maintenance">
+                                            <Setter Property="Foreground" Value="#fdcb6e"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Status}" Value="Retired">
+                                            <Setter Property="Foreground" Value="#95a5a6"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </DataGridTextColumn.ElementStyle>
+                        </DataGridTextColumn>
+                        <DataGridTextColumn Header="创建时间" Binding="{Binding CreatedAt, StringFormat=yyyy-MM-dd HH:mm}" Width="140"/>
+                        <DataGridTextColumn Header="最后修改" Binding="{Binding LastModified, StringFormat=yyyy-MM-dd HH:mm}" Width="140"/>
+                        <DataGridTextColumn Header="创建人" Binding="{Binding CreatedBy}" Width="90"/>
+                        <DataGridTextColumn Header="修改人" Binding="{Binding LastModifiedBy}" Width="90"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </Border>
+
+            <!-- 统计面板 -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 统计 2x2 -->
+                <Border Grid.Row="0" Background="#f8f9fa" CornerRadius="8" Padding="15" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="📊 资产统计" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="总资产" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Name="TotalAssetsText" Text="0" FontSize="22" FontWeight="Bold"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,0,8">
+                                <TextBlock Text="在线" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Name="OnlineAssetsText" Text="0" FontSize="22" FontWeight="Bold" Foreground="#00b894"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="0" Grid.Row="1">
+                                <TextBlock Text="离线" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Name="OfflineAssetsText" Text="0" FontSize="22" FontWeight="Bold" Foreground="#e74c3c"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Grid.Row="1">
+                                <TextBlock Text="维护中" FontSize="12" Foreground="Gray"/>
+                                <TextBlock Name="MaintenanceAssetsText" Text="0" FontSize="22" FontWeight="Bold" Foreground="#fdcb6e"/>
+                            </StackPanel>
+                        </Grid>
+                        <Border BorderBrush="#dfe6e9" BorderThickness="0,1,0,0" Margin="0,8,0,6"/>
+                        <TextBlock Text="📈 类型分布" FontWeight="Bold" FontSize="13" Margin="0,0,0,6"/>
+                        <StackPanel Name="TypeDistributionPanel"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- 最近变更 -->
+                <Border Grid.Row="1" BorderBrush="#dfe6e9" BorderThickness="1" CornerRadius="8">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <Border Background="#f8f9fa" Padding="10" CornerRadius="8,8,0,0">
+                            <TextBlock Text="📝 最近变更" FontWeight="Bold"/>
+                        </Border>
+                        <ListBox Grid.Row="1" Name="ChangeLogListBox" BorderThickness="0"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- 底部 -->
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Name="ImportButton" Content="📥 导入扫描结果" Width="130" Height="35"
+                    Margin="5" Click="ImportButton_Click"/>
+            <Button Name="ExportButton" Content="📤 导出" Width="100" Height="35"
+                    Margin="5" Click="ExportButton_Click"/>
+            <Button Name="CloseButton" Content="❌ 关闭" Width="100" Height="35"
+                    Margin="5" Click="CloseButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

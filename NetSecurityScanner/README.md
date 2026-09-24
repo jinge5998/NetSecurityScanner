@@ -2,7 +2,7 @@
 
 ## 版本更新通知
 
-本仓库仅用于发布 NetSecurityScanner 版本更新通知。
+本仓库仅用于发布 NetSecurityScanner 版本更新通知，不包含源代码。
 
 ## 下载方式
 

@@ -1,0 +1,27 @@
+# Checklist
+
+- [x] UpdateInfo.cs 数据模型已创建，包含版本号、发布时间、更新日志等字段
+- [x] UpdateSettings.cs 配置模型已创建，包含GitHub仓库信息和用户偏好
+- [x] SettingsService 已扩展，支持更新配置读写
+- [x] UpdateCheckService.cs 已实现，支持GitHub API调用和JSON解析
+- [x] 语义化版本比较逻辑正确，能准确判断新旧版本
+- [x] 网络异常处理完善，超时/限流/断网等场景不会导致崩溃
+- [x] UpdatePackageDownloader.cs 已实现，能正确打开百度网盘链接
+- [x] UpdateDialog.xaml 窗口已创建，界面样式与项目一致
+- [x] 更新日志区域支持文本格式展示(等宽字体+深色背景)
+- [x] "立即下载"按钮能正确打开百度网盘链接并显示提取码提示
+- [x] "稍后提醒"按钮记录时间，24小时后再次提醒
+- [x] "跳过此版本"按钮记录版本号，该版本不再弹出提示
+- [x] MainWindow.xaml 已添加"检查更新"菜单项
+- [x] MainWindow.xaml.cs 已实现检查更新事件处理
+- [x] App.xaml.cs 已添加启动时自动版本检查
+- [x] 启动时检查不阻塞主窗口显示(Task.Run异步执行)
+- [x] 手动检查更新忽略时间间隔限制(forceCheck参数)
+- [x] 检查更新过程有明确的反馈提示
+- [x] init-github-repo.ps1 初始化脚本已创建
+- [x] .gitignore 文件已创建，排除bin/obj/publish等
+- [x] Release Notes 模板文件已创建
+- [x] 发布指南文档已编写
+- [x] 项目编译无错误(0 errors)
+- [x] 程序运行无崩溃
+- [x] 配置持久化功能正常(通过SettingsService JSON序列化)

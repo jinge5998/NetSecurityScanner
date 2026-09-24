@@ -1,0 +1,130 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NetSecurityScanner.MainWindow"
+        Title="网络安全漏洞扫描系统 v1.0"
+        Width="1200" Height="800"
+        MinWidth="900" MinHeight="600">
+  
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    
+    <!-- 顶部菜单栏 -->
+    <Menu Grid.Row="0">
+      <MenuItem Header="文件(_F)">
+        <MenuItem Header="导出报告(_E)" />
+        <Separator />
+        <MenuItem Header="退出(_X)" Click="Exit_Click" />
+      </MenuItem>
+      <MenuItem Header="扫描(_S)">
+        <MenuItem Header="端口扫描(_P)" Click="OpenPortScan_Click"/>
+        <MenuItem Header="漏洞扫描(_V)" />
+        <MenuItem Header="批量扫描(_B)" />
+        <MenuItem Header="开始综合扫描(_S)" Click="StartScan_Click"/>
+        <MenuItem Header="停止扫描(_T)" Click="StopScan_Click"/>
+        <Separator />
+        <MenuItem Header="专家模式(_E)" />
+      </MenuItem>
+      <MenuItem Header="分析(_A)">
+        <MenuItem Header="AI风险评估(_R)" />
+        <MenuItem Header="统计分析(_S)" />
+        <MenuItem Header="可视化图表(_C)" />
+        <MenuItem Header="网络拓扑(_N)" />
+        <MenuItem Header="攻击路径分析(_K)" />
+        <Separator />
+        <MenuItem Header="攻击日志查询(_L)" />
+      </MenuItem>
+      <MenuItem Header="工具(_T)">
+        <MenuItem Header="生成端口关闭脚本(_G)" />
+        <MenuItem Header="更新漏洞库(_U)" />
+        <MenuItem Header="合规检查(_C)" />
+        <MenuItem Header="漏洞知识库(_K)" />
+        <Separator />
+        <MenuItem Header="插件管理(_M)" Click="OpenPluginManager_Click"/>
+        <MenuItem Header="资产管理(_A)" />
+      </MenuItem>
+      <MenuItem Header="帮助(_H)">
+        <MenuItem Header="关于(_A)" Click="About_Click"/>
+      </MenuItem>
+    </Menu>
+
+    <!-- 工具栏 (用 StackPanel 替代 ToolBar) -->
+    <Border Grid.Row="1" Background="#F5F5F5" Padding="10" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="5">
+        <Button x:Name="StartScanButton" Content="▶ 开始扫描" Padding="10,5" Click="StartScan_Click"/>
+        <Button x:Name="StopButton" Content="⏹ 停止" IsEnabled="False" Padding="10,5" Click="StopScan_Click"/>
+        <Separator />
+        <TextBlock Text="目标:" VerticalAlignment="Center" Margin="5,0" />
+        <TextBox x:Name="TargetTextBox" Width="300" Watermark="输入IP地址或域名..." />
+        <ComboBox x:Name="ScanTypeComboBox" Width="100" SelectedIndex="0">
+          <ComboBoxItem Content="全面扫描" />
+          <ComboBoxItem Content="快速扫描" />
+          <ComboBoxItem Content="自定义扫描" />
+        </ComboBox>
+        <Button Content="🔍 扫描" Padding="10,5" Click="StartScan_Click"/>
+        <ProgressBar x:Name="ScanProgressBar" Width="150" Height="20" Minimum="0" Maximum="100" IsVisible="False"/>
+      </StackPanel>
+    </Border>
+
+    <!-- 主内容区 - 标签页 -->
+    <TabControl Grid.Row="2">
+      <TabItem Header="📡 端口扫描">
+        <ScrollViewer>
+          <StackPanel x:Name="PortScanPanel" Margin="10">
+            <TextBlock Text="端口扫描结果将在此显示" Foreground="Gray" 
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      
+      <TabItem Header="🔍 漏洞扫描">
+        <ScrollViewer>
+          <StackPanel x:Name="VulnScanPanel" Margin="10">
+            <TextBlock Text="漏洞扫描结果将在此显示" Foreground="Gray" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      
+      <TabItem Header="🤖 AI风险评估">
+        <ScrollViewer>
+          <StackPanel x:Name="AiRiskPanel" Margin="10">
+            <TextBlock Text="AI风险评估结果将在此显示" Foreground="Gray" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      
+      <TabItem Header="📊 扫描历史">
+        <ScrollViewer>
+          <StackPanel x:Name="HistoryPanel" Margin="10">
+            <TextBlock Text="扫描历史记录将在此显示" Foreground="Gray" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+      
+      <TabItem Header="🔌 插件管理">
+        <ScrollViewer>
+          <StackPanel x:Name="PluginPanel" Margin="10">
+            <TextBlock Text="插件管理功能将在此显示" Foreground="Gray" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+
+    <!-- 状态栏 (用 Border + StackPanel 替代 StatusBar) -->
+    <Border Grid.Row="3" Background="#ECF0F1" Padding="10,5" BorderBrush="#E0E0E0" BorderThickness="0,1,0,0">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        
+        <TextBlock x:Name="StatusText" Text="就绪" VerticalAlignment="Center"/>
+        <TextBlock x:Name="StatusTime" Text="" Grid.Column="1" VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

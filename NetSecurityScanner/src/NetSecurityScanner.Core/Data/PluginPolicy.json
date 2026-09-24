@@ -1,0 +1,12 @@
+{
+  "Whitelist": [],
+  "Blacklist": [],
+  "PermissionMatrix": {},
+  "DangerousOpBlockList": [
+    "WriteRegistry",
+    "DeleteFile",
+    "StartProcess"
+  ],
+  "LastModified": "2026-07-12T22:50:00",
+  "LastModifiedBy": "system"
+}
