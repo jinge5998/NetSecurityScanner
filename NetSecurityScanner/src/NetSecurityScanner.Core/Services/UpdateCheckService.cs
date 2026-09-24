@@ -29,7 +29,7 @@ namespace NetSecurityScanner.Services
             _githubToken = githubToken;
             _httpClient = new HttpClient
             {
-                Timeout = TimeSpan.FromSeconds(15)
+                Timeout = TimeSpan.FromSeconds(30)
             };
 
             _httpClient.DefaultRequestHeaders.Add("User-Agent", "NetSecurityScanner-UpdateChecker");
@@ -65,7 +65,7 @@ namespace NetSecurityScanner.Services
 
                 var url = string.Format(GitHubLatestReleaseUrl, settings.GitHubOwner, settings.GitHubRepo);
 
-                var response = await _httpClient.GetAsync(url);
+                var response = await GetWithRetryAsync(url, 3);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -98,6 +98,12 @@ namespace NetSecurityScanner.Services
                 if (releaseData == null || string.IsNullOrWhiteSpace(releaseData.TagName))
                 {
                     Console.WriteLine("解析远程更新信息失败");
+                    return null;
+                }
+
+                if (releaseData.Prerelease && !(settings.CheckPrerelease ?? false))
+                {
+                    Console.WriteLine($"最新 Release 是预发布版本 ({releaseData.TagName})，跳过");
                     return null;
                 }
 
@@ -143,6 +149,13 @@ namespace NetSecurityScanner.Services
 
                 SelectWindowsAsset(updateInfo);
 
+                if (!string.IsNullOrEmpty(updateInfo.WindowsAssetDownloadUrl))
+                {
+                    updateInfo.DownloadUrl = updateInfo.WindowsAssetDownloadUrl;
+                    updateInfo.AssetName = updateInfo.WindowsAssetName ?? string.Empty;
+                    updateInfo.FileSize = updateInfo.WindowsAssetSize;
+                }
+
                 ParseBaiduDownloadInfo(updateInfo);
 
                 Console.WriteLine($"发现新版本: {latestVersion}");
@@ -163,6 +176,29 @@ namespace NetSecurityScanner.Services
                 Console.WriteLine($"检查更新时发生错误: {ex.Message}");
                 return null;
             }
+        }
+
+        private async Task<HttpResponseMessage> GetWithRetryAsync(string url, int maxRetries)
+        {
+            var lastException = default(Exception);
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    return await _httpClient.GetAsync(url);
+                }
+                catch (HttpRequestException ex) when (attempt < maxRetries)
+                {
+                    lastException = ex;
+                    await Task.Delay(1000 * attempt);
+                }
+                catch (TaskCanceledException ex) when (attempt < maxRetries)
+                {
+                    lastException = ex;
+                    await Task.Delay(1000 * attempt);
+                }
+            }
+            throw lastException ?? new HttpRequestException("HTTP 请求失败");
         }
 
         /// <summary>
