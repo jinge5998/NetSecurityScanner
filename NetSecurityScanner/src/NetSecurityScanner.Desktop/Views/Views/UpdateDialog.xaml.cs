@@ -3,16 +3,20 @@ using System.ComponentModel;
 using System.Windows;
 using NetSecurityScanner.Utils;
 using NetSecurityScanner.Services;
+using UpdateSettingsModel = NetSecurityScanner.Models.UpdateSettings;
+using UpdateInfoModel = NetSecurityScanner.Models.UpdateInfo;
 
 namespace NetSecurityScanner.Views
 {
     public partial class UpdateDialog : Window
     {
-        private readonly Models.UpdateInfo _updateInfo;
-        private readonly Models.UpdateSettings _updateSettings;
+        private readonly UpdateInfoModel _updateInfo;
+        private readonly UpdateSettingsModel _updateSettings;
         private bool _isClosingHandled = false;
+        private bool _isUpdating = false;
+        private GitHubAutoUpdater? _autoUpdater;
 
-        public UpdateDialog(Models.UpdateInfo updateInfo, Models.UpdateSettings updateSettings)
+        public UpdateDialog(UpdateInfoModel updateInfo, UpdateSettingsModel updateSettings)
         {
             InitializeComponent();
             _updateInfo = updateInfo;
@@ -44,11 +48,114 @@ namespace NetSecurityScanner.Views
             {
                 ExtractionCodeTextBlock.Text = UpdatePackageDownloader.DefaultExtractionCode;
             }
+
+            var hasAutoUpdate = !string.IsNullOrEmpty(_updateInfo.WindowsAssetDownloadUrl);
+            AutoUpdatePanel.Visibility = hasAutoUpdate ? Visibility.Visible : Visibility.Collapsed;
+            AutoUpdateButton.Visibility = hasAutoUpdate ? Visibility.Visible : Visibility.Collapsed;
+
+            if (hasAutoUpdate)
+            {
+                AssetSizeTextBlock.Text = FormatBytes(_updateInfo.WindowsAssetSize);
+                AssetNameTextBlock.Text = _updateInfo.WindowsAssetName ?? "GitHub Release";
+            }
         }
 
         private string GetCurrentVersion()
         {
             return VersionHelper.GetVersion();
+        }
+
+        private async void AutoUpdateButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isUpdating) return;
+
+            if (string.IsNullOrEmpty(_updateInfo.WindowsAssetDownloadUrl))
+            {
+                MessageBox.Show("无法获取自动更新下载地址，请使用手动下载方式。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                "即将从 GitHub 自动下载并安装最新版本。\n\n" +
+                "⚠️ 更新过程中应用将自动重启，请确保：\n" +
+                "1. 已保存所有工作\n" +
+                "2. 网络连接稳定\n\n" +
+                "是否继续？",
+                "确认自动更新",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes) return;
+
+            _isUpdating = true;
+            SetButtonsEnabled(false);
+            ProgressPanel.Visibility = Visibility.Visible;
+            AutoUpdateButton.Content = "更新中...";
+            AutoUpdateButton.IsEnabled = false;
+
+            try
+            {
+                _autoUpdater = new GitHubAutoUpdater();
+                _autoUpdater.ProgressChanged += OnUpdateProgressChanged;
+
+                var progress = new Progress<(string Message, int Percent)>(p =>
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        ProgressMessageTextBlock.Text = p.Message;
+                        UpdateProgressBar.Value = p.Percent;
+                    });
+                });
+
+                var success = await _autoUpdater.DownloadAndInstallAsync(
+                    _updateInfo.WindowsAssetDownloadUrl!,
+                    _updateInfo.WindowsAssetName ?? "update.zip",
+                    progress);
+
+                if (success)
+                {
+                    ProgressMessageTextBlock.Text = "✅ 更新完成！3 秒后自动重启应用...";
+                    UpdateProgressBar.Value = 100;
+
+                    var settingsService = new SettingsService();
+                    _updateSettings.LastCheckTime = DateTime.Now;
+                    await settingsService.SaveUpdateSettingsAsync(_updateSettings);
+
+                    await System.Threading.Tasks.Task.Delay(2000);
+
+                    _autoUpdater.ScheduleRestart(delaySeconds: 2);
+                }
+                else
+                {
+                    ProgressMessageTextBlock.Text = "❌ 更新失败，请尝试手动下载更新";
+                    SetButtonsEnabled(true);
+                    _isUpdating = false;
+                    AutoUpdateButton.Content = "🚀 一键更新";
+                    AutoUpdateButton.IsEnabled = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                ProgressMessageTextBlock.Text = $"❌ 更新出错: {ex.Message}";
+                SetButtonsEnabled(true);
+                _isUpdating = false;
+                AutoUpdateButton.Content = "🚀 一键更新";
+                AutoUpdateButton.IsEnabled = true;
+            }
+        }
+
+        private void OnUpdateProgressChanged(object? sender, AutoUpdateProgressEventArgs e)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                ProgressMessageTextBlock.Text = e.Message;
+                UpdateProgressBar.Value = e.ProgressPercent;
+
+                if (e.IsError)
+                {
+                    ProgressMessageTextBlock.Foreground = System.Windows.Media.Brushes.Red;
+                }
+            });
         }
 
         private void DownloadButton_Click(object sender, RoutedEventArgs e)
@@ -123,8 +230,38 @@ namespace NetSecurityScanner.Views
             catch { }
         }
 
+        private void SetButtonsEnabled(bool enabled)
+        {
+            AutoUpdateButton.IsEnabled = enabled;
+            ManualDownloadButton.IsEnabled = enabled;
+            RemindLaterButton.IsEnabled = enabled;
+            SkipButton.IsEnabled = enabled;
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            if (bytes <= 0) return "未知";
+            string[] units = { "B", "KB", "MB", "GB" };
+            var unitIndex = 0;
+            double size = bytes;
+            while (size >= 1024 && unitIndex < units.Length - 1)
+            {
+                size /= 1024;
+                unitIndex++;
+            }
+            return $"{size:F1} {units[unitIndex]}";
+        }
+
         protected override void OnClosing(CancelEventArgs e)
         {
+            if (_isUpdating)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            _autoUpdater?.Dispose();
+
             base.OnClosing(e);
             if (!_isClosingHandled && DialogResult != true)
             {

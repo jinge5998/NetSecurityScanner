@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -36,7 +37,7 @@ namespace NetSecurityScanner.Services
 
             if (!string.IsNullOrEmpty(_githubToken))
             {
-                _httpClient.DefaultRequestHeaders.Authorization = 
+                _httpClient.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _githubToken);
             }
 
@@ -129,6 +130,19 @@ namespace NetSecurityScanner.Services
                     FileSize = 0
                 };
 
+                foreach (var asset in releaseData.Assets)
+                {
+                    updateInfo.Assets.Add(new GitHubAssetInfo
+                    {
+                        Name = asset.Name,
+                        BrowserDownloadUrl = asset.BrowserDownloadUrl,
+                        Size = asset.Size,
+                        ContentType = asset.ContentType
+                    });
+                }
+
+                SelectWindowsAsset(updateInfo);
+
                 ParseBaiduDownloadInfo(updateInfo);
 
                 Console.WriteLine($"发现新版本: {latestVersion}");
@@ -198,6 +212,50 @@ namespace NetSecurityScanner.Services
             catch
             {
                 return null;
+            }
+        }
+
+        private static void SelectWindowsAsset(UpdateInfo updateInfo)
+        {
+            if (updateInfo.Assets.Count == 0)
+                return;
+
+            var preferredPatterns = new[]
+            {
+                "NetSecurityScanner-Desktop",
+                "NetSecurityScanner-Windows",
+                "NetSecurityScanner-win",
+                "NetSecurityScanner",
+                "publish"
+            };
+
+            foreach (var pattern in preferredPatterns)
+            {
+                var asset = updateInfo.Assets.FirstOrDefault(a =>
+                    a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) &&
+                    a.Name.Contains(pattern, StringComparison.OrdinalIgnoreCase) &&
+                    !a.Name.Contains("Linux", StringComparison.OrdinalIgnoreCase) &&
+                    !a.Name.Contains("linux", StringComparison.OrdinalIgnoreCase));
+
+                if (asset != null)
+                {
+                    updateInfo.WindowsAssetDownloadUrl = asset.BrowserDownloadUrl;
+                    updateInfo.WindowsAssetSize = asset.Size;
+                    updateInfo.WindowsAssetName = asset.Name;
+                    return;
+                }
+            }
+
+            var fallbackAsset = updateInfo.Assets.FirstOrDefault(a =>
+                a.Name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) &&
+                !a.Name.Contains("Linux", StringComparison.OrdinalIgnoreCase) &&
+                !a.Name.Contains("linux", StringComparison.OrdinalIgnoreCase));
+
+            if (fallbackAsset != null)
+            {
+                updateInfo.WindowsAssetDownloadUrl = fallbackAsset.BrowserDownloadUrl;
+                updateInfo.WindowsAssetSize = fallbackAsset.Size;
+                updateInfo.WindowsAssetName = fallbackAsset.Name;
             }
         }
 
