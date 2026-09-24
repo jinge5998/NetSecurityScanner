@@ -155,6 +155,10 @@ namespace NetSecurityScanner.Views
                 {
                     ProgressMessageTextBlock.Foreground = System.Windows.Media.Brushes.Red;
                 }
+                else
+                {
+                    ProgressMessageTextBlock.Foreground = System.Windows.Media.Brushes.Black;
+                }
             });
         }
 
@@ -186,6 +190,9 @@ namespace NetSecurityScanner.Views
             {
                 System.Diagnostics.Debug.WriteLine($"保存更新设置失败: {ex.Message}");
             }
+
+            DialogResult = false;
+            Close();
         }
 
         private void SkipButton_Click(object sender, RoutedEventArgs e)
@@ -200,6 +207,9 @@ namespace NetSecurityScanner.Views
             {
                 System.Diagnostics.Debug.WriteLine($"保存更新设置失败: {ex.Message}");
             }
+
+            DialogResult = false;
+            Close();
         }
 
         private void BaiduUrlTextBlock_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
