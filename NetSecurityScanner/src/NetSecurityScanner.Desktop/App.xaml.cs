@@ -173,6 +173,17 @@ namespace NetSecurityScanner
 
             try
             {
+                BootLog("[Update] 检查上次更新遗留的延迟替换文件...");
+                var pendingApplied = GitHubAutoUpdater.TryApplyPendingFilesOnStartup();
+                BootLog($"[Update] pending 文件应用结果: {(pendingApplied ? "已应用" : "无遗留")}");
+            }
+            catch (Exception ex)
+            {
+                BootLog($"[Update] pending 文件检查异常: {ex.Message}");
+            }
+
+            try
+            {
                 CheckForUpdatesOnStartup();
             }
             catch (Exception ex)

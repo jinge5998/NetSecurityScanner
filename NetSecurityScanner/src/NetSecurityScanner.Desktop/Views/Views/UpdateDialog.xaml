@@ -139,43 +139,80 @@
             <StackPanel>
                 <StackPanel Orientation="Horizontal"
                             Margin="0,0,0,6">
-                    <TextBlock Text="📥 手动下载：百度网盘"
+                    <TextBlock Text="📥 手动下载（自动更新失败时使用）"
                                FontSize="14"
                                FontWeight="Bold"
                                Foreground="#2C3E50"/>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal"
-                            Margin="0,0,0,4">
-                    <TextBlock Text="下载链接："
+
+                <StackPanel Margin="0,0,0,8">
+                    <TextBlock Text="✅ 推荐：GitHub Release 页面"
                                FontSize="12"
-                               Foreground="#7F8C8D"/>
-                    <TextBlock Name="BaiduUrlTextBlock"
-                               Text=""
-                               FontSize="12"
-                               Foreground="#2980B9"
-                               Cursor="Hand"
-                               MouseLeftButtonDown="BaiduUrlTextBlock_Click"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="提取码："
-                               FontSize="12"
-                               Foreground="#7F8C8D"/>
-                    <TextBlock Name="ExtractionCodeTextBlock"
-                               Text=""
-                               FontSize="14"
                                FontWeight="Bold"
-                               Foreground="#E74C3C"/>
-                    <Button Name="CopyCodeButton"
-                            Content="复制"
-                            FontSize="10"
-                            Padding="6,1"
-                            Margin="8,0,0,0"
-                            Background="#3498DB"
-                            Foreground="White"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            Click="CopyCodeButton_Click"/>
+                               Foreground="#27AE60"
+                               Margin="0,0,0,3"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="发布地址："
+                                   FontSize="12"
+                                   Foreground="#7F8C8D"/>
+                        <TextBlock Name="GitHubReleaseUrlTextBlock"
+                                   Text=""
+                                   FontSize="12"
+                                   Foreground="#2980B9"
+                                   Cursor="Hand"
+                                   MouseLeftButtonDown="GitHubReleaseUrlTextBlock_Click"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="480"/>
+                    </StackPanel>
                 </StackPanel>
+
+                <Border BorderBrush="#dfe6e9"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Padding="8"
+                        Background="#f8f9fa">
+                    <StackPanel>
+                        <TextBlock Text="🔄 备用：百度网盘（国内加速）"
+                                   FontSize="12"
+                                   FontWeight="Bold"
+                                   Foreground="#E67E22"
+                                   Margin="0,0,0,4"/>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,4">
+                            <TextBlock Text="下载链接："
+                                       FontSize="12"
+                                       Foreground="#7F8C8D"/>
+                            <TextBlock Name="BaiduUrlTextBlock"
+                                       Text=""
+                                       FontSize="12"
+                                       Foreground="#2980B9"
+                                       Cursor="Hand"
+                                       MouseLeftButtonDown="BaiduUrlTextBlock_Click"
+                                       TextTrimming="CharacterEllipsis"
+                                       MaxWidth="420"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="提取码："
+                                       FontSize="12"
+                                       Foreground="#7F8C8D"/>
+                            <TextBlock Name="ExtractionCodeTextBlock"
+                                       Text=""
+                                       FontSize="14"
+                                       FontWeight="Bold"
+                                       Foreground="#E74C3C"/>
+                            <Button Name="CopyCodeButton"
+                                    Content="复制"
+                                    FontSize="10"
+                                    Padding="6,1"
+                                    Margin="8,0,0,0"
+                                    Background="#3498DB"
+                                    Foreground="White"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    Click="CopyCodeButton_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </Border>
 

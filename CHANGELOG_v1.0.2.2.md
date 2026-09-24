@@ -108,7 +108,28 @@ v1.0.2.2 已从根源上阻止再次产生此类大文件。
 
 ---
 
-## 五、与 v1.0.2.1 的关系
+## 五、升级渠道调整（GitHub 主升级、百度辅助）
+
+自 v1.0.2.2 起，应用内升级渠道调整为：
+
+| 优先级 | 渠道 | 说明 |
+|--------|------|------|
+| **主升级** | GitHub 自动更新 | 应用内"检查更新 → 一键更新"直接从 GitHub Release 下载并安装，自动重启生效 |
+| **辅助升级** | 百度网盘 | 仅当 GitHub 无法访问或自动更新失败时使用，Release 说明中附带链接与提取码 |
+
+具体变更：
+
+1. `UpdateCheckService.ParseBaiduDownloadInfo`：百度链接不再覆盖
+   `UpdateInfo.DownloadUrl`（主下载地址保持 GitHub 资源），仅当 GitHub 上
+   无可用 Windows 更新包时才回退到百度链接
+2. `UpdatePackageDownloader`：新增 `DefaultGitHubReleaseUrl` 常量；
+   `GetDownloadGuideText` 升级指南改为 GitHub 优先、百度备用的双渠道说明
+3. 更新对话框（Desktop 与主 WPF 项目同步）：GitHub 一键更新置顶为推荐方式，
+   百度网盘降级为"备用（国内加速）"折叠区
+
+---
+
+## 六、与 v1.0.2.1 的关系
 
 v1.0.2.2 在 v1.0.2.1 全部内容的基础上叠加本文件所述两项修复，其余行为不变。
 v1.0.2.1 的修复明细见 `CHANGELOG_v1.0.2.1.md`，测试明细见 `NetSecurityScanner/docs/测试报告-v1.0.2.1.md`。

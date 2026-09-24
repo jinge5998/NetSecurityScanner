@@ -31,22 +31,38 @@ namespace NetSecurityScanner.Views
             ReleaseDateTextBlock.Text = _updateInfo.ReleaseDate.ToString("yyyy-MM-dd");
             ReleaseNotesTextBox.Text = _updateInfo.ReleaseNotes;
 
+            if (!string.IsNullOrEmpty(_updateInfo.HtmlUrl))
+            {
+                GitHubReleaseUrlTextBlock.Text = _updateInfo.HtmlUrl;
+                GitHubReleaseUrlTextBlock.ToolTip = "点击在浏览器中打开 GitHub Release 页面";
+            }
+            else
+            {
+                GitHubReleaseUrlTextBlock.Text = "（暂无 GitHub 页面）";
+                GitHubReleaseUrlTextBlock.Foreground = System.Windows.Media.Brushes.Gray;
+                GitHubReleaseUrlTextBlock.Cursor = System.Windows.Input.Cursors.Arrow;
+            }
+
             if (!string.IsNullOrEmpty(_updateInfo.BaiduDownloadUrl))
             {
                 BaiduUrlTextBlock.Text = _updateInfo.BaiduDownloadUrl;
             }
             else
             {
-                BaiduUrlTextBlock.Text = UpdatePackageDownloader.DefaultDownloadUrl;
+                BaiduUrlTextBlock.Text = "（暂无备用链接）";
+                BaiduUrlTextBlock.Foreground = System.Windows.Media.Brushes.Gray;
+                BaiduUrlTextBlock.Cursor = System.Windows.Input.Cursors.Arrow;
             }
 
             if (!string.IsNullOrEmpty(_updateInfo.BaiduExtractionCode))
             {
                 ExtractionCodeTextBlock.Text = _updateInfo.BaiduExtractionCode;
+                CopyCodeButton.Visibility = Visibility.Visible;
             }
             else
             {
-                ExtractionCodeTextBlock.Text = UpdatePackageDownloader.DefaultExtractionCode;
+                ExtractionCodeTextBlock.Text = "—";
+                CopyCodeButton.Visibility = Visibility.Collapsed;
             }
 
             var hasAutoUpdate = !string.IsNullOrEmpty(_updateInfo.WindowsAssetDownloadUrl);
@@ -121,17 +137,37 @@ namespace NetSecurityScanner.Views
                     _updateSettings.LastCheckTime = DateTime.Now;
                     await settingsService.SaveUpdateSettingsAsync(_updateSettings);
 
-                    await System.Threading.Tasks.Task.Delay(2000);
+                    _autoUpdater.ScheduleRestart(delaySeconds: 3);
 
-                    _autoUpdater.ScheduleRestart(delaySeconds: 2);
+                    ProgressMessageTextBlock.Text = "正在准备重启，请稍候...";
+
+                    await System.Threading.Tasks.Task.Delay(1000);
+
+                    System.Windows.Application.Current.Shutdown();
+                    return;
                 }
                 else
                 {
-                    ProgressMessageTextBlock.Text = "❌ 更新失败，请尝试手动下载更新";
+                    ProgressMessageTextBlock.Text = "❌ 更新失败";
                     SetButtonsEnabled(true);
                     _isUpdating = false;
                     AutoUpdateButton.Content = "🚀 一键更新";
                     AutoUpdateButton.IsEnabled = true;
+
+                    var retry = MessageBox.Show(
+                        "自动更新失败！\n\n是否打开下载页面手动更新？",
+                        "更新失败",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+
+                    if (retry == MessageBoxResult.Yes)
+                    {
+                        try
+                        {
+                            UpdatePackageDownloader.OpenDownloadLink(GetPreferredManualDownloadUrl());
+                        }
+                        catch { }
+                    }
                 }
             }
             catch (Exception ex)
@@ -166,9 +202,7 @@ namespace NetSecurityScanner.Views
         {
             try
             {
-                var url = !string.IsNullOrEmpty(_updateInfo.BaiduDownloadUrl)
-                    ? _updateInfo.BaiduDownloadUrl
-                    : UpdatePackageDownloader.DefaultDownloadUrl;
+                var url = GetPreferredManualDownloadUrl();
                 UpdatePackageDownloader.OpenDownloadLink(url);
                 DialogResult = true;
             }
@@ -176,6 +210,29 @@ namespace NetSecurityScanner.Views
             {
                 MessageBox.Show($"打开下载链接失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private string GetPreferredManualDownloadUrl()
+        {
+            if (!string.IsNullOrEmpty(_updateInfo.HtmlUrl))
+                return _updateInfo.HtmlUrl;
+
+            if (!string.IsNullOrEmpty(_updateInfo.BaiduDownloadUrl))
+                return _updateInfo.BaiduDownloadUrl;
+
+            return UpdatePackageDownloader.DefaultDownloadUrl;
+        }
+
+        private void GitHubReleaseUrlTextBlock_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(_updateInfo.HtmlUrl))
+                {
+                    UpdatePackageDownloader.OpenDownloadLink(_updateInfo.HtmlUrl);
+                }
+            }
+            catch { }
         }
 
         private void RemindLaterButton_Click(object sender, RoutedEventArgs e)
