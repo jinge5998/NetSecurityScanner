@@ -33,6 +33,7 @@ namespace NetSecurityScanner.Services
         private readonly string _appBaseDir;
         private readonly string _updateTempDir;
         private readonly string _backupDir;
+        private readonly string _backupRootDir;
         private bool _disposed;
 
         public event EventHandler<AutoUpdateProgressEventArgs>? ProgressChanged;
@@ -47,7 +48,8 @@ namespace NetSecurityScanner.Services
 
             _appBaseDir = AppDomain.CurrentDomain.BaseDirectory;
             _updateTempDir = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Update");
-            _backupDir = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Backup");
+            _backupDir = Path.Combine(_appBaseDir, ".backup", DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+            _backupRootDir = Path.Combine(_appBaseDir, ".backup");
         }
 
         public async Task<bool> DownloadAndInstallAsync(
@@ -61,9 +63,7 @@ namespace NetSecurityScanner.Services
                 ReportProgress("准备更新环境...", 0, progress);
 
                 CleanDirectory(_updateTempDir);
-                CleanDirectory(_backupDir);
                 Directory.CreateDirectory(_updateTempDir);
-                Directory.CreateDirectory(_backupDir);
 
                 var zipPath = Path.Combine(_updateTempDir, assetName);
 
@@ -367,43 +367,84 @@ del /f /q ""%~f0"" 2>nul
 
         private void BackupCurrentVersion()
         {
-            var criticalFiles = new[]
+            try
             {
-                "NetSecurityScanner.Desktop.exe",
-                "NetSecurityScanner.Core.dll",
-                "NetSecurityScanner.Desktop.dll"
-            };
-
-            foreach (var file in Directory.GetFiles(_appBaseDir))
-            {
-                try
+                if (Directory.Exists(_backupRootDir))
                 {
-                    var fileName = Path.GetFileName(file);
-                    if (fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ||
-                        fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
-                        criticalFiles.Contains(fileName, StringComparer.OrdinalIgnoreCase))
+                    var backupDirs = Directory.GetDirectories(_backupRootDir)
+                        .OrderByDescending(d => d)
+                        .Skip(3)
+                        .ToList();
+
+                    foreach (var oldDir in backupDirs)
                     {
-                        var targetPath = Path.Combine(_backupDir, fileName);
-                        File.Copy(file, targetPath, overwrite: true);
+                        try { Directory.Delete(oldDir, recursive: true); } catch { }
                     }
                 }
-                catch { }
-            }
 
-            var dataDir = Path.Combine(_appBaseDir, "Data");
-            if (Directory.Exists(dataDir))
+                Directory.CreateDirectory(_backupDir);
+
+                BackupRecursive(_appBaseDir, _backupDir, new[] { ".backup", ".git", "bin", "obj", "logs", "Logs", "backups", "Backups" });
+
+                var dataDir = Path.Combine(_appBaseDir, "Data");
+                if (Directory.Exists(dataDir))
+                {
+                    var backupDataDir = Path.Combine(_backupDir, "Data");
+                    Directory.CreateDirectory(backupDataDir);
+                    foreach (var file in Directory.GetFiles(dataDir, "*.json"))
+                    {
+                        try
+                        {
+                            File.Copy(file, Path.Combine(backupDataDir, Path.GetFileName(file)), overwrite: true);
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
             {
-                var backupDataDir = Path.Combine(_backupDir, "Data");
-                Directory.CreateDirectory(backupDataDir);
-                foreach (var file in Directory.GetFiles(dataDir, "*.json"))
+                Console.WriteLine($"备份失败: {ex.Message}");
+            }
+        }
+
+        private static void BackupRecursive(string sourceDir, string targetDir, string[] excludeDirs)
+        {
+            try
+            {
+                var dirInfo = new DirectoryInfo(sourceDir);
+
+                foreach (var file in dirInfo.GetFiles())
                 {
                     try
                     {
-                        File.Copy(file, Path.Combine(backupDataDir, Path.GetFileName(file)), overwrite: true);
+                        if (file.Name == "appsettings.json" || file.Name == "user-settings.json")
+                            continue;
+
+                        if (!file.Extension.Equals(".dll", StringComparison.OrdinalIgnoreCase) &&
+                            !file.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) &&
+                            !file.Extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var targetPath = Path.Combine(targetDir, file.Name);
+                        if (!File.Exists(targetPath) || file.LastWriteTimeUtc > new FileInfo(targetPath).LastWriteTimeUtc)
+                        {
+                            file.CopyTo(targetPath, overwrite: true);
+                        }
                     }
                     catch { }
                 }
+
+                foreach (var subDir in dirInfo.GetDirectories())
+                {
+                    if (excludeDirs.Any(ed => subDir.Name.Equals(ed, StringComparison.OrdinalIgnoreCase)))
+                        continue;
+
+                    var childTarget = Path.Combine(targetDir, subDir.Name);
+                    Directory.CreateDirectory(childTarget);
+                    BackupRecursive(subDir.FullName, childTarget, excludeDirs);
+                }
             }
+            catch { }
         }
 
         private string? FindUpdateSourceDirectory(string extractDir)
