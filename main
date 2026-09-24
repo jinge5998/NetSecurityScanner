@@ -1,0 +1,104 @@
+name: Build and Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: '版本标签 (如 v1.0.2.2)'
+        required: false
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Restore Dependencies
+        run: dotnet restore NetSecurityScanner/src/NetSecurityScanner.sln
+
+      - name: Publish Desktop App
+        run: |
+          dotnet publish NetSecurityScanner/src/NetSecurityScanner.Desktop/NetSecurityScanner.Desktop.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained false `
+            -o publish-output/NetSecurityScanner-Desktop
+          
+          Copy-Item -Path "NetSecurityScanner/src/NetSecurityScanner.Core/Data/*" `
+            -Destination "publish-output/NetSecurityScanner-Desktop/Data/" `
+            -Recurse -Force
+
+      - name: Create Release Package
+        run: |
+          $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { ${{ github.event.inputs.version_tag }} }
+          if (-not $tag) { $tag = "v0.0.0.0" }
+          
+          $releaseName = "NetSecurityScanner-Desktop-$tag-win-x64.zip"
+          $releaseName = $releaseName -replace '\s', ''
+          
+          Compress-Archive -Path "publish-output/NetSecurityScanner-Desktop/*" `
+            -DestinationPath $releaseName `
+            -Force
+          
+          Write-Host "Release package created: $releaseName"
+          Write-Host "RELEASE_NAME=$releaseName" >> $env:GITHUB_OUTPUT
+
+      - name: Get Version Tag
+        id: version
+        run: |
+          $tag = if ($env:GITHUB_REF_NAME) { $env:GITHUB_REF_NAME } else { ${{ github.event.inputs.version_tag }} }
+          if (-not $tag) { $tag = "v0.0.0.0" }
+          Write-Host "tag=$tag" >> $env:GITHUB_OUTPUT
+          Write-Host "version=${tag#v}" >> $env:GITHUB_OUTPUT
+
+      - name: Generate Release Notes
+        id: notes
+        run: |
+          $tag = "${{ steps.version.outputs.tag }}"
+          $prevTag = git tag --sort=-creatordate | Where-Object { $_ -ne $tag } | Select-Object -First 1
+          
+          $notes = @"
+## NetSecurityScanner $tag
+
+### 🚀 新功能
+- 自动更新功能：从 GitHub Release 一键下载更新并自动重启
+- 摄像头安全扫描：7 阶段深度扫描
+- 多品牌支持：海康威视、大华、Axis、EZVIZ
+- RTSP 认证检测 / ONVIF 设备发现
+
+### 🔧 修复
+- CameraFingerprint JSON 反序列化
+- 风险评级逻辑误判
+- HTTPS 自签证书连接
+- 弱口令检测多品牌覆盖
+
+### 📦 下载
+- Windows x64: NetSecurityScanner-Desktop-$tag-win-x64.zip
+"@
+          
+          $notes | Out-File -FilePath release-notes.md -Encoding utf8
+          Write-Host "notes_file=release-notes.md" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: NetSecurityScanner ${{ steps.version.outputs.tag }}
+          body_path: release-notes.md
+          files: |
+            NetSecurityScanner-Desktop-*-win-x64.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
