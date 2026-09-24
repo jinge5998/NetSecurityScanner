@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using NetSecurityScanner.Models;
+using NetSecurityScanner.Core.Models;
 
 namespace NetSecurityScanner.Controls
 {
@@ -147,14 +148,22 @@ namespace NetSecurityScanner.Controls
       // Y 轴
       ChartCanvas.Children.Add(new Line
       {
-        X1 = padL, Y1 = padT, X2 = padL, Y2 = padT + plotH,
-        Stroke = axisBrush, StrokeThickness = 1
+        X1 = padL,
+        Y1 = padT,
+        X2 = padL,
+        Y2 = padT + plotH,
+        Stroke = axisBrush,
+        StrokeThickness = 1
       });
       // X 轴
       ChartCanvas.Children.Add(new Line
       {
-        X1 = padL, Y1 = padT + plotH, X2 = padL + plotW, Y2 = padT + plotH,
-        Stroke = axisBrush, StrokeThickness = 1
+        X1 = padL,
+        Y1 = padT + plotH,
+        X2 = padL + plotW,
+        Y2 = padT + plotH,
+        Stroke = axisBrush,
+        StrokeThickness = 1
       });
 
       var textColor = new SolidColorBrush(Color.FromRgb(0x64, 0x74, 0x8B));
@@ -168,9 +177,13 @@ namespace NetSecurityScanner.Controls
         {
           var grid = new Line
           {
-            X1 = padL, Y1 = yPos, X2 = padL + plotW, Y2 = yPos,
+            X1 = padL,
+            Y1 = yPos,
+            X2 = padL + plotW,
+            Y2 = yPos,
             Stroke = new SolidColorBrush(Color.FromRgb(0xE2, 0xE8, 0xF0)),
-            StrokeThickness = 1, StrokeDashArray = new DoubleCollection { 2, 4 }
+            StrokeThickness = 1,
+            StrokeDashArray = new DoubleCollection { 2, 4 }
           };
           ChartCanvas.Children.Add(grid);
         }
@@ -227,8 +240,12 @@ namespace NetSecurityScanner.Controls
           double y2 = padT + plotH - plotH * val / maxY;
           ChartCanvas.Children.Add(new Line
           {
-            X1 = x1, Y1 = y1, X2 = x2, Y2 = y2,
-            Stroke = brush, StrokeThickness = 2
+            X1 = x1,
+            Y1 = y1,
+            X2 = x2,
+            Y2 = y2,
+            Stroke = brush,
+            StrokeThickness = 2
           });
         }
         // 数据点
@@ -242,7 +259,9 @@ namespace NetSecurityScanner.Controls
           double yPos = padT + plotH - plotH * val / maxY;
           var dot = new Ellipse
           {
-            Width = 5, Height = 5, Fill = brush,
+            Width = 5,
+            Height = 5,
+            Fill = brush,
             ToolTip = $"{series.Name} {dt:MM-dd}: {val:0}"
           };
           Canvas.SetLeft(dot, xPos - 2.5);

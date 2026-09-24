@@ -1,15 +1,15 @@
-namespace NetSecurityScanner.Models
+using System.Collections.Generic;
+
+namespace NetSecurityScanner.Core.Models
 {
-  public class CameraFingerprint
-  {
-    public string Vendor { get; set; } = string.Empty;
-    public string Model { get; set; } = string.Empty;
-    public string FirmwareVersion { get; set; } = string.Empty;
-    public string SerialNumber { get; set; } = string.Empty;
-    public string MacAddress { get; set; } = string.Empty;
-    public string HttpServer { get; set; } = string.Empty;
-    public string LocationUrl { get; set; } = string.Empty;
-    public string OnvifVersion { get; set; } = string.Empty;
-    public double Confidence { get; set; }
-  }
+    public class CameraFingerprint
+    {
+        public string Vendor { get; set; } = string.Empty;
+        public List<string> HttpPatterns { get; set; } = new();
+        public List<string> HttpServer { get; set; } = new();
+        public List<string> OnvifManufacturers { get; set; } = new();
+        public List<int> DefaultPorts { get; set; } = new();
+        public List<string> SdkPaths { get; set; } = new();
+        public string RtspUserAgent { get; set; } = string.Empty;
+    }
 }

@@ -3,22 +3,6 @@ using System.Collections.Generic;
 
 namespace NetSecurityScanner.Models
 {
-    public class MachODataEntry
-    {
-        public string? Name { get; set; }
-        public string? Type { get; set; }
-        public List<string> Imports { get; set; } = new();
-        public List<string> Exports { get; set; } = new();
-        public List<string> LoadCommands { get; set; } = new();
-    }
-
-    public class MainExecutableInfo
-    {
-        public string? Name { get; set; }
-        public bool IsEncrypted { get; set; }
-        public List<string> Segments { get; set; } = new();
-    }
-
     /// <summary>
     /// iOS IPA 分析结果
     /// </summary>
@@ -35,8 +19,8 @@ namespace NetSecurityScanner.Models
         public DateTime AnalyzedAt { get; set; } = DateTime.Now;
         public List<string>? ClassNames { get; set; }
         public List<string>? MethodNames { get; set; }
-        public List<MachODataEntry>? MachOData { get; set; }
-        public MainExecutableInfo? MainExecutable { get; set; }
+        public byte[]? MachOData { get; set; }
+        public string? MainExecutable { get; set; }
         public bool HasEncryptedBinary { get; set; }
         public List<string>? Frameworks { get; set; }
         public List<string>? EmbeddedBinaries { get; set; }

@@ -5,9 +5,9 @@
     <Nullable>enable</Nullable>
     <RootNamespace>NetSecurityScanner</RootNamespace>
     <NoWarn>$(NoWarn);NETSDK1138;NU1701;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS1998</NoWarn>
-    <AssemblyVersion>1.0.2.1</AssemblyVersion>
-    <FileVersion>1.0.2.1</FileVersion>
-    <Version>1.0.2.1</Version>
+    <AssemblyVersion>1.0.2.2</AssemblyVersion>
+    <FileVersion>1.0.2.2</FileVersion>
+    <Version>1.0.2.2</Version>
     <Product>网络安全扫描工具 - 核心库</Product>
     <Company>NetSecurityScanner</Company>
     <Copyright>© 2026 NetSecurityScanner</Copyright>
@@ -28,13 +28,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- APP 安全检测器：依赖完整 IpaAnalysisResult 模型（MachOData 为 byte[]、SdkFiles/NativeLibs 等属性） -->
-    <!-- 当前 IpaAnalysisResult 为桩模型，待 AppScannerService 完善后重新启用 -->
-    <!-- 修复路径：(1) 补全 IpaAnalysisResult 缺失属性 (2) 统一 MachOData 类型 (3) 移除 Compile Remove -->
-    <Compile Remove="Services/PrivacyComplianceDetector.cs" />
-    <Compile Remove="Services/StorageSecurityDetector.cs" />
-    <Compile Remove="Services/DylibInjectionDetector.cs" />
-    <Compile Remove="Services/ObfuscationDetector.cs" />
+    <!-- APP 安全检测器：依赖完整 IpaAnalysisResult 模型 -->
   </ItemGroup>
 
   <ItemGroup>

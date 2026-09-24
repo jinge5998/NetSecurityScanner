@@ -4216,7 +4216,7 @@ namespace NetSecurityScanner
         {
             try
             {
-                var cameraWindow = new Views.CameraSecurityScannerWindow { Owner = this };
+                var cameraWindow = new Views.CameraSecurityWindow { Owner = this };
                 cameraWindow.Show();
             }
             catch (Exception ex)

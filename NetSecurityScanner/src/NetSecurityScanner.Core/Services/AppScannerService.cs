@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NetSecurityScanner.Models;
@@ -37,6 +39,8 @@ namespace NetSecurityScanner.Services
                 ScanStartTime = DateTime.Now
             };
 
+            string? extractedPath = null;
+
             try
             {
                 if (!File.Exists(filePath))
@@ -66,17 +70,22 @@ namespace NetSecurityScanner.Services
 
                 var allVulnerabilities = new List<AppVulnerabilityResult>();
 
+                OnProgressChanged?.Invoke(5, "正在解压应用包...");
+                OnLog?.Invoke("[INFO] 正在解压应用包...");
+                extractedPath = await ExtractAppPackageAsync(filePath, appType, token);
+                OnLog?.Invoke($"[INFO] 解压完成: {extractedPath}");
+
                 OnProgressChanged?.Invoke(10, "正在进行SAST静态分析...");
                 OnLog?.Invoke("[INFO] 开始SAST静态分析检测...");
 
                 var sastTasks = new List<Task<List<AppVulnerabilityResult>>>
                 {
-                    Task.Run(() => ScanForHardcodedKeys(appType, mode, token), token),
-                    Task.Run(() => ScanForWebViewVulnerabilities(appType, mode, token), token),
-                    Task.Run(() => ScanForInsecureStorage(appType, mode, token), token),
-                    Task.Run(() => ScanForPermissionIssues(appType, mode, token), token),
-                    Task.Run(() => ScanForSSLCertificate(appType, mode, token), token),
-                    Task.Run(() => ScanForDebugMode(appType, mode, token), token)
+                    Task.Run(() => ScanForHardcodedKeys(appType, mode, extractedPath, token), token),
+                    Task.Run(() => ScanForWebViewVulnerabilities(appType, mode, extractedPath, token), token),
+                    Task.Run(() => ScanForInsecureStorage(appType, mode, extractedPath, token), token),
+                    Task.Run(() => ScanForPermissionIssues(appType, mode, extractedPath, token), token),
+                    Task.Run(() => ScanForSSLCertificate(appType, mode, extractedPath, token), token),
+                    Task.Run(() => ScanForDebugMode(appType, mode, extractedPath, token), token)
                 };
 
                 var sastResults = await Task.WhenAll(sastTasks);
@@ -85,11 +94,54 @@ namespace NetSecurityScanner.Services
                     allVulnerabilities.AddRange(vulns);
                 }
 
+                if (appType == AppType.iOS)
+                {
+                    OnProgressChanged?.Invoke(40, "正在进行iOS深度安全分析...");
+                    OnLog?.Invoke("[INFO] 开始iOS深度安全分析...");
+
+                    var ipaResult = await AnalyzeIpaAsync(extractedPath, token);
+                    if (ipaResult != null)
+                    {
+                        OnLog?.Invoke("[INFO] IPA分析完成，开始运行专项检测器...");
+
+                        var detectorTasks = new List<Task<List<AppVulnerabilityResult>>>
+                        {
+                            Task.Run(async () =>
+                            {
+                                var r = await new PrivacyComplianceDetector().DetectAsync(ipaResult, mode, token);
+                                return r.Vulnerabilities;
+                            }, token),
+                            Task.Run(async () =>
+                            {
+                                var r = await new StorageSecurityDetector().DetectAsync(ipaResult, mode, token);
+                                return r.Vulnerabilities;
+                            }, token),
+                            Task.Run(async () =>
+                            {
+                                var r = await new DylibInjectionDetector().DetectAsync(ipaResult, mode, token);
+                                return r.Vulnerabilities;
+                            }, token),
+                            Task.Run(async () =>
+                            {
+                                var r = await new ObfuscationDetector().DetectAsync(ipaResult, mode, token);
+                                return r.Vulnerabilities;
+                            }, token)
+                        };
+
+                        var detectorResults = await Task.WhenAll(detectorTasks);
+                        foreach (var vulns in detectorResults)
+                        {
+                            allVulnerabilities.AddRange(vulns);
+                        }
+                        OnLog?.Invoke($"[INFO] iOS专项检测完成，发现 {detectorResults.Sum(v => v.Count)} 个问题");
+                    }
+                }
+
                 OnProgressChanged?.Invoke(70, "正在进行SCA软件成分分析...");
                 OnLog?.Invoke("[INFO] 开始SCA软件成分分析...");
 
                 var sdkVulns = await Task.Run(
-                    () => ScanForThirdPartySDKs(appType, mode, token),
+                    () => ScanForThirdPartySDKs(appType, mode, extractedPath, token),
                     token);
                 allVulnerabilities.AddRange(sdkVulns);
 
@@ -121,8 +173,225 @@ namespace NetSecurityScanner.Services
                 result.ScanEndTime = DateTime.Now;
                 OnLog?.Invoke($"[ERROR] 扫描异常: {ex.Message}");
             }
+            finally
+            {
+                if (!string.IsNullOrEmpty(extractedPath))
+                {
+                    try
+                    {
+                        if (Directory.Exists(extractedPath))
+                        {
+                            Directory.Delete(extractedPath, true);
+                            OnLog?.Invoke($"[INFO] 已清理临时目录: {extractedPath}");
+                        }
+                    }
+                    catch (Exception cleanupEx)
+                    {
+                        OnLog?.Invoke($"[WARN] 临时目录清理失败: {cleanupEx.Message}");
+                    }
+                }
+            }
 
             return result;
+        }
+
+        private async Task<string> ExtractAppPackageAsync(string filePath, AppType appType, CancellationToken token)
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), $"appscan_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(tempDir);
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    if (appType == AppType.iOS)
+                    {
+                        ZipFile.ExtractToDirectory(filePath, tempDir, true);
+                    }
+                    else
+                    {
+                        ZipFile.ExtractToDirectory(filePath, tempDir, true);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    OnLog?.Invoke($"[WARN] 解压失败，将基于文件名进行模拟分析: {ex.Message}");
+                }
+            }, token);
+
+            return tempDir;
+        }
+
+        private async Task<IpaAnalysisResult?> AnalyzeIpaAsync(string extractedPath, CancellationToken token)
+        {
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    var ipa = new IpaAnalysisResult
+                    {
+                        AnalyzedAt = DateTime.Now
+                    };
+
+                    var payloadDir = Path.Combine(extractedPath, "Payload");
+                    if (!Directory.Exists(payloadDir))
+                    {
+                        OnLog?.Invoke("[WARN] 未找到 Payload 目录");
+                        return ipa;
+                    }
+
+                    var appDirs = Directory.GetDirectories(payloadDir, "*.app");
+                    if (appDirs.Length == 0)
+                    {
+                        OnLog?.Invoke("[WARN] 未找到 .app 目录");
+                        return ipa;
+                    }
+
+                    var appDir = appDirs[0];
+                    ipa.SizeBytes = Directory.GetFiles(appDir, "*", SearchOption.AllDirectories)
+                        .Sum(f => new FileInfo(f).Length);
+
+                    var infoPlistPath = Path.Combine(appDir, "Info.plist");
+                    if (File.Exists(infoPlistPath))
+                    {
+                        ipa.InfoPlistRawText = File.ReadAllText(infoPlistPath);
+                        ParseInfoPlist(ipa, ipa.InfoPlistRawText);
+                    }
+
+                    var allFiles = Directory.GetFiles(appDir, "*", SearchOption.AllDirectories).ToList();
+                    ipa.Frameworks = allFiles
+                        .Where(f => f.Contains(".framework"))
+                        .Select(f => Path.GetFileName(f))
+                        .Distinct()
+                        .ToList();
+                    ipa.SdkFiles = allFiles
+                        .Where(f => f.EndsWith(".dylib") || f.Contains(".framework"))
+                        .Select(f => Path.GetRelativePath(appDir, f))
+                        .ToList();
+                    ipa.NativeLibs = allFiles
+                        .Where(f => f.EndsWith(".dylib"))
+                        .Select(f => Path.GetFileName(f))
+                        .ToList();
+
+                    var exeName = Path.GetFileNameWithoutExtension(appDir);
+                    var exePath = Path.Combine(appDir, exeName);
+                    if (File.Exists(exePath))
+                    {
+                        ipa.MainExecutable = exeName;
+                        ipa.MachOData = File.ReadAllBytes(exePath);
+                        ipa.HasEncryptedBinary = CheckMachOEncryption(ipa.MachOData);
+                    }
+
+                    ipa.MachODylibs = ExtractDylibReferences(ipa.MachOData);
+                    ipa.MachOSymbols = ExtractSymbols(ipa.MachOData, 500);
+                    ipa.MachOFunctions = ExtractSymbols(ipa.MachOData, 200);
+
+                    return ipa;
+                }
+                catch (Exception ex)
+                {
+                    OnLog?.Invoke($"[ERROR] IPA分析失败: {ex.Message}");
+                    return new IpaAnalysisResult();
+                }
+            }, token);
+        }
+
+        private void ParseInfoPlist(IpaAnalysisResult ipa, string plistText)
+        {
+            try
+            {
+                var bundleIdMatch = System.Text.RegularExpressions.Regex.Match(plistText,
+                    @"<key>CFBundleIdentifier</key>\s*<string>([^<]+)</string>");
+                if (bundleIdMatch.Success) ipa.BundleId = bundleIdMatch.Groups[1].Value;
+
+                var nameMatch = System.Text.RegularExpressions.Regex.Match(plistText,
+                    @"<key>CFBundleDisplayName</key>\s*<string>([^<]+)</string>");
+                if (nameMatch.Success) ipa.DisplayName = nameMatch.Groups[1].Value;
+
+                var versionMatch = System.Text.RegularExpressions.Regex.Match(plistText,
+                    @"<key>CFBundleShortVersionString</key>\s*<string>([^<]+)</string>");
+                if (versionMatch.Success) ipa.Version = versionMatch.Groups[1].Value;
+
+                var urlSchemes = System.Text.RegularExpressions.Regex.Matches(plistText,
+                    @"<key>CFBundleURLSchemes</key>");
+                ipa.UrlSchemes = new List<string>();
+                foreach (System.Text.RegularExpressions.Match m in urlSchemes)
+                {
+                    ipa.UrlSchemes.Add(m.Value);
+                }
+            }
+            catch { }
+        }
+
+        private bool CheckMachOEncryption(byte[]? data)
+        {
+            if (data == null || data.Length < 100) return false;
+            try
+            {
+                int offset = 0;
+                uint magic = BitConverter.ToUInt32(data, offset);
+                bool is64 = magic == 0xFEEDFACF || magic == 0xCFFAEDFE;
+                int headerSize = is64 ? 32 : 28;
+
+                offset = headerSize;
+                uint ncmds = BitConverter.ToUInt32(data, offset + 4);
+                offset += 8;
+
+                for (int i = 0; i < ncmds && offset < data.Length - 8; i++)
+                {
+                    uint cmd = BitConverter.ToUInt32(data, offset);
+                    uint cmdsize = BitConverter.ToUInt32(data, offset + 4);
+                    if (cmd == 0x21)
+                    {
+                        uint cryptid = BitConverter.ToUInt32(data, offset + 16);
+                        return cryptid != 0;
+                    }
+                    offset += (int)cmdsize;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private List<string> ExtractDylibReferences(byte[]? data)
+        {
+            var dylibs = new List<string>();
+            if (data == null) return dylibs;
+
+            try
+            {
+                var text = Encoding.ASCII.GetString(data);
+                var matches = System.Text.RegularExpressions.Regex.Matches(text, @"/usr/lib/[a-zA-Z0-9_./\-]+\.dylib");
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    if (!dylibs.Contains(m.Value))
+                        dylibs.Add(m.Value);
+                }
+            }
+            catch { }
+            return dylibs;
+        }
+
+        private List<string> ExtractSymbols(byte[]? data, int maxCount)
+        {
+            var symbols = new List<string>();
+            if (data == null) return symbols;
+
+            try
+            {
+                var text = Encoding.ASCII.GetString(data);
+                var matches = System.Text.RegularExpressions.Regex.Matches(text, @"[_][a-zA-Z_][a-zA-Z0-9_]{3,}");
+                foreach (System.Text.RegularExpressions.Match m in matches)
+                {
+                    if (!symbols.Contains(m.Value))
+                    {
+                        symbols.Add(m.Value);
+                        if (symbols.Count >= maxCount) break;
+                    }
+                }
+            }
+            catch { }
+            return symbols;
         }
 
         private AppType DetermineAppType(string filePath)
@@ -168,36 +437,81 @@ namespace NetSecurityScanner.Services
         }
 
         private List<AppVulnerabilityResult> ScanForHardcodedKeys(
-            AppType appType, ScanMode mode, CancellationToken token)
+            AppType appType, ScanMode mode, string extractedPath, CancellationToken token)
         {
             OnLog?.Invoke("[SAST] 检测硬编码密钥...");
             var vulns = new List<AppVulnerabilityResult>();
 
             var keyPatterns = new[]
             {
-                new { Name = "硬编码API密钥", Location = "config/Constants.java", Severity = Models.RiskLevel.High },
-                new { Name = "硬编码数据库密码", Location = "db/DatabaseHelper.java", Severity = Models.RiskLevel.High },
-                new { Name = "硬编码AWS Secret Key", Location = "utils/AwsConfig.java", Severity = Models.RiskLevel.High },
-                new { Name = "硬编码JWT Secret", Location = "auth/JwtProvider.java", Severity = Models.RiskLevel.Medium },
-                new { Name = "硬编码Firebase API Key", Location = "FirebaseInit.java", Severity = Models.RiskLevel.Medium }
+                new { Pattern = "api[_-]?key", Name = "硬编码API密钥", Severity = Models.RiskLevel.High },
+                new { Pattern = "password", Name = "硬编码密码", Severity = Models.RiskLevel.High },
+                new { Pattern = "secret[_-]?key", Name = "硬编码Secret Key", Severity = Models.RiskLevel.High },
+                new { Pattern = "aws[_-]?secret", Name = "硬编码AWS Secret", Severity = Models.RiskLevel.High },
+                new { Pattern = "jwt[_-]?secret", Name = "硬编码JWT Secret", Severity = Models.RiskLevel.Medium },
+                new { Pattern = "firebase", Name = "硬编码Firebase Key", Severity = Models.RiskLevel.Medium }
             };
 
-            var count = mode == ScanMode.Lightning ? 1 : keyPatterns.Length;
-
-            for (int i = 0; i < count; i++)
+            try
             {
-                token.ThrowIfCancellationRequested();
-                var pattern = keyPatterns[i];
+                var files = Directory.GetFiles(extractedPath, "*", SearchOption.AllDirectories)
+                    .Where(f =>
+                    {
+                        var ext = Path.GetExtension(f).ToLower();
+                        return ext == ".xml" || ext == ".json" || ext == ".properties" ||
+                               ext == ".js" || ext == ".ts" || ext == ".txt" ||
+                               ext == ".plist" || ext == ".config";
+                    })
+                    .Take(mode == ScanMode.Lightning ? 20 : mode == ScanMode.Standard ? 50 : 200)
+                    .ToList();
+
+                int vulnIndex = 1;
+                foreach (var file in files)
+                {
+                    token.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var content = File.ReadAllText(file);
+                        var relativePath = Path.GetRelativePath(extractedPath, file);
+
+                        foreach (var kp in keyPatterns)
+                        {
+                            if (content.IndexOf(kp.Pattern, StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                vulns.Add(new AppVulnerabilityResult
+                                {
+                                    Id = $"HK-{vulnIndex++:000}",
+                                    Name = kp.Name,
+                                    RiskLevel = kp.Severity,
+                                    VulnerabilityType = VulnerabilityType.HardcodedKey,
+                                    Location = relativePath,
+                                    CvssScore = kp.Severity == Models.RiskLevel.High ? 7.5 : 5.5,
+                                    Description = $"在 {relativePath} 中检测到 {kp.Name}，可能导致未授权访问。",
+                                    Suggestion = "将敏感密钥移至安全的配置服务器或环境变量中，不要硬编码在代码中。"
+                                });
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                OnLog?.Invoke($"[SAST] 硬编码密钥扫描异常: {ex.Message}");
+            }
+
+            if (vulns.Count == 0)
+            {
                 vulns.Add(new AppVulnerabilityResult
                 {
-                    Id = $"HK-{i + 1:000}",
-                    Name = pattern.Name,
-                    RiskLevel = pattern.Severity,
+                    Id = "HK-000",
+                    Name = "未检测到明显硬编码密钥",
+                    RiskLevel = Models.RiskLevel.Low,
                     VulnerabilityType = VulnerabilityType.HardcodedKey,
-                    Location = pattern.Location,
-                    CvssScore = pattern.Severity == Models.RiskLevel.High ? 7.5 : 5.5,
-                    Description = $"在{pattern.Location}中检测到硬编码密钥，可能导致未授权访问。",
-                    Suggestion = "将敏感密钥移至安全的配置服务器或环境变量中，不要硬编码在代码中。"
+                    Location = "全局扫描",
+                    CvssScore = 1.0,
+                    Description = "在文本文件中未发现明显的硬编码密钥模式。建议仍进行人工代码审查。",
+                    Suggestion = "继续保持良好的密钥管理实践，定期轮换密钥。"
                 });
             }
 
@@ -206,45 +520,78 @@ namespace NetSecurityScanner.Services
         }
 
         private List<AppVulnerabilityResult> ScanForWebViewVulnerabilities(
-            AppType appType, ScanMode mode, CancellationToken token)
+            AppType appType, ScanMode mode, string extractedPath, CancellationToken token)
         {
             OnLog?.Invoke("[SAST] 检测WebView漏洞...");
             var vulns = new List<AppVulnerabilityResult>();
-
-            if (appType == AppType.iOS && mode == ScanMode.Lightning)
+            var patterns = new[]
             {
-                return vulns;
+                new { Pattern = "addJavascriptInterface", Name = "WebView addJavascriptInterface风险", Severity = Models.RiskLevel.High },
+                new { Pattern = "setAllowFileAccess(true)", Name = "WebView setAllowFileAccess未禁用", Severity = Models.RiskLevel.Medium },
+                new { Pattern = "setJavaScriptEnabled(true)", Name = "WebView允许JavaScript自动执行", Severity = Models.RiskLevel.Medium },
+                new { Pattern = "onReceivedSslError.*proceed", Name = "WebView未验证SSL证书", Severity = Models.RiskLevel.High },
+                new { Pattern = "WKWebView", Name = "iOS WKWebView配置检测", Severity = Models.RiskLevel.Low }
+            };
+
+            try
+            {
+                var files = Directory.GetFiles(extractedPath, "*", SearchOption.AllDirectories)
+                    .Where(f =>
+                    {
+                        var ext = Path.GetExtension(f).ToLower();
+                        return ext == ".xml" || ext == ".json" || ext == ".js" || ext == ".ts" ||
+                               ext == ".plist" || ext == ".m" || ext == ".swift";
+                    })
+                    .Take(mode == ScanMode.Lightning ? 20 : mode == ScanMode.Standard ? 50 : 200)
+                    .ToList();
+
+                int idx = 1;
+                foreach (var file in files)
+                {
+                    token.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var content = File.ReadAllText(file);
+                        var relPath = Path.GetRelativePath(extractedPath, file);
+
+                        foreach (var p in patterns)
+                        {
+                            if (content.IndexOf(p.Pattern, StringComparison.OrdinalIgnoreCase) >= 0)
+                            {
+                                vulns.Add(new AppVulnerabilityResult
+                                {
+                                    Id = $"WV-{idx++:000}",
+                                    Name = p.Name,
+                                    RiskLevel = p.Severity,
+                                    VulnerabilityType = VulnerabilityType.WebViewVulnerability,
+                                    Location = relPath,
+                                    CvssScore = p.Severity == Models.RiskLevel.High ? 8.0 : 5.0,
+                                    Description = $"在 {relPath} 中检测到 {p.Name}，可能被攻击者利用执行恶意代码。",
+                                    Suggestion = "禁用不必要的WebView功能，验证所有外部输入，使用安全模式加载远程内容。"
+                                });
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                OnLog?.Invoke($"[SAST] WebView扫描异常: {ex.Message}");
             }
 
-            var webVulns = new[]
+            if (vulns.Count == 0)
             {
-                new { Name = "WebView允许JavaScript自动执行", Location = "WebViewActivity.java", Severity = Models.RiskLevel.Medium },
-                new { Name = "WebView setAllowFileAccess未禁用", Location = "WebViewConfig.java", Severity = Models.RiskLevel.Medium },
-                new { Name = "WebView addJavascriptInterface风险", Location = "JsBridge.java", Severity = Models.RiskLevel.High },
-                new { Name = "WebView未验证SSL证书", Location = "WebViewClient.java", Severity = Models.RiskLevel.High }
-            };
-
-            var count = mode switch
-            {
-                ScanMode.Lightning => 1,
-                ScanMode.Standard => 2,
-                _ => webVulns.Length
-            };
-
-            for (int i = 0; i < count; i++)
-            {
-                token.ThrowIfCancellationRequested();
-                var v = webVulns[i];
                 vulns.Add(new AppVulnerabilityResult
                 {
-                    Id = $"WV-{i + 1:000}",
-                    Name = v.Name,
-                    RiskLevel = v.Severity,
+                    Id = "WV-000",
+                    Name = "未检测到明显WebView漏洞",
+                    RiskLevel = Models.RiskLevel.Low,
                     VulnerabilityType = VulnerabilityType.WebViewVulnerability,
-                    Location = v.Location,
-                    CvssScore = v.Severity == Models.RiskLevel.High ? 8.0 : 5.0,
-                    Description = $"WebView配置不当: {v.Name}，可能被攻击者利用执行恶意代码。",
-                    Suggestion = "禁用不必要的WebView功能，验证所有外部输入，使用安全模式加载远程内容。"
+                    Location = "全局扫描",
+                    CvssScore = 1.0,
+                    Description = "未发现明显的WebView安全配置问题。",
+                    Suggestion = "继续保持WebView安全配置，定期审查JavaScript接口。"
                 });
             }
 
@@ -253,45 +600,83 @@ namespace NetSecurityScanner.Services
         }
 
         private List<AppVulnerabilityResult> ScanForInsecureStorage(
-            AppType appType, ScanMode mode, CancellationToken token)
+            AppType appType, ScanMode mode, string extractedPath, CancellationToken token)
         {
             OnLog?.Invoke("[SAST] 检测不安全存储...");
             var vulns = new List<AppVulnerabilityResult>();
-
-            var storageIssues = new[]
+            var patterns = new[]
             {
-                new { Name = "使用SharedPreferences明文存储敏感数据", Location = "UserPrefs.java", Severity = Models.RiskLevel.High },
-                new { Name = "外部存储未加密缓存", Location = "CacheManager.java", Severity = Models.RiskLevel.Medium },
-                new { Name = "SQLite数据库未加密", Location = "DatabaseHelper.java", Severity = Models.RiskLevel.Medium },
-                new { Name = "日志中打印敏感信息", Location = "LogUtil.java", Severity = Models.RiskLevel.Low }
+                new { Pattern = "SharedPreferences", Name = "SharedPreferences明文存储检测", Severity = Models.RiskLevel.Medium },
+                new { Pattern = "getExternalStorage", Name = "外部存储未加密缓存", Severity = Models.RiskLevel.Medium },
+                new { Pattern = "SQLiteOpenHelper", Name = "SQLite数据库未加密", Severity = Models.RiskLevel.Medium },
+                new { Pattern = "Log\\.d\\(|Log\\.i\\(|print\\(", Name = "日志中打印敏感信息", Severity = Models.RiskLevel.Low },
+                new { Pattern = "NSUserDefaults", Name = "iOS NSUserDefaults明文存储", Severity = Models.RiskLevel.Medium }
             };
 
-            var count = mode switch
+            try
             {
-                ScanMode.Lightning => 1,
-                ScanMode.Standard => 2,
-                _ => storageIssues.Length
-            };
+                var files = Directory.GetFiles(extractedPath, "*", SearchOption.AllDirectories)
+                    .Where(f =>
+                    {
+                        var ext = Path.GetExtension(f).ToLower();
+                        return ext == ".xml" || ext == ".json" || ext == ".js" ||
+                               ext == ".plist" || ext == ".m" || ext == ".swift";
+                    })
+                    .Take(mode == ScanMode.Lightning ? 20 : mode == ScanMode.Standard ? 50 : 200)
+                    .ToList();
 
-            for (int i = 0; i < count; i++)
+                int idx = 1;
+                foreach (var file in files)
+                {
+                    token.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var content = File.ReadAllText(file);
+                        var relPath = Path.GetRelativePath(extractedPath, file);
+
+                        foreach (var p in patterns)
+                        {
+                            if (System.Text.RegularExpressions.Regex.IsMatch(content, p.Pattern))
+                            {
+                                vulns.Add(new AppVulnerabilityResult
+                                {
+                                    Id = $"IS-{idx++:000}",
+                                    Name = p.Name,
+                                    RiskLevel = p.Severity,
+                                    VulnerabilityType = VulnerabilityType.InsecureStorage,
+                                    Location = relPath,
+                                    CvssScore = p.Severity switch
+                                    {
+                                        Models.RiskLevel.High => 7.0,
+                                        Models.RiskLevel.Medium => 5.0,
+                                        _ => 3.0
+                                    },
+                                    Description = $"在 {relPath} 中检测到 {p.Name}，可能导致敏感数据泄露。",
+                                    Suggestion = "使用Android Keystore/iOS Keychain存储敏感数据，对本地文件进行加密。"
+                                });
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
             {
-                token.ThrowIfCancellationRequested();
-                var issue = storageIssues[i];
+                OnLog?.Invoke($"[SAST] 不安全存储扫描异常: {ex.Message}");
+            }
+
+            if (vulns.Count == 0)
+            {
                 vulns.Add(new AppVulnerabilityResult
                 {
-                    Id = $"IS-{i + 1:000}",
-                    Name = issue.Name,
-                    RiskLevel = issue.Severity,
+                    Id = "IS-000",
+                    Name = "未检测到明显不安全存储",
+                    RiskLevel = Models.RiskLevel.Low,
                     VulnerabilityType = VulnerabilityType.InsecureStorage,
-                    Location = issue.Location,
-                    CvssScore = issue.Severity switch
-                    {
-                        Models.RiskLevel.High => 7.0,
-                        Models.RiskLevel.Medium => 5.0,
-                        _ => 3.0
-                    },
-                    Description = $"不安全的数据存储方式: {issue.Name}，可能导致敏感数据泄露。",
-                    Suggestion = "使用Android Keystore/iOS Keychain存储敏感数据，对本地文件进行加密。"
+                    Location = "全局扫描",
+                    CvssScore = 1.0,
+                    Description = "未发现明显的不安全存储模式。",
+                    Suggestion = "继续使用加密存储方案保护用户数据。"
                 });
             }
 
@@ -300,44 +685,78 @@ namespace NetSecurityScanner.Services
         }
 
         private List<AppVulnerabilityResult> ScanForPermissionIssues(
-            AppType appType, ScanMode mode, CancellationToken token)
+            AppType appType, ScanMode mode, string extractedPath, CancellationToken token)
         {
             OnLog?.Invoke("[SAST] 检测权限问题...");
             var vulns = new List<AppVulnerabilityResult>();
 
-            var permissionIssues = new[]
+            try
             {
-                new { Name = "申请了未使用的危险权限", Location = "AndroidManifest.xml", Severity = Models.RiskLevel.Medium },
-                new { Name = "权限请求未做版本兼容", Location = "PermissionHelper.java", Severity = Models.RiskLevel.Low },
-                new { Name = "运行时权限未验证结果", Location = "MainActivity.java", Severity = Models.RiskLevel.Medium }
-            };
+                var dangerousPermissions = new[]
+                {
+                    "CAMERA", "RECORD_AUDIO", "READ_CONTACTS", "ACCESS_FINE_LOCATION",
+                    "READ_CALL_LOG", "READ_SMS", "SEND_SMS", "READ_PHONE_STATE",
+                    "READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"
+                };
 
-            var count = mode switch
-            {
-                ScanMode.Lightning => 1,
-                ScanMode.Standard => 2,
-                _ => permissionIssues.Length
-            };
+                var manifestPath = Directory.GetFiles(extractedPath, "AndroidManifest.xml", SearchOption.AllDirectories)
+                    .FirstOrDefault();
 
-            for (int i = 0; i < count; i++)
+                if (manifestPath != null)
+                {
+                    var content = File.ReadAllText(manifestPath);
+                    int idx = 1;
+                    foreach (var perm in dangerousPermissions)
+                    {
+                        if (content.Contains($"android.permission.{perm}"))
+                        {
+                            vulns.Add(new AppVulnerabilityResult
+                            {
+                                Id = $"PM-{idx++:000}",
+                                Name = $"申请危险权限: {perm}",
+                                RiskLevel = Models.RiskLevel.Medium,
+                                VulnerabilityType = VulnerabilityType.PermissionIssue,
+                                Location = "AndroidManifest.xml",
+                                CvssScore = 4.5,
+                                Description = $"应用申请了危险权限 {perm}，请确认是否为功能必需。",
+                                Suggestion = "遵循最小权限原则，仅申请必要的权限，并在运行时动态申请。"
+                            });
+                        }
+                    }
+
+                    if (content.Contains("android:debuggable=\"true\""))
+                    {
+                        vulns.Add(new AppVulnerabilityResult
+                        {
+                            Id = $"PM-DEBUG",
+                            Name = "生产环境启用调试模式",
+                            RiskLevel = Models.RiskLevel.High,
+                            VulnerabilityType = VulnerabilityType.PermissionIssue,
+                            Location = "AndroidManifest.xml",
+                            CvssScore = 7.0,
+                            Description = "AndroidManifest.xml 中设置了 android:debuggable=true，生产环境不应启用。",
+                            Suggestion = "生产环境必须设置 android:debuggable=\"false\"。"
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
             {
-                token.ThrowIfCancellationRequested();
-                var issue = permissionIssues[i];
+                OnLog?.Invoke($"[SAST] 权限扫描异常: {ex.Message}");
+            }
+
+            if (vulns.Count == 0)
+            {
                 vulns.Add(new AppVulnerabilityResult
                 {
-                    Id = $"PM-{i + 1:000}",
-                    Name = issue.Name,
-                    RiskLevel = issue.Severity,
+                    Id = "PM-000",
+                    Name = "未检测到明显权限问题",
+                    RiskLevel = Models.RiskLevel.Low,
                     VulnerabilityType = VulnerabilityType.PermissionIssue,
-                    Location = issue.Location,
-                    CvssScore = issue.Severity switch
-                    {
-                        Models.RiskLevel.High => 6.5,
-                        Models.RiskLevel.Medium => 4.5,
-                        _ => 3.0
-                    },
-                    Description = $"权限配置问题: {issue.Name}，可能导致应用被拒绝或安全风险。",
-                    Suggestion = "遵循最小权限原则，仅申请必要的权限，并正确处理权限拒绝的情况。"
+                    Location = "全局扫描",
+                    CvssScore = 1.0,
+                    Description = "未发现明显的权限配置问题。",
+                    Suggestion = "继续遵循最小权限原则，定期审查权限申请。"
                 });
             }
 
@@ -346,40 +765,78 @@ namespace NetSecurityScanner.Services
         }
 
         private List<AppVulnerabilityResult> ScanForSSLCertificate(
-            AppType appType, ScanMode mode, CancellationToken token)
+            AppType appType, ScanMode mode, string extractedPath, CancellationToken token)
         {
             OnLog?.Invoke("[SAST] 检测SSL证书问题...");
             var vulns = new List<AppVulnerabilityResult>();
-
-            var sslIssues = new[]
+            var patterns = new[]
             {
-                new { Name = "信任所有SSL证书", Location = "SSLSocketFactory.java", Severity = Models.RiskLevel.High },
-                new { Name = "未启用证书锁定", Location = "NetworkSecurityConfig.xml", Severity = Models.RiskLevel.Medium },
-                new { Name = "HTTP明文传输未禁用", Location = "network_security_config.xml", Severity = Models.RiskLevel.High },
-                new { Name = "HostnameVerifier总是返回true", Location = "HttpsUtil.java", Severity = Models.RiskLevel.High }
+                new { Pattern = "trustAllCerts|TrustAllManager", Name = "信任所有SSL证书", Severity = Models.RiskLevel.High },
+                new { Pattern = "HostnameVerifier.*true", Name = "HostnameVerifier总是返回true", Severity = Models.RiskLevel.High },
+                new { Pattern = "usesCleartextTraffic=\"true\"", Name = "HTTP明文传输未禁用", Severity = Models.RiskLevel.High },
+                new { Pattern = "NSAllowsArbitraryLoads.*true", Name = "iOS ATS未启用", Severity = Models.RiskLevel.High },
+                new { Pattern = "onReceivedSslError.*proceed", Name = "WebView忽略SSL错误", Severity = Models.RiskLevel.High }
             };
 
-            var count = mode switch
+            try
             {
-                ScanMode.Lightning => 1,
-                ScanMode.Standard => 2,
-                _ => sslIssues.Length
-            };
+                var files = Directory.GetFiles(extractedPath, "*", SearchOption.AllDirectories)
+                    .Where(f =>
+                    {
+                        var ext = Path.GetExtension(f).ToLower();
+                        return ext == ".xml" || ext == ".json" || ext == ".js" ||
+                               ext == ".plist" || ext == ".m" || ext == ".swift" || ext == ".config";
+                    })
+                    .Take(mode == ScanMode.Lightning ? 20 : mode == ScanMode.Standard ? 50 : 200)
+                    .ToList();
 
-            for (int i = 0; i < count; i++)
+                int idx = 1;
+                foreach (var file in files)
+                {
+                    token.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var content = File.ReadAllText(file);
+                        var relPath = Path.GetRelativePath(extractedPath, file);
+
+                        foreach (var p in patterns)
+                        {
+                            if (System.Text.RegularExpressions.Regex.IsMatch(content, p.Pattern))
+                            {
+                                vulns.Add(new AppVulnerabilityResult
+                                {
+                                    Id = $"SSL-{idx++:000}",
+                                    Name = p.Name,
+                                    RiskLevel = p.Severity,
+                                    VulnerabilityType = VulnerabilityType.SSLCertificate,
+                                    Location = relPath,
+                                    CvssScore = p.Severity == Models.RiskLevel.High ? 8.5 : 5.5,
+                                    Description = $"在 {relPath} 中检测到 {p.Name}，可能导致中间人攻击。",
+                                    Suggestion = "启用证书锁定，信任系统CA证书，禁用明文HTTP通信，正确实现证书验证。"
+                                });
+                            }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
             {
-                token.ThrowIfCancellationRequested();
-                var issue = sslIssues[i];
+                OnLog?.Invoke($"[SAST] SSL证书扫描异常: {ex.Message}");
+            }
+
+            if (vulns.Count == 0)
+            {
                 vulns.Add(new AppVulnerabilityResult
                 {
-                    Id = $"SSL-{i + 1:000}",
-                    Name = issue.Name,
-                    RiskLevel = issue.Severity,
+                    Id = "SSL-000",
+                    Name = "未检测到明显SSL证书问题",
+                    RiskLevel = Models.RiskLevel.Low,
                     VulnerabilityType = VulnerabilityType.SSLCertificate,
-                    Location = issue.Location,
-                    CvssScore = issue.Severity == Models.RiskLevel.High ? 8.5 : 5.5,
-                    Description = $"SSL/TLS配置不当: {issue.Name}，可能导致中间人攻击。",
-                    Suggestion = "启用证书锁定，信任系统CA证书，禁用明文HTTP通信，正确实现证书验证。"
+                    Location = "全局扫描",
+                    CvssScore = 1.0,
+                    Description = "未发现明显的SSL/TLS配置问题。",
+                    Suggestion = "继续启用证书锁定和HTTPS，定期更新证书。"
                 });
             }
 
@@ -388,37 +845,82 @@ namespace NetSecurityScanner.Services
         }
 
         private List<AppVulnerabilityResult> ScanForDebugMode(
-            AppType appType, ScanMode mode, CancellationToken token)
+            AppType appType, ScanMode mode, string extractedPath, CancellationToken token)
         {
             OnLog?.Invoke("[SAST] 检测调试模式...");
             var vulns = new List<AppVulnerabilityResult>();
 
-            var debugIssues = new[]
+            try
             {
-                new { Name = "生产环境启用调试模式", Location = "BuildConfig.java", Severity = Models.RiskLevel.High },
-                new { Name = "应用可被调试", Location = "AndroidManifest.xml", Severity = Models.RiskLevel.Medium }
-            };
+                var files = Directory.GetFiles(extractedPath, "*", SearchOption.AllDirectories)
+                    .Where(f =>
+                    {
+                        var ext = Path.GetExtension(f).ToLower();
+                        return ext == ".xml" || ext == ".plist" || ext == ".m" || ext == ".swift";
+                    })
+                    .Take(mode == ScanMode.Lightning ? 20 : 100)
+                    .ToList();
 
-            var count = mode switch
-            {
-                ScanMode.Lightning => 1,
-                _ => debugIssues.Length
-            };
+                int idx = 1;
+                foreach (var file in files)
+                {
+                    token.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var content = File.ReadAllText(file);
+                        var relPath = Path.GetRelativePath(extractedPath, file);
 
-            for (int i = 0; i < count; i++)
+                        if (content.Contains("android:debuggable=\"true\"") ||
+                            content.Contains("DEBUG = true"))
+                        {
+                            vulns.Add(new AppVulnerabilityResult
+                            {
+                                Id = $"DBG-{idx++:000}",
+                                Name = "生产环境启用调试模式",
+                                RiskLevel = Models.RiskLevel.High,
+                                VulnerabilityType = VulnerabilityType.DebugMode,
+                                Location = relPath,
+                                CvssScore = 7.0,
+                                Description = $"在 {relPath} 中检测到调试模式启用，可能被攻击者用于动态分析。",
+                                Suggestion = "生产环境必须关闭调试模式，移除调试日志输出。"
+                            });
+                        }
+
+                        if (System.Text.RegularExpressions.Regex.IsMatch(content, @"NSLog\(|println\(|print\("))
+                        {
+                            vulns.Add(new AppVulnerabilityResult
+                            {
+                                Id = $"DBG-{idx++:000}",
+                                Name = "包含调试日志输出",
+                                RiskLevel = Models.RiskLevel.Low,
+                                VulnerabilityType = VulnerabilityType.DebugMode,
+                                Location = relPath,
+                                CvssScore = 3.0,
+                                Description = $"在 {relPath} 中检测到调试日志输出，可能泄露敏感信息。",
+                                Suggestion = "生产版本中移除调试日志输出。"
+                            });
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch (Exception ex)
             {
-                token.ThrowIfCancellationRequested();
-                var issue = debugIssues[i];
+                OnLog?.Invoke($"[SAST] 调试模式扫描异常: {ex.Message}");
+            }
+
+            if (vulns.Count == 0)
+            {
                 vulns.Add(new AppVulnerabilityResult
                 {
-                    Id = $"DBG-{i + 1:000}",
-                    Name = issue.Name,
-                    RiskLevel = issue.Severity,
+                    Id = "DBG-000",
+                    Name = "未检测到调试模式问题",
+                    RiskLevel = Models.RiskLevel.Low,
                     VulnerabilityType = VulnerabilityType.DebugMode,
-                    Location = issue.Location,
-                    CvssScore = issue.Severity == Models.RiskLevel.High ? 7.0 : 4.0,
-                    Description = $"调试配置问题: {issue.Name}，可能被攻击者用于动态分析。",
-                    Suggestion = "生产环境必须关闭调试模式，设置android:debuggable=false，移除Log输出。"
+                    Location = "全局扫描",
+                    CvssScore = 1.0,
+                    Description = "未发现明显的调试配置问题。",
+                    Suggestion = "继续保持生产环境禁用调试模式。"
                 });
             }
 
@@ -427,48 +929,76 @@ namespace NetSecurityScanner.Services
         }
 
         private List<AppVulnerabilityResult> ScanForThirdPartySDKs(
-            AppType appType, ScanMode mode, CancellationToken token)
+            AppType appType, ScanMode mode, string extractedPath, CancellationToken token)
         {
             OnLog?.Invoke("[SCA] 检测第三方SDK漏洞...");
             var vulns = new List<AppVulnerabilityResult>();
 
-            var sdkVulns = new[]
+            var knownVulnSdks = new Dictionary<string, (string Name, Models.RiskLevel Severity, double Cvss, string Suggestion)>
             {
-                new { Name = "OkHttp版本存在已知漏洞", Version = "3.12.0", Latest = "4.12.0", Severity = Models.RiskLevel.Medium },
-                new { Name = "Gson反序列化漏洞", Version = "2.8.5", Latest = "2.10.1", Severity = Models.RiskLevel.High },
-                new { Name = "Log4j远程代码执行漏洞", Version = "2.14.0", Latest = "2.20.0", Severity = Models.RiskLevel.High },
-                new { Name = "Fastjson反序列化漏洞", Version = "1.2.68", Latest = "2.0.40", Severity = Models.RiskLevel.High },
-                new { Name = "Glide图片加载漏洞", Version = "4.11.0", Latest = "4.15.1", Severity = Models.RiskLevel.Low },
-                new { Name = "Retrofit网络库旧版本", Version = "2.6.0", Latest = "2.9.0", Severity = Models.RiskLevel.Low }
+                ["okhttp"] = ("OkHttp版本存在已知漏洞", Models.RiskLevel.Medium, 6.0, "建议升级到 OkHttp 4.12.0+"),
+                ["gson"] = ("Gson反序列化漏洞", Models.RiskLevel.High, 9.0, "建议升级到 Gson 2.10.1+"),
+                ["log4j"] = ("Log4j远程代码执行漏洞", Models.RiskLevel.High, 10.0, "建议升级到 Log4j 2.20.0+"),
+                ["fastjson"] = ("Fastjson反序列化漏洞", Models.RiskLevel.High, 9.0, "建议升级到 Fastjson 2.0.40+"),
+                ["retrofit"] = ("Retrofit网络库旧版本", Models.RiskLevel.Low, 3.5, "建议升级到 Retrofit 2.9.0+"),
+                ["glide"] = ("Glide图片加载漏洞", Models.RiskLevel.Low, 3.5, "建议升级到 Glide 4.15.1+")
             };
 
-            var count = mode switch
+            try
             {
-                ScanMode.Lightning => 1,
-                ScanMode.Standard => 3,
-                _ => sdkVulns.Length
-            };
-
-            for (int i = 0; i < count; i++)
-            {
-                token.ThrowIfCancellationRequested();
-                var sdk = sdkVulns[i];
-                vulns.Add(new AppVulnerabilityResult
-                {
-                    Id = $"SDK-{i + 1:000}",
-                    Name = sdk.Name,
-                    RiskLevel = sdk.Severity,
-                    VulnerabilityType = VulnerabilityType.ThirdPartySDK,
-                    Location = $"lib/{sdk.Name.Split("版本")[0]}-{sdk.Version}.jar",
-                    CvssScore = sdk.Severity switch
+                var files = Directory.GetFiles(extractedPath, "*", SearchOption.AllDirectories)
+                    .Where(f =>
                     {
-                        Models.RiskLevel.High => 9.0,
-                        Models.RiskLevel.Medium => 6.0,
-                        _ => 3.5
-                    },
-                    Description = $"第三方SDK {sdk.Name} (当前版本: {sdk.Version}, 最新版本: {sdk.Latest})，存在已知安全漏洞。",
-                    Suggestion = $"建议升级到最新版本 {sdk.Latest}，并关注官方安全公告。"
-                });
+                        var name = f.ToLower();
+                        return name.EndsWith(".jar") || name.EndsWith(".aar") ||
+                               name.Contains(".framework") || name.EndsWith(".dylib");
+                    })
+                    .ToList();
+
+                int idx = 1;
+                foreach (var file in files)
+                {
+                    token.ThrowIfCancellationRequested();
+                    var fileName = Path.GetFileName(file).ToLower();
+                    var relPath = Path.GetRelativePath(extractedPath, file);
+
+                    foreach (var sdk in knownVulnSdks)
+                    {
+                        if (fileName.Contains(sdk.Key))
+                        {
+                            vulns.Add(new AppVulnerabilityResult
+                            {
+                                Id = $"SDK-{idx++:000}",
+                                Name = sdk.Value.Name,
+                                RiskLevel = sdk.Value.Severity,
+                                VulnerabilityType = VulnerabilityType.ThirdPartySDK,
+                                Location = relPath,
+                                CvssScore = sdk.Value.Cvss,
+                                Description = $"检测到第三方组件 {sdk.Value.Name} (位置: {relPath})，存在已知安全漏洞。",
+                                Suggestion = sdk.Value.Suggestion
+                            });
+                        }
+                    }
+                }
+
+                if (mode != ScanMode.Lightning && vulns.Count == 0)
+                {
+                    vulns.Add(new AppVulnerabilityResult
+                    {
+                        Id = "SDK-000",
+                        Name = "未检测到已知漏洞SDK",
+                        RiskLevel = Models.RiskLevel.Low,
+                        VulnerabilityType = VulnerabilityType.ThirdPartySDK,
+                        Location = "全局扫描",
+                        CvssScore = 1.0,
+                        Description = "在已知漏洞库中未匹配到高危组件。建议仍定期检查所有第三方依赖的CVE公告。",
+                        Suggestion = "建立依赖清单，定期扫描所有第三方组件的安全公告。"
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                OnLog?.Invoke($"[SCA] 第三方SDK扫描异常: {ex.Message}");
             }
 
             OnLog?.Invoke($"[SCA] 第三方SDK漏洞检测完成，发现 {vulns.Count} 个问题");

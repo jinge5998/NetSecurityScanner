@@ -213,6 +213,13 @@
                 <MenuItem Header="停止扫描"
                           Click="StopScan_Click"/>
                 <Separator/>
+                <MenuItem Header="APP 安全扫描"
+                          Click="AppScan_Click"/>
+                <MenuItem Header="摄像头安全扫描"
+                          Click="CameraSecurityScan_Click"/>
+                <MenuItem Header="Agent 安全扫描"
+                          Click="AgentSecurityScan_Click"/>
+                <Separator/>
                 <MenuItem Header="专家模式"
                           Click="ExpertMode_Click"/>
             </MenuItem>
@@ -1926,12 +1933,12 @@
                         <DataGrid.ContextMenu>
                             <ContextMenu>
                                 <MenuItem Header="🔍 查看详情"
-                                        Click="ViewScanHistory_Click"/>
+                                          Click="ViewScanHistory_Click"/>
                                 <MenuItem Header="🗑 删除记录"
-                                        Click="DeleteScanHistory_Click"/>
+                                          Click="DeleteScanHistory_Click"/>
                                 <Separator/>
                                 <MenuItem Header="🔌 用插件深挖"
-                                        Click="DeepScanHistoryWithPlugins_Click"/>
+                                          Click="DeepScanHistoryWithPlugins_Click"/>
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                         <DataGrid.CellStyle>
