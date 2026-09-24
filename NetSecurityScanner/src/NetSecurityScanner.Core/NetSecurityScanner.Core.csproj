@@ -4,7 +4,9 @@
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
     <RootNamespace>NetSecurityScanner</RootNamespace>
-    <NoWarn>$(NoWarn);NETSDK1138;NU1701;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS1998</NoWarn>
+    <NoWarn>$(NoWarn);NETSDK1138;NU1701;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS1998;CA1416;CA1417;CA1418;CA1419</NoWarn>
+    <SupportedOSPlatformVersion>7.0</SupportedOSPlatformVersion>
+    <TargetPlatformIdentifier>windows</TargetPlatformIdentifier>
     <AssemblyVersion>1.0.2.2</AssemblyVersion>
     <FileVersion>1.0.2.2</FileVersion>
     <Version>1.0.2.2</Version>
