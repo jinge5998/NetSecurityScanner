@@ -283,43 +283,64 @@ del ""%~f0""
             IProgress<(string Message, int Percent)>? progress,
             CancellationToken cancellationToken)
         {
-            try
+            const int maxRetries = 3;
+            const int retryDelayMs = 2000;
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-                response.EnsureSuccessStatusCode();
-
-                var totalBytes = response.Content.Headers.ContentLength ?? -1;
-                var bytesRead = 0L;
-                var buffer = new byte[81920];
-
-                await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                await using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-                int read;
-                while ((read = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
+                try
                 {
-                    await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                    bytesRead += read;
+                    ReportProgress($"正在下载... (尝试 {attempt}/{maxRetries})", 5, progress);
 
-                    if (totalBytes > 0)
+                    using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                    response.EnsureSuccessStatusCode();
+
+                    var totalBytes = response.Content.Headers.ContentLength ?? -1;
+                    var bytesRead = 0L;
+                    var buffer = new byte[81920];
+
+                    await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                    await using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+                    int read;
+                    while ((read = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
                     {
-                        var percent = (int)(5 + (bytesRead * 55.0 / totalBytes));
-                        ReportProgress($"正在下载... {FormatBytes(bytesRead)}/{FormatBytes(totalBytes)}", percent, progress);
+                        await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                        bytesRead += read;
+
+                        if (totalBytes > 0)
+                        {
+                            var percent = (int)(5 + (bytesRead * 55.0 / totalBytes));
+                            ReportProgress($"正在下载... {FormatBytes(bytesRead)}/{FormatBytes(totalBytes)}", percent, progress);
+                        }
+                        else
+                        {
+                            var percent = (int)(5 + Math.Min(bytesRead / 1024.0 / 1024.0 / 50.0 * 55.0, 55.0));
+                            ReportProgress($"正在下载... {FormatBytes(bytesRead)}", percent, progress);
+                        }
                     }
-                    else
+
+                    if (totalBytes > 0 && bytesRead != totalBytes)
                     {
-                        var percent = (int)(5 + Math.Min(bytesRead / 1024.0 / 1024.0 / 50.0 * 55.0, 55.0));
-                        ReportProgress($"正在下载... {FormatBytes(bytesRead)}", percent, progress);
+                        throw new IOException($"下载不完整：期望 {totalBytes} 字节，实际 {bytesRead} 字节");
                     }
+
+                    return true;
                 }
+                catch (HttpRequestException ex) when (attempt < maxRetries)
+                {
+                    ReportProgress($"网络错误，{retryDelayMs / 1000} 秒后重试... ({ex.Message})", 5, progress);
+                    await Task.Delay(retryDelayMs * attempt, cancellationToken);
+                }
+                catch (IOException ex) when (attempt < maxRetries)
+                {
+                    ReportProgress($"IO 错误，{retryDelayMs / 1000} 秒后重试... ({ex.Message})", 5, progress);
+                    await Task.Delay(retryDelayMs * attempt, cancellationToken);
+                }
+            }
 
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"下载失败: {ex.Message}");
-                return false;
-            }
+            Console.WriteLine($"下载失败：已重试 {maxRetries} 次仍无法完成");
+            return false;
         }
 
         private void BackupCurrentVersion()
