@@ -21,5 +21,7 @@ namespace NetSecurityScanner.Models
         public bool AutoUpdateDataFiles { get; set; } = true;
 
         public string UpdateChannel { get; set; } = "release";
+
+        public bool? CheckPrerelease { get; set; } = null;
     }
 }
