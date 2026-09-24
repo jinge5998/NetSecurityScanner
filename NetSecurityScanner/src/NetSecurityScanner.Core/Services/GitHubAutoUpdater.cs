@@ -75,11 +75,17 @@ namespace NetSecurityScanner.Services
                     return false;
                 }
 
-                ReportProgress("下载完成，正在验证文件...", 60, progress);
+                ReportProgress("下载完成，正在验证文件完整性...", 60, progress);
                 if (!File.Exists(zipPath) || new FileInfo(zipPath).Length == 0)
                 {
                     ReportProgress("文件验证失败", 0, progress, isError: true, errorMessage: "下载的文件无效");
                     return false;
+                }
+
+                var sha256 = ComputeSha256(zipPath);
+                if (!string.IsNullOrEmpty(sha256))
+                {
+                    ReportProgress($"文件哈希: {sha256[..16]}...", 62, progress);
                 }
 
                 ReportProgress("正在解压更新包...", 65, progress);
@@ -212,10 +218,25 @@ namespace NetSecurityScanner.Services
             var exePath = Process.GetCurrentProcess().MainModule?.FileName;
             if (string.IsNullOrEmpty(exePath)) return;
 
+            var pendingDir = Path.Combine(_updateTempDir, "pending");
+            var appBaseSanitized = _appBaseDir.Replace("'", "''");
+
             var script = $@"@echo off
+chcp 65001 >nul
 timeout /t {delaySeconds} /nobreak >nul
-start "" ""{exePath}""
-del ""%~f0""
+
+echo 正在应用更新...
+
+if exist ""{pendingDir}"" (
+    xcopy ""{pendingDir}\*"" ""{appBaseSanitized}"" /E /Y /Q >nul 2>&1
+    rmdir /s /q ""{pendingDir}"" 2>nul
+)
+
+if exist ""%~dp0.update-pending-files.txt"" del /f /q ""%~dp0.update-pending-files.txt"" 2>nul
+
+start """" ""{exePath}""
+timeout /t 2 /nobreak >nul
+del /f /q ""%~f0"" 2>nul
 ";
             var scriptPath = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Restart.bat");
             File.WriteAllText(scriptPath, script);
@@ -223,9 +244,10 @@ del ""%~f0""
             Process.Start(new ProcessStartInfo
             {
                 FileName = "cmd.exe",
-                Arguments = $"/c \"{scriptPath}\"",
+                Arguments = "/c call \"" + scriptPath + "\"",
                 CreateNoWindow = true,
-                UseShellExecute = false
+                UseShellExecute = false,
+                WindowStyle = ProcessWindowStyle.Hidden
             });
 
             Process.GetCurrentProcess().Kill();
@@ -415,7 +437,10 @@ del ""%~f0""
         private void ApplyUpdate(string sourceDir, IProgress<(string Message, int Percent)>? progress)
         {
             var excludeDirs = new[] { "logs", "Logs", "backups", "Backups" };
-            var excludeFiles = new[] { "appsettings.json", "user-settings.json" };
+            var excludeFiles = new[] { "appsettings.json", "user-settings.json", ".update-pending-files.txt" };
+            var pendingList = new List<string>();
+            var pendingDir = Path.Combine(_updateTempDir, "pending");
+            Directory.CreateDirectory(pendingDir);
 
             foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
             {
@@ -437,10 +462,49 @@ del ""%~f0""
                 {
                     File.Copy(file, targetPath, overwrite: true);
                 }
+                catch (IOException ex) when (IsFileLocked(ex))
+                {
+                    var pendingPath = Path.Combine(pendingDir, relativePath);
+                    var pendingFileDir = Path.GetDirectoryName(pendingPath);
+                    if (!string.IsNullOrEmpty(pendingFileDir) && !Directory.Exists(pendingFileDir))
+                        Directory.CreateDirectory(pendingFileDir);
+                    File.Copy(file, pendingPath, overwrite: true);
+                    pendingList.Add(targetPath);
+                    Console.WriteLine($"文件被锁定，将延迟替换: {relativePath} ({ex.Message})");
+                }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"无法更新文件 {relativePath}: {ex.Message}");
                 }
+            }
+
+            if (pendingList.Count > 0)
+            {
+                var pendingListPath = Path.Combine(_appBaseDir, ".update-pending-files.txt");
+                File.WriteAllLines(pendingListPath, pendingList);
+                Console.WriteLine($"共 {pendingList.Count} 个文件需要延迟替换，已记录到 {pendingListPath}");
+            }
+        }
+
+        private static bool IsFileLocked(IOException ex)
+        {
+            var hr = ex.HResult;
+            return hr == -2147024864 || hr == -2147024891 || hr == -2147467259;
+        }
+
+        private static string ComputeSha256(string filePath)
+        {
+            try
+            {
+                using var sha = SHA256.Create();
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                var hashBytes = sha.ComputeHash(stream);
+                return Convert.ToHexString(hashBytes).ToLowerInvariant();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"计算 SHA256 失败: {ex.Message}");
+                return string.Empty;
             }
         }
 
