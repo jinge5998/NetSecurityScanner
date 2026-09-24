@@ -220,21 +220,23 @@ namespace NetSecurityScanner.Services
 
             var pendingDir = Path.Combine(_updateTempDir, "pending");
             var appBaseSanitized = _appBaseDir.Replace("'", "''");
+            var exePathSanitized = exePath.Replace("'", "''");
+            var pendingListFile = Path.Combine(_appBaseDir, ".update-pending-files.txt");
 
             var script = $@"@echo off
 chcp 65001 >nul
 timeout /t {delaySeconds} /nobreak >nul
 
-echo 正在应用更新...
+echo 正在应用延迟替换的文件...
 
 if exist ""{pendingDir}"" (
     xcopy ""{pendingDir}\*"" ""{appBaseSanitized}"" /E /Y /Q >nul 2>&1
     rmdir /s /q ""{pendingDir}"" 2>nul
 )
 
-if exist ""%~dp0.update-pending-files.txt"" del /f /q ""%~dp0.update-pending-files.txt"" 2>nul
+if exist ""{pendingListFile}"" del /f /q ""{pendingListFile}"" 2>nul
 
-start """" ""{exePath}""
+start """" ""{exePathSanitized}""
 timeout /t 2 /nobreak >nul
 del /f /q ""%~f0"" 2>nul
 ";
@@ -290,11 +292,24 @@ del /f /q ""%~f0"" 2>nul
                     Directory.Delete(_updateTempDir, recursive: true);
             }
             catch { }
+        }
+
+        public static void CleanupAll()
+        {
+            try
+            {
+                var tempDir = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Update");
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, recursive: true);
+            }
+            catch { }
 
             try
             {
-                if (Directory.Exists(_backupDir))
-                    Directory.Delete(_backupDir, recursive: true);
+                var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                var pendingFile = Path.Combine(appBase, ".update-pending-files.txt");
+                if (File.Exists(pendingFile))
+                    File.Delete(pendingFile);
             }
             catch { }
         }
@@ -307,27 +322,31 @@ del /f /q ""%~f0"" 2>nul
         {
             const int maxRetries = 3;
             const int retryDelayMs = 2000;
+            var totalDownloadTimeout = TimeSpan.FromMinutes(15);
 
             for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
+                using var totalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                totalCts.CancelAfter(totalDownloadTimeout);
+
                 try
                 {
                     ReportProgress($"正在下载... (尝试 {attempt}/{maxRetries})", 5, progress);
 
-                    using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                    using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, totalCts.Token);
                     response.EnsureSuccessStatusCode();
 
                     var totalBytes = response.Content.Headers.ContentLength ?? -1;
                     var bytesRead = 0L;
                     var buffer = new byte[81920];
 
-                    await using var contentStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                    await using var contentStream = await response.Content.ReadAsStreamAsync(totalCts.Token);
                     await using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
 
                     int read;
-                    while ((read = await contentStream.ReadAsync(buffer, cancellationToken)) > 0)
+                    while ((read = await contentStream.ReadAsync(buffer, totalCts.Token)) > 0)
                     {
-                        await fileStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                        await fileStream.WriteAsync(buffer.AsMemory(0, read), totalCts.Token);
                         bytesRead += read;
 
                         if (totalBytes > 0)
@@ -348,6 +367,16 @@ del /f /q ""%~f0"" 2>nul
                     }
 
                     return true;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (OperationCanceledException) when (totalCts.IsCancellationRequested)
+                {
+                    ReportProgress($"下载超时（15分钟限制），将重试...", 5, progress);
+                    if (attempt < maxRetries)
+                        await Task.Delay(retryDelayMs * attempt, cancellationToken);
                 }
                 catch (HttpRequestException ex) when (attempt < maxRetries)
                 {
@@ -525,6 +554,147 @@ del /f /q ""%~f0"" 2>nul
                 File.WriteAllLines(pendingListPath, pendingList);
                 Console.WriteLine($"共 {pendingList.Count} 个文件需要延迟替换，已记录到 {pendingListPath}");
             }
+        }
+
+        public static bool TryApplyPendingFilesOnStartup()
+        {
+            try
+            {
+                var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                var pendingListFile = Path.Combine(appBase, ".update-pending-files.txt");
+                if (!File.Exists(pendingListFile)) return false;
+
+                var pendingDir = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Update", "pending");
+                if (!Directory.Exists(pendingDir))
+                {
+                    File.Delete(pendingListFile);
+                    return false;
+                }
+
+                var pendingTargets = File.ReadAllLines(pendingListFile)
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .ToList();
+
+                var applied = 0;
+                foreach (var targetPath in pendingTargets)
+                {
+                    try
+                    {
+                        var relativePath = targetPath.Substring(appBase.Length).TrimStart(Path.DirectorySeparatorChar);
+                        var sourcePath = Path.Combine(pendingDir, relativePath);
+
+                        if (!File.Exists(sourcePath)) continue;
+
+                        var targetDir = Path.GetDirectoryName(targetPath);
+                        if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                            Directory.CreateDirectory(targetDir);
+
+                        if (!File.Exists(targetPath))
+                        {
+                            File.Move(sourcePath, targetPath);
+                            applied++;
+                        }
+                        else
+                        {
+                            try
+                            {
+                                File.Copy(sourcePath, targetPath, overwrite: true);
+                                File.Delete(sourcePath);
+                                applied++;
+                            }
+                            catch (IOException)
+                            {
+                                Console.WriteLine($"启动时文件仍被锁定，跳过: {relativePath}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"启动时应用延迟文件失败: {ex.Message}");
+                    }
+                }
+
+                try
+                {
+                    File.Delete(pendingListFile);
+                }
+                catch { }
+
+                if (Directory.Exists(pendingDir))
+                {
+                    try { Directory.Delete(pendingDir, recursive: true); } catch { }
+                }
+
+                Console.WriteLine($"启动时成功应用 {applied}/{pendingTargets.Count} 个延迟替换文件");
+                return applied > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"启动时检查 pending 文件异常: {ex.Message}");
+                return false;
+            }
+        }
+
+        public static string[] GetAvailableBackups()
+        {
+            try
+            {
+                var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                var backupRoot = Path.Combine(appBase, ".backup");
+                if (!Directory.Exists(backupRoot)) return Array.Empty<string>();
+
+                return Directory.GetDirectories(backupRoot)
+                    .OrderByDescending(d => d)
+                    .ToArray();
+            }
+            catch { return Array.Empty<string>(); }
+        }
+
+        public static bool RollbackTo(string backupPath)
+        {
+            try
+            {
+                if (!Directory.Exists(backupPath)) return false;
+
+                var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                var backupFiles = Directory.GetFiles(backupPath, "*", SearchOption.AllDirectories);
+                var restored = 0;
+
+                foreach (var backupFile in backupFiles)
+                {
+                    try
+                    {
+                        var relativePath = backupFile.Substring(backupPath.Length).TrimStart(Path.DirectorySeparatorChar);
+                        var targetPath = Path.Combine(appBase, relativePath);
+
+                        var targetDir = Path.GetDirectoryName(targetPath);
+                        if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                            Directory.CreateDirectory(targetDir);
+
+                        File.Copy(backupFile, targetPath, overwrite: true);
+                        restored++;
+                    }
+                    catch (IOException ex) when (IsFileLockedStatic(ex))
+                    {
+                        Console.WriteLine($"回滚时文件被锁定（重启后生效）: {backupFile} - {ex.Message}");
+                    }
+                    catch { }
+                }
+
+                Console.WriteLine($"从 {backupPath} 回滚完成，恢复 {restored} 个文件");
+                return restored > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"回滚失败: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static bool IsFileLockedStatic(IOException ex)
+        {
+            var hr = ex.HResult;
+            return hr == -2147024864 || hr == -2147024891 || hr == -2147467259;
         }
 
         private static bool IsFileLocked(IOException ex)
