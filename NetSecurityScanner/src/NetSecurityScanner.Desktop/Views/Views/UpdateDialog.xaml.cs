@@ -121,17 +121,42 @@ namespace NetSecurityScanner.Views
                     _updateSettings.LastCheckTime = DateTime.Now;
                     await settingsService.SaveUpdateSettingsAsync(_updateSettings);
 
-                    await System.Threading.Tasks.Task.Delay(2000);
+                    _autoUpdater.ScheduleRestart(delaySeconds: 3);
 
-                    _autoUpdater.ScheduleRestart(delaySeconds: 2);
+                    ProgressMessageTextBlock.Text = "正在准备重启，请稍候...";
+
+                    await System.Threading.Tasks.Task.Delay(1000);
+
+                    System.Windows.Application.Current.Shutdown();
+                    return;
                 }
                 else
                 {
-                    ProgressMessageTextBlock.Text = "❌ 更新失败，请尝试手动下载更新";
+                    ProgressMessageTextBlock.Text = "❌ 更新失败";
                     SetButtonsEnabled(true);
                     _isUpdating = false;
                     AutoUpdateButton.Content = "🚀 一键更新";
                     AutoUpdateButton.IsEnabled = true;
+
+                    var retry = MessageBox.Show(
+                        "自动更新失败！\n\n是否打开下载页面手动更新？",
+                        "更新失败",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+
+                    if (retry == MessageBoxResult.Yes)
+                    {
+                        try
+                        {
+                            var releaseUrl = !string.IsNullOrEmpty(_updateInfo.HtmlUrl)
+                                ? _updateInfo.HtmlUrl
+                                : !string.IsNullOrEmpty(_updateInfo.BaiduDownloadUrl)
+                                    ? _updateInfo.BaiduDownloadUrl
+                                    : UpdatePackageDownloader.DefaultDownloadUrl;
+                            UpdatePackageDownloader.OpenDownloadLink(releaseUrl);
+                        }
+                        catch { }
+                    }
                 }
             }
             catch (Exception ex)
