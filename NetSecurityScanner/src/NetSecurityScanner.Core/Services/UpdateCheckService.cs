@@ -264,23 +264,62 @@ namespace NetSecurityScanner.Services
             if (string.IsNullOrEmpty(updateInfo.ReleaseNotes))
                 return;
 
-            var urlMatch = System.Text.RegularExpressions.Regex.Match(
-                updateInfo.ReleaseNotes,
-                @"https://pan\.baidu\.com/s/[^\s\)]+",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (urlMatch.Success)
+            var notes = updateInfo.ReleaseNotes;
+
+            var urlPatterns = new[]
             {
-                updateInfo.BaiduDownloadUrl = urlMatch.Value;
-                updateInfo.DownloadUrl = urlMatch.Value;
+                @"链接[：:]\s*(https://pan\.baidu\.com/s/[^\s\)""'】\]]+)",
+                @"百度网盘[：:]\s*(https://pan\.baidu\.com/s/[^\s\)""'】\]]+)",
+                @"下载链接[：:]\s*(https://pan\.baidu\.com/s/[^\s\)""'】\]]+)",
+                @"网盘[：:]\s*(https://pan\.baidu\.com/s/[^\s\)""'】\]]+)",
+                @"([Cc]lick\s+here[^\n]*(https://pan\.baidu\.com/s/[^\s\)""'】\]]+))",
+                @"(?<![a-zA-Z])https://pan\.baidu\.com/s/[^\s\)""'】\]]+"
+            };
+
+            string? bestUrl = null;
+            foreach (var pattern in urlPatterns)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(notes, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (match.Success)
+                {
+                    bestUrl = match.Groups.Count > 1 ? match.Groups[1].Value : match.Value;
+                    break;
+                }
             }
 
-            var codeMatch = System.Text.RegularExpressions.Regex.Match(
-                updateInfo.ReleaseNotes,
-                @"提取码[：:]\s*(\w{4})",
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            if (codeMatch.Success && codeMatch.Groups.Count > 1)
+            if (!string.IsNullOrEmpty(bestUrl))
             {
-                updateInfo.BaiduExtractionCode = codeMatch.Groups[1].Value;
+                var pwdInUrl = System.Text.RegularExpressions.Regex.Match(bestUrl, @"[?&]pwd=(\w{4})", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (pwdInUrl.Success)
+                {
+                    updateInfo.BaiduExtractionCode = pwdInUrl.Groups[1].Value;
+                    bestUrl = System.Text.RegularExpressions.Regex.Replace(bestUrl, @"[?&]pwd=\w{4}", "");
+                }
+
+                updateInfo.BaiduDownloadUrl = bestUrl;
+                updateInfo.DownloadUrl = bestUrl;
+            }
+
+            if (string.IsNullOrEmpty(updateInfo.BaiduExtractionCode))
+            {
+                var codePatterns = new[]
+                {
+                    @"提取码[：:]\s*[`""]?(\w{4})[`""]?",
+                    @"密码[：:]\s*[`""]?(\w{4})[`""]?",
+                    @"解压码[：:]\s*[`""]?(\w{4})[`""]?",
+                    @"访问码[：:]\s*[`""]?(\w{4})[`""]?",
+                    @"pwd[=：:]\s*[`""]?(\w{4})[`""]?"
+                };
+
+                foreach (var pattern in codePatterns)
+                {
+                    var codeMatch = System.Text.RegularExpressions.Regex.Match(notes, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (codeMatch.Success && codeMatch.Groups.Count > 1)
+                    {
+                        updateInfo.BaiduExtractionCode = codeMatch.Groups[1].Value;
+                        break;
+                    }
+                }
             }
         }
 
