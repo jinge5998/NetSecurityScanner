@@ -191,6 +191,47 @@ namespace NetSecurityScanner.Services
             }
         }
 
+        public static bool PendingRestart { get; private set; }
+        public static string? PendingRestartReason { get; private set; }
+        private const string RestartFlagFileName = ".update-restart.flag";
+
+        public static void MarkForRestart(string reason)
+        {
+            PendingRestart = true;
+            PendingRestartReason = reason;
+
+            try
+            {
+                var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                var flagPath = Path.Combine(appBase, RestartFlagFileName);
+                File.WriteAllText(flagPath, reason ?? "restart");
+            }
+            catch { }
+        }
+
+        public static bool IsRestartPending()
+        {
+            if (PendingRestart) return true;
+            try
+            {
+                var flagPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, RestartFlagFileName);
+                return File.Exists(flagPath);
+            }
+            catch { return false; }
+        }
+
+        public static void ClearRestartFlag()
+        {
+            PendingRestart = false;
+            PendingRestartReason = null;
+            try
+            {
+                var flagPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, RestartFlagFileName);
+                if (File.Exists(flagPath)) File.Delete(flagPath);
+            }
+            catch { }
+        }
+
         public void RestartApplication()
         {
             try
@@ -198,18 +239,30 @@ namespace NetSecurityScanner.Services
                 var exePath = Process.GetCurrentProcess().MainModule?.FileName;
                 if (string.IsNullOrEmpty(exePath)) return;
 
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = exePath,
-                    UseShellExecute = false
-                };
+                MarkForRestart("manual-restart");
 
-                Process.Start(startInfo);
-                Process.GetCurrentProcess().Kill();
+                var scriptPath = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Restart.bat");
+                var script = $@"@echo off
+chcp 65001 >nul
+timeout /t 2 /nobreak >nul
+start """" ""{exePath.Replace("'", "''")}""
+timeout /t 2 /nobreak >nul
+del /f /q ""%~f0"" 2>nul
+";
+                File.WriteAllText(scriptPath, script);
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c call \"" + scriptPath + "\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"重启应用失败: {ex.Message}");
+                Console.WriteLine($"重启应用准备失败: {ex.Message}");
             }
         }
 
@@ -217,6 +270,8 @@ namespace NetSecurityScanner.Services
         {
             var exePath = Process.GetCurrentProcess().MainModule?.FileName;
             if (string.IsNullOrEmpty(exePath)) return;
+
+            MarkForRestart("auto-update");
 
             var pendingDir = Path.Combine(_updateTempDir, "pending");
             var appBaseSanitized = _appBaseDir.Replace("'", "''");
@@ -235,6 +290,7 @@ if exist ""{pendingDir}"" (
 )
 
 if exist ""{pendingListFile}"" del /f /q ""{pendingListFile}"" 2>nul
+if exist ""{Path.Combine(_appBaseDir, RestartFlagFileName)}"" del /f /q ""{Path.Combine(_appBaseDir, RestartFlagFileName)}"" 2>nul
 
 start """" ""{exePathSanitized}""
 timeout /t 2 /nobreak >nul
@@ -251,8 +307,6 @@ del /f /q ""%~f0"" 2>nul
                 UseShellExecute = false,
                 WindowStyle = ProcessWindowStyle.Hidden
             });
-
-            Process.GetCurrentProcess().Kill();
         }
 
         public bool Rollback()
