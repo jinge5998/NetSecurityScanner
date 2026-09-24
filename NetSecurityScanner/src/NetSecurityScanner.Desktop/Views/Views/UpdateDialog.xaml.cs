@@ -31,22 +31,38 @@ namespace NetSecurityScanner.Views
             ReleaseDateTextBlock.Text = _updateInfo.ReleaseDate.ToString("yyyy-MM-dd");
             ReleaseNotesTextBox.Text = _updateInfo.ReleaseNotes;
 
+            if (!string.IsNullOrEmpty(_updateInfo.HtmlUrl))
+            {
+                GitHubReleaseUrlTextBlock.Text = _updateInfo.HtmlUrl;
+                GitHubReleaseUrlTextBlock.ToolTip = "点击在浏览器中打开 GitHub Release 页面";
+            }
+            else
+            {
+                GitHubReleaseUrlTextBlock.Text = "（暂无 GitHub 页面）";
+                GitHubReleaseUrlTextBlock.Foreground = System.Windows.Media.Brushes.Gray;
+                GitHubReleaseUrlTextBlock.Cursor = System.Windows.Input.Cursors.Arrow;
+            }
+
             if (!string.IsNullOrEmpty(_updateInfo.BaiduDownloadUrl))
             {
                 BaiduUrlTextBlock.Text = _updateInfo.BaiduDownloadUrl;
             }
             else
             {
-                BaiduUrlTextBlock.Text = UpdatePackageDownloader.DefaultDownloadUrl;
+                BaiduUrlTextBlock.Text = "（暂无备用链接）";
+                BaiduUrlTextBlock.Foreground = System.Windows.Media.Brushes.Gray;
+                BaiduUrlTextBlock.Cursor = System.Windows.Input.Cursors.Arrow;
             }
 
             if (!string.IsNullOrEmpty(_updateInfo.BaiduExtractionCode))
             {
                 ExtractionCodeTextBlock.Text = _updateInfo.BaiduExtractionCode;
+                CopyCodeButton.Visibility = Visibility.Visible;
             }
             else
             {
-                ExtractionCodeTextBlock.Text = UpdatePackageDownloader.DefaultExtractionCode;
+                ExtractionCodeTextBlock.Text = "—";
+                CopyCodeButton.Visibility = Visibility.Collapsed;
             }
 
             var hasAutoUpdate = !string.IsNullOrEmpty(_updateInfo.WindowsAssetDownloadUrl);
@@ -148,12 +164,7 @@ namespace NetSecurityScanner.Views
                     {
                         try
                         {
-                            var releaseUrl = !string.IsNullOrEmpty(_updateInfo.HtmlUrl)
-                                ? _updateInfo.HtmlUrl
-                                : !string.IsNullOrEmpty(_updateInfo.BaiduDownloadUrl)
-                                    ? _updateInfo.BaiduDownloadUrl
-                                    : UpdatePackageDownloader.DefaultDownloadUrl;
-                            UpdatePackageDownloader.OpenDownloadLink(releaseUrl);
+                            UpdatePackageDownloader.OpenDownloadLink(GetPreferredManualDownloadUrl());
                         }
                         catch { }
                     }
@@ -191,9 +202,7 @@ namespace NetSecurityScanner.Views
         {
             try
             {
-                var url = !string.IsNullOrEmpty(_updateInfo.BaiduDownloadUrl)
-                    ? _updateInfo.BaiduDownloadUrl
-                    : UpdatePackageDownloader.DefaultDownloadUrl;
+                var url = GetPreferredManualDownloadUrl();
                 UpdatePackageDownloader.OpenDownloadLink(url);
                 DialogResult = true;
             }
@@ -201,6 +210,29 @@ namespace NetSecurityScanner.Views
             {
                 MessageBox.Show($"打开下载链接失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private string GetPreferredManualDownloadUrl()
+        {
+            if (!string.IsNullOrEmpty(_updateInfo.HtmlUrl))
+                return _updateInfo.HtmlUrl;
+
+            if (!string.IsNullOrEmpty(_updateInfo.BaiduDownloadUrl))
+                return _updateInfo.BaiduDownloadUrl;
+
+            return UpdatePackageDownloader.DefaultDownloadUrl;
+        }
+
+        private void GitHubReleaseUrlTextBlock_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(_updateInfo.HtmlUrl))
+                {
+                    UpdatePackageDownloader.OpenDownloadLink(_updateInfo.HtmlUrl);
+                }
+            }
+            catch { }
         }
 
         private void RemindLaterButton_Click(object sender, RoutedEventArgs e)
