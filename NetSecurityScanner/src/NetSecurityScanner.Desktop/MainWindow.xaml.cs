@@ -1482,12 +1482,6 @@ namespace NetSecurityScanner
             UpdateLicenseStatusBar();
         }
 
-        private void LicenseCodeGenerator_Click(object sender, RoutedEventArgs e)
-        {
-            var window = new Views.LicenseCodeGeneratorWindow();
-            window.Show();
-        }
-
         private void UpdateLicenseStatusBar()
         {
             var licenseService = new LicenseService();

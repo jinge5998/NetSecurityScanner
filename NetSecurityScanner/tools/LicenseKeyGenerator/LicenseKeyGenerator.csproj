@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net6.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>NetSecurityScanner</RootNamespace>
+    <AssemblyName>LicenseKeyGenerator</AssemblyName>
+    <NoWarn>$(NoWarn);NETSDK1138;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS1998</NoWarn>
+    <AssemblyVersion>1.0.2.3</AssemblyVersion>
+    <FileVersion>1.0.2.3</FileVersion>
+    <Version>1.0.2.3</Version>
+    <Product>授权码生成器</Product>
+    <Company>NetSecurityScanner</Company>
+    <Copyright>&#xA9; 2026 NetSecurityScanner</Copyright>
+    <Description>网络安全扫描工具 - 授权码生成器（独立版）</Description>
+    <NeutralLanguage>zh-CN</NeutralLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="6.0.2" />
+  </ItemGroup>
+
+</Project>

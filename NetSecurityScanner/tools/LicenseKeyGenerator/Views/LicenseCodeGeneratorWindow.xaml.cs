@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using Microsoft.Win32;
 using NetSecurityScanner.Models;
 using NetSecurityScanner.Services;
@@ -33,52 +33,91 @@ namespace NetSecurityScanner.Views
       try
       {
         string machineId = MachineFingerprint.Generate();
-        FullMachineIdTextBox.Text = machineId;
+        TargetMachineIdTextBox.Text = machineId;
         string prefix = ComputeMachineHash(machineId);
         CurrentMachineIdText.Text = $"本机前缀: {prefix}";
-        FullMachineIdPrefixHint.Text = $"本机完整前缀: {prefix}（填入左侧目标机器码）";
 
         IssuerTextBox.Text = Environment.UserName;
       }
       catch (Exception ex)
       {
-        StatusTextBlock.Text = $"⚠️ 读取本机指纹失败: {ex.Message}";
+        StatusTextBlock.Text = $"\u26a0\ufe0f 读取本机指纹失败: {ex.Message}";
       }
+
+      // 发行时间默认取当前时间（避免硬编码导致超出 now+5min 校验限制）
+      SetIssueTimeToNow();
 
       RefreshHistory();
     }
 
-    private void MachineIdPrefixTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    private void NowTimeButton_Click(object sender, RoutedEventArgs e)
     {
-      string prefix = MachineIdPrefixTextBox.Text.ToUpper();
-      MachineIdPrefixTextBox.Text = prefix;
-      MachineIdPrefixTextBox.SelectionStart = prefix.Length;
-
-      ValidatePrefix(prefix);
+      SetIssueTimeToNow();
+      StatusTextBlock.Text = "\u2705 发行时间已刷新为当前时间";
     }
 
-    private void ValidatePrefix(string prefix)
+    private void SetIssueTimeToNow()
     {
-      if (string.IsNullOrEmpty(prefix))
+      IssueDatePicker.SelectedDate = DateTime.Now.Date;
+      IssueTimeTextBox.Text = DateTime.Now.ToString("HH:mm:ss");
+    }
+
+    private void TargetMachineIdTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+      string machineId = TargetMachineIdTextBox.Text.Trim().ToUpperInvariant();
+      if (TargetMachineIdTextBox.Text != machineId)
       {
-        MachineIdHintText.Text = "填入授权目标机器的机器码前8位（大写字母/数字）";
-        MachineIdHintText.Foreground = new System.Windows.Media.SolidColorBrush(
-            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#b2bec3"));
+        TargetMachineIdTextBox.Text = machineId;
+        TargetMachineIdTextBox.SelectionStart = machineId.Length;
+        return; // 赋值后 TextChanged 会再次触发并完成校验
+      }
+
+      ValidateMachineId(machineId);
+    }
+
+    /// <summary>校验完整机器码（32位十六进制）并实时计算绑定前缀</summary>
+    private void ValidateMachineId(string machineId)
+    {
+      SetHintColor("#b2bec3");
+
+      if (string.IsNullOrEmpty(machineId))
+      {
+        MachineIdHintText.Text = "粘贴授权目标机器的完整机器码（32位大写十六进制）";
+        ComputedPrefixText.Text = "—";
+        ComputedPrefixText.Foreground = new System.Windows.Media.SolidColorBrush(
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#636e72"));
         return;
       }
 
-      if (prefix.Length < 8)
+      if (!Regex.IsMatch(machineId, @"^[0-9A-F]+$"))
       {
-        MachineIdHintText.Text = $"还需 {8 - prefix.Length} 个字符";
-        MachineIdHintText.Foreground = new System.Windows.Media.SolidColorBrush(
-            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#fdcb6e"));
+        MachineIdHintText.Text = "\u274c 机器码只能包含十六进制字符（0-9、A-F）";
+        SetHintColor("#d63031");
+        ComputedPrefixText.Text = "—";
+        return;
       }
-      else
+
+      if (machineId.Length < 32)
       {
-        MachineIdHintText.Text = "✅ 机器码前缀已完整";
-        MachineIdHintText.Foreground = new System.Windows.Media.SolidColorBrush(
-            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#00b894"));
+        MachineIdHintText.Text = $"还需 {32 - machineId.Length} 个字符（当前 {machineId.Length}/32）";
+        SetHintColor("#fdcb6e");
+        ComputedPrefixText.Text = "—";
+        return;
       }
+
+      // 32 位完整机器码：计算绑定前缀
+      string prefix = ComputeMachineHash(machineId);
+      ComputedPrefixText.Text = prefix;
+      ComputedPrefixText.Foreground = new System.Windows.Media.SolidColorBrush(
+          (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#00b894"));
+      MachineIdHintText.Text = "\u2705 机器码有效，授权码将绑定此机器";
+      SetHintColor("#00b894");
+    }
+
+    private void SetHintColor(string colorHex)
+    {
+      MachineIdHintText.Foreground = new System.Windows.Media.SolidColorBrush(
+          (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(colorHex));
     }
 
     private void ReadCurrentMachineButton_Click(object sender, RoutedEventArgs e)
@@ -86,14 +125,12 @@ namespace NetSecurityScanner.Views
       try
       {
         string machineId = MachineFingerprint.Generate();
-        string prefix = ComputeMachineHash(machineId);
-        MachineIdPrefixTextBox.Text = prefix;
-        FullMachineIdTextBox.Text = machineId;
-        StatusTextBlock.Text = $"✅ 已读取本机机器码: {machineId}";
+        TargetMachineIdTextBox.Text = machineId;
+        StatusTextBlock.Text = $"\u2705 已填入本机机器码: {machineId}";
       }
       catch (Exception ex)
       {
-        StatusTextBlock.Text = $"⚠️ 读取失败: {ex.Message}";
+        StatusTextBlock.Text = $"\u26a0\ufe0f 读取失败: {ex.Message}";
       }
     }
 
@@ -104,36 +141,39 @@ namespace NetSecurityScanner.Views
     private void GenerateButton_Click(object sender, RoutedEventArgs e)
     {
       GenerateErrorText.Text = "";
-      string prefix = MachineIdPrefixTextBox.Text.Trim().ToUpper();
+      string machineId = TargetMachineIdTextBox.Text.Trim().ToUpperInvariant();
 
-      if (string.IsNullOrEmpty(prefix) || prefix.Length < 8)
+      if (string.IsNullOrEmpty(machineId))
       {
-        GenerateErrorText.Text = "❌ 请输入完整的目标机器码前缀（8位）";
+        GenerateErrorText.Text = "\u274c 请填入目标机器的完整机器码（32位）";
         return;
       }
 
-      if (!Regex.IsMatch(prefix, @"^[A-F0-9]{8}$"))
+      if (machineId.Length != 32 || !Regex.IsMatch(machineId, @"^[0-9A-F]{32}$"))
       {
-        GenerateErrorText.Text = "❌ 机器码前缀只能包含大写字母 A-F 和数字 0-9";
+        GenerateErrorText.Text = "\u274c 完整机器码必须为 32 位十六进制字符（0-9、A-F）";
         return;
       }
+
+      // 核心规则：授权码基于完整机器码计算的绑定前缀生成
+      string prefix = ComputeMachineHash(machineId);
 
       if (!IssueDatePicker.SelectedDate.HasValue)
       {
-        GenerateErrorText.Text = "❌ 请选择发行日期";
+        GenerateErrorText.Text = "\u274c 请选择发行日期";
         return;
       }
 
       if (!TimeSpan.TryParse(IssueTimeTextBox.Text.Trim(), out var timeSpan))
       {
-        GenerateErrorText.Text = "❌ 时间格式无效，请使用 HH:mm:ss 格式";
+        GenerateErrorText.Text = "\u274c 时间格式无效，请使用 HH:mm:ss 格式";
         return;
       }
 
       var issueTime = IssueDatePicker.SelectedDate.Value.Date.Add(timeSpan);
       if (issueTime > DateTime.Now.AddMinutes(5))
       {
-        GenerateErrorText.Text = "❌ 发行时间不能超过当前时间+5分钟";
+        GenerateErrorText.Text = "\u274c 发行时间不能超过当前时间+5分钟";
         return;
       }
 
@@ -149,7 +189,7 @@ namespace NetSecurityScanner.Views
 
       RunLocalValidation(prefix, timestampStr, typeCode, hmacCode, licenseType, issueTime);
 
-      StatusTextBlock.Text = $"✅ 授权码生成成功 | 类型: {LicenseInfo.TypeToCode(licenseType)} | 发行时间: {issueTime:yyyy-MM-dd HH:mm}";
+      StatusTextBlock.Text = $"\u2705 授权码生成成功 | 绑定前缀: {prefix} | 类型: {typeCode} | 发行时间: {issueTime:yyyy-MM-dd HH:mm}";
     }
 
     private void RunLocalValidation(string prefix, string timestamp, string typeCode, string hmacCode,
@@ -167,22 +207,22 @@ namespace NetSecurityScanner.Views
       DateTime? expiry = GetExpiryTime(licenseType, issueTime);
       string expiryDisplay = expiry?.ToString("yyyy-MM-dd HH:mm") ?? "永久";
 
-      ValidateHmac.Text = hmacOk ? "✅ 通过" : "❌ 失败";
+      ValidateHmac.Text = hmacOk ? "\u2705 通过" : "\u274c 失败";
       ValidateHmac.Foreground = hmacOk
           ? new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#00b894"))
           : new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#d63031"));
 
-      ValidateMachineMatch.Text = machineMatch ? "✅ 本机匹配" : "⚠️ 不匹配（正常，跨机器激活会这样）";
+      ValidateMachineMatch.Text = machineMatch ? "\u2705 本机匹配" : "\u26a0\ufe0f 不匹配（正常，跨机器激活会这样）";
       ValidateMachineMatch.Foreground = new System.Windows.Media.SolidColorBrush(
           (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#00b894"));
 
       ValidateExpiry.Text = expiryDisplay;
       ValidateType.Text = LicenseInfo.TypeToCode(licenseType) switch
       {
-        "T" => "🕐 试用（5分钟）",
-        "1" => "📅 1年期",
-        "2" => "🗓️ 2年期",
-        "P" => "♾️ 永久授权",
+        "T" => "\U0001f550 试用（5分钟）",
+        "1" => "\U0001f4c5 1年期",
+        "2" => "\U0001f5d3\ufe0f 2年期",
+        "P" => "\u267e\ufe0f 永久授权",
         _ => typeCode
       };
     }
@@ -201,25 +241,14 @@ namespace NetSecurityScanner.Views
       string code = GeneratedCodeTextBox.Text.Trim();
       if (string.IsNullOrEmpty(code) || !code.Contains('-'))
       {
-        StatusTextBlock.Text = "⚠️ 请先生成授权码";
+        StatusTextBlock.Text = "\u26a0\ufe0f 请先生成授权码";
         return;
       }
 
       try
       {
-        string prefix = MachineIdPrefixTextBox.Text.Trim().ToUpper();
-        string timestampStr = IssueTimeTextBox.Text;
-        if (!DateTime.TryParse(IssueTimeTextBox.Text, out _))
-        {
-          var date = IssueDatePicker.SelectedDate ?? DateTime.Now;
-          var time = TimeSpan.Parse(IssueTimeTextBox.Text);
-          timestampStr = date.Add(time).ToString("yyyyMMddHHmmss");
-        }
-        else
-        {
-          timestampStr = IssueDatePicker.SelectedDate?.ToString("yyyyMMdd") ?? DateTime.Now.ToString("yyyyMMdd");
-          timestampStr += IssueTimeTextBox.Text.Replace(":", "");
-        }
+        string machineId = TargetMachineIdTextBox.Text.Trim().ToUpperInvariant();
+        string prefix = ComputeMachineHash(machineId);
 
         var parts = code.Split('-');
         string typeCode = parts[2].ToUpper();
@@ -239,7 +268,7 @@ namespace NetSecurityScanner.Views
         var record = new LicenseIssuanceRecord
         {
           LicenseCode = code,
-          MachineId = FullMachineIdTextBox.Text,
+          MachineId = machineId,
           MachineIdPrefix = prefix,
           LicenseType = licenseType,
           IssuedTime = issueTime,
@@ -250,21 +279,21 @@ namespace NetSecurityScanner.Views
 
         _store.AddRecord(record);
         RefreshHistory();
-        StatusTextBlock.Text = $"✅ 记录已保存 | 共 {_records.Count} 条历史记录";
+        StatusTextBlock.Text = $"\u2705 记录已保存 | 共 {_records.Count} 条历史记录";
       }
       catch (Exception ex)
       {
-        StatusTextBlock.Text = $"⚠️ 保存失败: {ex.Message}";
+        StatusTextBlock.Text = $"\u26a0\ufe0f 保存失败: {ex.Message}";
       }
     }
 
     private void ClearResultButton_Click(object sender, RoutedEventArgs e)
     {
       GeneratedCodeTextBox.Text = "";
-      ValidateHmac.Text = "—";
-      ValidateMachineMatch.Text = "—";
-      ValidateExpiry.Text = "—";
-      ValidateType.Text = "—";
+      ValidateHmac.Text = "\u2014";
+      ValidateMachineMatch.Text = "\u2014";
+      ValidateExpiry.Text = "\u2014";
+      ValidateType.Text = "\u2014";
       ValidateHmac.Foreground = new System.Windows.Media.SolidColorBrush(
           (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#636e72"));
       ValidateMachineMatch.Foreground = new System.Windows.Media.SolidColorBrush(
@@ -277,17 +306,17 @@ namespace NetSecurityScanner.Views
       string code = GeneratedCodeTextBox.Text;
       if (string.IsNullOrEmpty(code))
       {
-        StatusTextBlock.Text = "⚠️ 没有可复制的授权码";
+        StatusTextBlock.Text = "\u26a0\ufe0f 没有可复制的授权码";
         return;
       }
       try
       {
         Clipboard.SetText(code);
-        StatusTextBlock.Text = $"✅ 授权码已复制到剪贴板";
+        StatusTextBlock.Text = $"\u2705 授权码已复制到剪贴板";
       }
       catch (Exception ex)
       {
-        StatusTextBlock.Text = $"⚠️ 复制失败: {ex.Message}";
+        StatusTextBlock.Text = $"\u26a0\ufe0f 复制失败: {ex.Message}";
       }
     }
 
@@ -298,11 +327,11 @@ namespace NetSecurityScanner.Views
         try
         {
           Clipboard.SetText(record.LicenseCode);
-          StatusTextBlock.Text = $"✅ 已复制: {record.LicenseCode}";
+          StatusTextBlock.Text = $"\u2705 已复制: {record.LicenseCode}";
         }
         catch (Exception ex)
         {
-          StatusTextBlock.Text = $"⚠️ 复制失败: {ex.Message}";
+          StatusTextBlock.Text = $"\u26a0\ufe0f 复制失败: {ex.Message}";
         }
       }
     }
@@ -319,7 +348,7 @@ namespace NetSecurityScanner.Views
         {
           _store.RemoveRecord(record.Id);
           RefreshHistory();
-          StatusTextBlock.Text = $"✅ 记录已删除";
+          StatusTextBlock.Text = $"\u2705 记录已删除";
         }
       }
     }
@@ -327,7 +356,7 @@ namespace NetSecurityScanner.Views
     private void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
       RefreshHistory();
-      StatusTextBlock.Text = $"✅ 已刷新 | 共 {_records.Count} 条记录";
+      StatusTextBlock.Text = $"\u2705 已刷新 | 共 {_records.Count} 条记录";
     }
 
     private void ClearHistoryButton_Click(object sender, RoutedEventArgs e)
@@ -340,7 +369,7 @@ namespace NetSecurityScanner.Views
       {
         _store.ClearAllRecords();
         RefreshHistory();
-        StatusTextBlock.Text = "✅ 历史记录已清空";
+        StatusTextBlock.Text = "\u2705 历史记录已清空";
       }
     }
 
@@ -348,7 +377,7 @@ namespace NetSecurityScanner.Views
     {
       if (_records.Count == 0)
       {
-        StatusTextBlock.Text = "⚠️ 没有可导出的记录";
+        StatusTextBlock.Text = "\u26a0\ufe0f 没有可导出的记录";
         return;
       }
 
@@ -365,11 +394,11 @@ namespace NetSecurityScanner.Views
         {
           var csv = _store.ExportRecordsToCsv(_records);
           File.WriteAllText(dialog.FileName, csv, Encoding.UTF8);
-          StatusTextBlock.Text = $"✅ 已导出到: {dialog.FileName}";
+          StatusTextBlock.Text = $"\u2705 已导出到: {dialog.FileName}";
         }
         catch (Exception ex)
         {
-          StatusTextBlock.Text = $"⚠️ 导出失败: {ex.Message}";
+          StatusTextBlock.Text = $"\u26a0\ufe0f 导出失败: {ex.Message}";
         }
       }
     }
@@ -377,6 +406,14 @@ namespace NetSecurityScanner.Views
     private void RefreshHistory()
     {
       _records = _store.GetAllRecords();
+      // 按发行时间倒序展示（最新在前），序号从 1 连续编号
+      var ordered = _records.OrderByDescending(r => r.IssuedTime).ThenByDescending(r => r.CreatedAt).ToList();
+      for (int i = 0; i < ordered.Count; i++)
+      {
+        ordered[i].SequenceNumber = i + 1;
+      }
+      _records = ordered;
+
       HistoryDataGrid.ItemsSource = null;
       HistoryDataGrid.ItemsSource = _records;
       HistoryCountText.Text = $"共 {_records.Count} 条记录";

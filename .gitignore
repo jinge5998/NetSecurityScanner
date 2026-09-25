@@ -38,6 +38,10 @@ publish-*/
 *.zip
 *.tar.gz
 *.7z
+
+# 升级包目录与发行文件夹（发布产物，不入库）
+update-*/
+/LicenseKeyGenerator/
 *.rar
 
 # 脚本工具

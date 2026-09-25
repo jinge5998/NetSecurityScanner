@@ -71,13 +71,16 @@ namespace NetSecurityScanner.Services
 
     public string ExportRecordsToCsv(IEnumerable<LicenseIssuanceRecord> records)
     {
+      var list = records.ToList();
       var sb = new System.Text.StringBuilder();
-      sb.AppendLine("ID,机器码前缀,授权类型,发行时间,到期时间,发行者,备注,授权码");
-      foreach (var r in records)
+      sb.AppendLine("序号,机器码,授权码,类型,发行时间,到期时间,发行者,备注");
+      for (int i = 0; i < list.Count; i++)
       {
+        var r = list[i];
         var note = r.Note.Replace("\"", "\"\"");
         var code = r.LicenseCode.Replace("\"", "\"\"");
-        sb.AppendLine($"{r.Id},{r.MachineIdPrefix},{r.LicenseTypeName},{r.IssuedTime:yyyy-MM-dd HH:mm},{r.ExpiryDisplay},{r.IssuedBy},\"{note}\",\"{code}\"");
+        var machineId = r.MachineId.Replace("\"", "\"\"");
+        sb.AppendLine($"{i + 1},\"{machineId}\",\"{code}\",{r.LicenseTypeName},{r.IssuedTime:yyyy-MM-dd HH:mm},{r.ExpiryDisplay},{r.IssuedBy},\"{note}\"");
       }
       return sb.ToString();
     }

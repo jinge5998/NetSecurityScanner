@@ -256,9 +256,6 @@
                           Click="AssetManagement_Click"/>
             </MenuItem>
             <MenuItem Header="授权管理">
-                <MenuItem Header="🔑 授权码生成器"
-                          Click="LicenseCodeGenerator_Click"/>
-                <Separator/>
                 <MenuItem Header="📋 授权码激活"
                           Click="LicenseManager_Click"/>
             </MenuItem>
