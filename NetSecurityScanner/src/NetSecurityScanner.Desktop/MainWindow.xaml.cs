@@ -4225,22 +4225,6 @@ namespace NetSecurityScanner
             }
         }
 
-        /// <summary>
-        /// 扫描 → 摄像头批量扫描（B1：网段/文件导入 + 并发队列 + 汇总统计）
-        /// </summary>
-        private void CameraBatchScan_Click(object sender, RoutedEventArgs e)
-        {
-            try
-            {
-                var batchWindow = new Views.CameraBatchScanWindow { Owner = this };
-                batchWindow.Show();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"打开摄像头批量扫描窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
         private void StatisticsDashboard_Click(object sender, RoutedEventArgs e)
         {
             try

@@ -217,8 +217,6 @@
                           Click="AppScan_Click"/>
                 <MenuItem Header="摄像头安全扫描"
                           Click="CameraSecurityScan_Click"/>
-                <MenuItem Header="摄像头批量扫描"
-                          Click="CameraBatchScan_Click"/>
                 <MenuItem Header="Agent 安全扫描"
                           Click="AgentSecurityScan_Click"/>
                 <Separator/>
