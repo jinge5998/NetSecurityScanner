@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using Microsoft.Extensions.Logging;
@@ -50,6 +51,8 @@ namespace NetSecurityScanner.Views
             BtnStart.IsEnabled = false;
             BtnStop.Visibility = Visibility.Visible;
             ProgressBar.Visibility = Visibility.Visible;
+            ScanProgressBar.Value = 0;
+            LblProgressPercent.Text = "0%";
 
             _ = RunScanAsync(ip, _cts.Token);
         }
@@ -60,16 +63,67 @@ namespace NetSecurityScanner.Views
             AppendLog("[*] 扫描已请求停止...");
         }
 
+        /// <summary>
+        /// 弱口令爆破属于高敏感操作（最多 200 次登录尝试），勾选时强制弹授权确认，拒绝则回退为未勾选。
+        /// </summary>
+        private void ChkWeakPassword_Checked(object sender, RoutedEventArgs e)
+        {
+            var result = MessageBox.Show(
+                "弱口令爆破检测会向目标设备发起多次登录尝试（上限 200 次）。\n\n请确认：\n1. 你已获得目标网络/设备所有者的书面授权；\n2. 该操作符合所在地区法律法规。\n\n未经授权的爆破行为可能构成违法。是否确认启用？",
+                "授权确认 - 弱口令爆破检测",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (result != MessageBoxResult.Yes)
+            {
+                ChkWeakPassword.IsChecked = false;
+            }
+            else
+            {
+                AppendLog("[!] 用户已确认授权，启用弱口令爆破检测");
+            }
+        }
+
+        /// <summary>
+        /// 从 UI 构建扫描选项：品牌下拉框映射 ForcedVendor，扫描模式决定 PoC 开关，弱口令由勾选框独立控制。
+        /// </summary>
+        private CameraScanOptions BuildOptionsFromUi()
+        {
+            var vendorTag = (CmbVendor.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+            var isQuick = (CmbScanMode.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "Quick";
+            var weakPwdEnabled = ChkWeakPassword.IsChecked == true;
+
+            var options = isQuick
+                ? CameraScanOptions.CreateQuick()
+                : CameraScanOptions.CreateFull(weakPwdEnabled);
+
+            if (!string.IsNullOrEmpty(vendorTag))
+            {
+                options.ForcedVendor = vendorTag;
+            }
+            if (weakPwdEnabled)
+            {
+                // 用户在快速模式下显式勾选弱口令时，仍尊重其已授权的选择
+                options.EnableWeakPasswordScan = true;
+            }
+            return options;
+        }
+
         private async Task RunScanAsync(string ip, CancellationToken ct)
         {
             var logger = new EmptyLogger<CameraSecurityScanner>();
             using var scanner = new CameraSecurityScanner(logger);
 
             var progress = new Progress<string>(msg => AppendLog(msg));
+            var percentProgress = new Progress<int>(p => Dispatcher.Invoke(() =>
+            {
+                ScanProgressBar.Value = p;
+                LblProgressPercent.Text = $"{p}%";
+            }));
+            var options = BuildOptionsFromUi();
 
             try
             {
-                var result = await scanner.ScanAsync(ip, ct, progress);
+                var result = await scanner.ScanAsync(ip, ct, progress, options, percentProgress);
                 _lastResult = result;
                 Dispatcher.Invoke(() => DisplayResult(result));
             }
