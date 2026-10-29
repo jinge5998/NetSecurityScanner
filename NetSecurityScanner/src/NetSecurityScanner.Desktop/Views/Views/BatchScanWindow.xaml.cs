@@ -269,14 +269,26 @@ namespace NetSecurityScanner.Views
         /// </summary>
         private async void RescanFailedButton_Click(object sender, RoutedEventArgs e)
         {
-            var failedTargets = _ipItems.Where(i => i.Status == "失败").Select(i => i.IpAddress).ToList();
+            var failedTargets = _ipItems
+                .Where(i => i.Status == "失败" || i.Status == "已取消")
+                .Select(i => i.IpAddress)
+                .ToList();
             if (!failedTargets.Any())
             {
-                MessageBox.Show("当前没有失败的扫描目标", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("当前没有失败或已取消的扫描目标", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            foreach (var ip in failedTargets)
+            ResetItemsForRescan(failedTargets);
+            await RunBatchScanAsync(failedTargets, rescanOnlyFailed: true);
+        }
+
+        /// <summary>
+        /// 将指定目标重置为「等待中」并清空失败分类，供重扫前调用。
+        /// </summary>
+        private void ResetItemsForRescan(IEnumerable<string> ips)
+        {
+            foreach (var ip in ips)
             {
                 var item = _ipItems.FirstOrDefault(i => i.IpAddress.Equals(ip, StringComparison.OrdinalIgnoreCase));
                 if (item != null)
@@ -286,10 +298,10 @@ namespace NetSecurityScanner.Views
                     item.ProgressText = "0%";
                     item.DurationText = "00:00";
                     item.ErrorMessage = "";
+                    item.FailureCategory = BatchScanFailureCategory.None;
+                    item.FailureText = "";
                 }
             }
-
-            await RunBatchScanAsync(failedTargets, rescanOnlyFailed: true);
         }
 
         /// <summary>
@@ -911,6 +923,38 @@ namespace NetSecurityScanner.Views
 
         private void RescanCategoryMenuItem_SubmenuOpened(object sender, RoutedEventArgs e)
         {
+            RescanCategoryMenuItem.Items.Clear();
+            var groups = _ipItems
+                .Where(i => (i.Status == "失败" || i.Status == "已取消") && i.FailureCategory != BatchScanFailureCategory.None)
+                .GroupBy(i => i.FailureCategory)
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            foreach (var group in groups)
+            {
+                var menuItem = new MenuItem
+                {
+                    Header = $"{BatchScanOrchestrator.ToDisplayText(group.Key)} ({group.Count()})",
+                    Tag = group.Key
+                };
+                menuItem.Click += RescanCategoryItem_Click;
+                RescanCategoryMenuItem.Items.Add(menuItem);
+            }
+            RescanCategoryMenuItem.IsEnabled = RescanCategoryMenuItem.Items.Count > 0;
+        }
+
+        private async void RescanCategoryItem_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as MenuItem)?.Tag is not BatchScanFailureCategory category) return;
+
+            var targets = _ipItems
+                .Where(i => (i.Status == "失败" || i.Status == "已取消") && i.FailureCategory == category)
+                .Select(i => i.IpAddress)
+                .ToList();
+            if (!targets.Any()) return;
+
+            ResetItemsForRescan(targets);
+            await RunBatchScanAsync(targets, rescanOnlyFailed: true);
         }
 
         private async void ExportBatchReportButton_Click(object sender, RoutedEventArgs e)
