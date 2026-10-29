@@ -1,8 +1,10 @@
 using Microsoft.Win32;
+using NetSecurityScanner.Core.Models;
 using NetSecurityScanner.Models;
 using NetSecurityScanner.Services;
 using NetSecurityScanner.Utils;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -19,6 +21,9 @@ namespace NetSecurityScanner.Views
 {
     public partial class BatchScanWindow : Window
     {
+        // 深度扫描附加探测的常见 UDP 端口
+        private static readonly int[] CommonUdpPorts = { 53, 67, 68, 69, 123, 137, 138, 161, 162, 445, 500, 514, 520, 623, 1900, 4500, 5353, 11211 };
+
         private readonly BatchScanManager _batchScanManager;
         private readonly ScanHistoryService _historyService;
         private List<string> _parsedTargets;
@@ -30,6 +35,14 @@ namespace NetSecurityScanner.Views
         private int _failedCount;
         private int _totalVulns;
         private int _totalCritical;
+
+        // 扫描引擎配置（A1/A2：模式联动 ScanProfileConfig，统一走 Rust 服务并自动回退内置）
+        private RustScannerClient _rustClient;
+        private ScanProfileConfig _profileConfig = ScanProfileConfigFactory.CreateStandard();
+        private ScanConfiguration _scanConfig = ScanConfiguration.StandardConfig;
+        private List<int> _scanPorts = new List<int>();
+        private bool _isDeepMode;
+        private readonly ConcurrentDictionary<string, List<PortScanResult>> _portResultsByIp = new(StringComparer.OrdinalIgnoreCase);
 
         public BatchScanWindow()
         {
@@ -44,7 +57,7 @@ namespace NetSecurityScanner.Views
             IpListView.ItemsSource = _ipItems;
 
             ConcurrencySlider.ValueChanged += (s, e) => ConcurrencyValueTextBlock.Text = ConcurrencySlider.Value.ToString("F0");
-            TimeoutSlider.ValueChanged += (s, e) => TimeoutValueTextBlock.Text = TimeoutSlider.Value.ToString("F0");
+            TimeoutSlider.ValueChanged += (s, e) => TimeoutValueTextBlock.Text = $"{TimeoutSlider.Value:F1}s";
 
             _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _elapsedTimer.Tick += (s, e) =>
@@ -80,6 +93,21 @@ namespace NetSecurityScanner.Views
                 };
                 ImportFileButton.Visibility = tag == "File" ? Visibility.Visible : Visibility.Collapsed;
             }
+        }
+
+        /// <summary>
+        /// 扫描模式切换时，同步探测超时滑块到对应预设默认值（Quick=0.1s, Standard=0.3s, Deep=0.5s）。
+        /// </summary>
+        private void BatchScanModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (TimeoutSlider == null) return;
+            string tag = (BatchScanModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Standard";
+            TimeoutSlider.Value = tag switch
+            {
+                "Lightning" => 0.1,
+                "Deep" => 0.5,
+                _ => 0.3
+            };
         }
 
         private void ImportFileButton_Click(object sender, RoutedEventArgs e)
@@ -141,16 +169,29 @@ namespace NetSecurityScanner.Views
 
         private async void StartBatchScanButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!_parsedTargets.Any())
+            await RunBatchScanAsync(_parsedTargets, rescanOnlyFailed: false);
+        }
+
+        /// <summary>
+        /// 批量扫描主流程（两阶段：阶段1 一次 Rust 多目标端口扫描；阶段2 按并发上限逐目标漏洞扫描）。
+        /// </summary>
+        /// <param name="targets">待扫描目标。</param>
+        /// <param name="rescanOnlyFailed">true 表示仅重扫失败目标（保留已成功项结果）。</param>
+        private async Task RunBatchScanAsync(List<string> targets, bool rescanOnlyFailed)
+        {
+            if (targets == null || !targets.Any())
             {
                 MessageBox.Show("请先解析扫描目标", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
+            BuildScanConfigFromUi();
+
             _completedCount = 0;
             _failedCount = 0;
             _totalVulns = 0;
             _totalCritical = 0;
+            _portResultsByIp.Clear();
             _cancellationTokenSource = new CancellationTokenSource();
             var token = _cancellationTokenSource.Token;
 
@@ -161,22 +202,30 @@ namespace NetSecurityScanner.Views
             _totalStopwatch.Restart();
             _elapsedTimer.Start();
 
-            int concurrency = (int)ConcurrencySlider.Value;
-            int timeoutMs = (int)TimeoutSlider.Value * 1000;
-
-            var portScanner = new PortScanner();
             var vulnScanner = new VulnerabilityScanner();
 
             try
             {
                 await vulnScanner.InitializeAsync(token);
+                await StartRustServiceAsync(token);
+
+                // 阶段1：端口扫描（单次 Rust 调用覆盖全部目标，结果流式回填）
+                BatchScanStatusTextBlock.Text = $"阶段1/2: 端口扫描 ({_scanPorts.Count} 端口 × {targets.Count} 目标)...";
+                await PortScanAllTargetsAsync(targets, token);
+
+                // 阶段2：漏洞扫描（仅对有开放端口的目标，按并发上限执行）
+                var targetsWithPorts = targets.Where(t => _portResultsByIp.TryGetValue(t, out var l) && l.Count > 0).ToList();
+                BatchScanStatusTextBlock.Text = $"阶段2/2: 漏洞扫描 ({targetsWithPorts.Count} 个目标有开放端口)...";
+
+                int concurrency = (int)ConcurrencySlider.Value;
                 var semaphore = new SemaphoreSlim(concurrency);
-                var tasks = _parsedTargets.Select((ip, index) => ScanSingleTargetAsync(ip, index, semaphore, timeoutMs, token, portScanner, vulnScanner)).ToList();
+                var tasks = targets.Select((ip, index) => ScanVulnerabilitiesForTargetAsync(ip, index, semaphore, token, vulnScanner)).ToList();
                 await Task.WhenAll(tasks);
             }
             catch (OperationCanceledException) { }
             finally
             {
+                StopRustService();
                 _totalStopwatch.Stop();
                 _elapsedTimer.Stop();
 
@@ -189,39 +238,228 @@ namespace NetSecurityScanner.Views
                 RemainingTimeTextBlock.Text = "预计剩余: 00:00:00";
 
                 MessageBox.Show(
-                    $"批量扫描完成！\n\n总目标: {_parsedTargets.Count}\n已完成: {_completedCount}\n失败: {_failedCount}\n总漏洞: {_totalVulns}\n严重漏洞: {_totalCritical}\n耗时: {_totalStopwatch.Elapsed:hh\\:mm\\:ss}",
+                    $"批量扫描完成！\n\n总目标: {targets.Count}\n已完成: {_completedCount}\n失败: {_failedCount}\n总漏洞: {_totalVulns}\n严重漏洞: {_totalCritical}\n耗时: {_totalStopwatch.Elapsed:hh\\:mm\\:ss}",
                     "扫描完成", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
 
-        private async Task ScanSingleTargetAsync(string ip, int index, SemaphoreSlim semaphore, int timeoutMs, CancellationToken token, PortScanner portScanner, VulnerabilityScanner vulnScanner)
+        /// <summary>
+        /// 根据 UI 选择构建扫描配置：扫描模式联动 ScanProfileConfig 与 ScanConfiguration 预设。
+        /// </summary>
+        private void BuildScanConfigFromUi()
+        {
+            string tag = (BatchScanModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Standard";
+            _isDeepMode = tag == "Deep";
+
+            _scanConfig = tag switch
+            {
+                "Lightning" => ScanConfiguration.LightningConfig,
+                "Deep" => ScanConfiguration.DeepConfig,
+                _ => ScanConfiguration.StandardConfig
+            };
+
+            _profileConfig = tag switch
+            {
+                "Lightning" => ScanProfileConfigFactory.CreateQuick(),
+                "Deep" => ScanProfileConfigFactory.CreateDeep(),
+                _ => ScanProfileConfigFactory.CreateStandard()
+            };
+
+            // UI 超时滑块（秒）覆盖单次探测超时
+            int timeoutMs = Math.Clamp((int)(TimeoutSlider.Value * 1000), 50, 5000);
+            _profileConfig.TimeoutMs = timeoutMs;
+            _profileConfig.Normalize();
+
+            // 闪电扫描使用预设的 Top 端口列表，其余按端口范围解析
+            _scanPorts = tag == "Lightning" && _scanConfig.TargetPorts != null
+                ? _scanConfig.TargetPorts.ToList()
+                : ParsePortRange(_scanConfig.PortRange);
+        }
+
+        private static List<int> ParsePortRange(string range)
+        {
+            var ports = new List<int>();
+            if (string.IsNullOrWhiteSpace(range)) return ports;
+
+            foreach (var part in range.Split(','))
+            {
+                if (part.Contains('-'))
+                {
+                    var bounds = part.Split('-');
+                    if (bounds.Length == 2 &&
+                        int.TryParse(bounds[0].Trim(), out int start) &&
+                        int.TryParse(bounds[1].Trim(), out int end) &&
+                        start >= 1 && end <= 65535 && end >= start)
+                    {
+                        ports.AddRange(Enumerable.Range(start, end - start + 1));
+                    }
+                }
+                else if (int.TryParse(part.Trim(), out int port) && port >= 1 && port <= 65535)
+                {
+                    ports.Add(port);
+                }
+            }
+            return ports.Distinct().ToList();
+        }
+
+        /// <summary>
+        /// 预启动 Rust 扫描服务（跨目标复用），失败时静默降级到内置扫描器。
+        /// </summary>
+        private async Task StartRustServiceAsync(CancellationToken token)
+        {
+            _rustClient = new RustScannerClient();
+            _rustClient.OnResultReceived += RustClient_OnResultReceived;
+            _rustClient.OnProgressChanged += RustClient_OnProgressChanged;
+
+            try
+            {
+                var exe = RustScannerClient.FindRustScannerExecutable();
+                if (exe != null)
+                {
+                    var started = await _rustClient.StartServiceAsync(
+                        exe,
+                        _profileConfig.TcpConcurrency,
+                        _profileConfig.TimeoutMs,
+                        _profileConfig.UdpTimeoutMs > 0 ? _profileConfig.UdpTimeoutMs : 500);
+                    if (started)
+                    {
+                        await _rustClient.ConnectAsync();
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // 启动失败不阻断：ScanPortsAsync 内部会自动回退到内置扫描器
+            }
+        }
+
+        private void StopRustService()
+        {
+            try
+            {
+                if (_rustClient != null)
+                {
+                    _rustClient.OnResultReceived -= RustClient_OnResultReceived;
+                    _rustClient.OnProgressChanged -= RustClient_OnProgressChanged;
+                    _rustClient.StopService();
+                    _rustClient.Dispose();
+                }
+            }
+            catch { }
+            _rustClient = null;
+        }
+
+        /// <summary>
+        /// 阶段1：一次调用扫描全部目标的 TCP 端口；深度模式追加常见 UDP 端口探测。
+        /// </summary>
+        private async Task PortScanAllTargetsAsync(List<string> targets, CancellationToken token)
+        {
+            foreach (var ip in targets)
+            {
+                SetItemStatus(ip, "端口扫描中", "-->");
+            }
+
+            await _rustClient.ScanPortsAsync(
+                targets,
+                _scanPorts,
+                "tcp",
+                _profileConfig.TcpConcurrency,
+                _profileConfig.TimeoutMs,
+                500,
+                detectService: _profileConfig.EnableServiceDetection,
+                includeClosed: false,
+                cancellationToken: token,
+                profileConfig: _profileConfig);
+
+            if (_isDeepMode && !token.IsCancellationRequested)
+            {
+                BatchScanStatusTextBlock.Text = "阶段1/2: UDP 常见端口探测...";
+                await _rustClient.ScanPortsAsync(
+                    targets,
+                    CommonUdpPorts.ToList(),
+                    "udp",
+                    _profileConfig.UdpConcurrency,
+                    _profileConfig.TimeoutMs,
+                    _profileConfig.UdpTimeoutMs > 0 ? _profileConfig.UdpTimeoutMs : 1500,
+                    detectService: false,
+                    includeClosed: false,
+                    cancellationToken: token,
+                    profileConfig: _profileConfig);
+            }
+        }
+
+        private void RustClient_OnResultReceived(object sender, RustPortResult result)
+        {
+            if (result == null || string.IsNullOrEmpty(result.TargetIp)) return;
+
+            var mapped = new PortScanResult
+            {
+                TargetIp = result.TargetIp,
+                PortNumber = result.Port,
+                Status = "开放",
+                Service = string.IsNullOrEmpty(result.Service) ? (result.Protocol == "UDP" ? "UDP" : "Unknown") : result.Service,
+                ServiceVersion = !string.IsNullOrEmpty(result.Version) ? result.Version : result.Banner ?? "",
+                ScanDurationMs = result.ScanTimeMs
+            };
+
+            var list = _portResultsByIp.GetOrAdd(result.TargetIp, _ => new List<PortScanResult>());
+            lock (list)
+            {
+                // Rust 与回退路径均只返回开放端口；去重防止 TCP/UDP 同端口重复计数
+                if (!list.Any(p => p.PortNumber == mapped.PortNumber && p.Service == mapped.Service))
+                {
+                    list.Add(mapped);
+                }
+            }
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                var item = _ipItems.FirstOrDefault(i => i.IpAddress.Equals(result.TargetIp, StringComparison.OrdinalIgnoreCase));
+                if (item != null)
+                {
+                    item.OpenPortsCount = list.Count;
+                }
+            });
+        }
+
+        private void RustClient_OnProgressChanged(object sender, RustScanProgress progress)
+        {
+            if (progress == null) return;
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (!string.IsNullOrEmpty(progress.CurrentTarget))
+                {
+                    CurrentScanningTargetTextBlock.Text = $"当前: {progress.CurrentTarget}";
+                    var item = _ipItems.FirstOrDefault(i => i.IpAddress.Equals(progress.CurrentTarget, StringComparison.OrdinalIgnoreCase));
+                    if (item != null && progress.ProgressPercent > 0)
+                    {
+                        item.ProgressText = $"{progress.ProgressPercent}%";
+                    }
+                }
+            });
+        }
+
+        /// <summary>
+        /// 阶段2：对单个目标执行漏洞扫描（无开放端口的目标直接标记完成）。
+        /// </summary>
+        private async Task ScanVulnerabilitiesForTargetAsync(string ip, int index, SemaphoreSlim semaphore, CancellationToken token, VulnerabilityScanner vulnScanner)
         {
             await semaphore.WaitAsync(token);
             var itemStopwatch = new Stopwatch();
 
             try
             {
+                _portResultsByIp.TryGetValue(ip, out var openPorts);
+                openPorts = openPorts ?? new List<PortScanResult>();
+
                 _ = Dispatcher.BeginInvoke(() =>
                 {
-                    _ipItems[index].Status = "扫描中";
+                    _ipItems[index].Status = "漏洞扫描中";
                     _ipItems[index].StatusIcon = "-->";
-                    CurrentScanningTargetTextBlock.Text = $"当前: {ip}";
                     BatchScanStatusTextBlock.Text = $"正在扫描 {ip}...";
                 });
 
                 itemStopwatch.Start();
-                var ports = new List<int> { 21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 9200, 27017 };
-                var progress = new Progress<int>(p =>
-                {
-                    Dispatcher.BeginInvoke(() =>
-                    {
-                        _ipItems[index].ProgressText = $"{p}%";
-                        _ipItems[index].DurationText = itemStopwatch.Elapsed.ToString(@"mm\:ss");
-                    });
-                });
-
-                var tcpResults = await portScanner.ScanTcpPortsAsync(ip, ports, progress, token);
-                var openPorts = tcpResults.Where(x => x.Status == "开放").ToList();
 
                 List<VulnerabilityResult> vulnResults = new List<VulnerabilityResult>();
                 if (openPorts.Count > 0)
@@ -284,6 +522,19 @@ namespace NetSecurityScanner.Views
             {
                 semaphore.Release();
             }
+        }
+
+        private void SetItemStatus(string ip, string status, string icon)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                var item = _ipItems.FirstOrDefault(i => i.IpAddress.Equals(ip, StringComparison.OrdinalIgnoreCase));
+                if (item != null)
+                {
+                    item.Status = status;
+                    item.StatusIcon = icon;
+                }
+            });
         }
 
         private void UpdateGlobalStatistics()
@@ -429,21 +680,36 @@ namespace NetSecurityScanner.Views
         }
     }
 
-    public class IpScanItem
+    public class IpScanItem : System.ComponentModel.INotifyPropertyChanged
     {
+        private string _status = "等待中";
+        private string _statusIcon = "...";
+        private string _progressText = "0%";
+        private string _durationText = "00:00";
+        private int _openPortsCount;
+        private int _vulnCount;
+        private int _criticalCount;
+        private int _highCount;
+        private string _threatLevel = "None";
+        private string _errorMessage = "";
+
         public string IpAddress { get; set; } = "";
-        public string Status { get; set; } = "等待中";
-        public string StatusIcon { get; set; } = "...";
-        public string ProgressText { get; set; } = "0%";
-        public string DurationText { get; set; } = "00:00";
-        public int OpenPortsCount { get; set; }
-        public int VulnCount { get; set; }
-        public int CriticalCount { get; set; }
-        public int HighCount { get; set; }
-        public string ThreatLevel { get; set; } = "None";
-        public string ErrorMessage { get; set; } = "";
+        public string Status { get => _status; set { _status = value; OnPropertyChanged(nameof(Status)); } }
+        public string StatusIcon { get => _statusIcon; set { _statusIcon = value; OnPropertyChanged(nameof(StatusIcon)); } }
+        public string ProgressText { get => _progressText; set { _progressText = value; OnPropertyChanged(nameof(ProgressText)); } }
+        public string DurationText { get => _durationText; set { _durationText = value; OnPropertyChanged(nameof(DurationText)); } }
+        public int OpenPortsCount { get => _openPortsCount; set { _openPortsCount = value; OnPropertyChanged(nameof(OpenPortsCount)); } }
+        public int VulnCount { get => _vulnCount; set { _vulnCount = value; OnPropertyChanged(nameof(VulnCount)); } }
+        public int CriticalCount { get => _criticalCount; set { _criticalCount = value; OnPropertyChanged(nameof(CriticalCount)); } }
+        public int HighCount { get => _highCount; set { _highCount = value; OnPropertyChanged(nameof(HighCount)); } }
+        public string ThreatLevel { get => _threatLevel; set { _threatLevel = value; OnPropertyChanged(nameof(ThreatLevel)); } }
+        public string ErrorMessage { get => _errorMessage; set { _errorMessage = value; OnPropertyChanged(nameof(ErrorMessage)); } }
         public List<PortScanResult> PortResults { get; set; } = new List<PortScanResult>();
         public List<VulnerabilityResult> VulnResults { get; set; } = new List<VulnerabilityResult>();
+
+        public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+        private void OnPropertyChanged(string name) =>
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
     }
 
     public class ThreatLevelToBrushConverter : System.Windows.Data.IValueConverter

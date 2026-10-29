@@ -104,10 +104,10 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="扫描模式：" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                            <ComboBox Grid.Column="1" Name="BatchScanModeComboBox" Height="25" SelectedIndex="1">
-                                <ComboBoxItem Content="闪电扫描" Tag="Lightning"/>
-                                <ComboBoxItem Content="标准扫描" Tag="Standard"/>
-                                <ComboBoxItem Content="深度扫描" Tag="Deep"/>
+                            <ComboBox Grid.Column="1" Name="BatchScanModeComboBox" Height="25" SelectedIndex="1" SelectionChanged="BatchScanModeComboBox_SelectionChanged">
+                                <ComboBoxItem Content="闪电扫描 (Top10端口)" Tag="Lightning"/>
+                                <ComboBoxItem Content="标准扫描 (1-1000)" Tag="Standard"/>
+                                <ComboBoxItem Content="深度扫描 (全端口+UDP)" Tag="Deep"/>
                             </ComboBox>
                         </Grid>
                         <Grid Margin="0,0,0,5">
@@ -126,9 +126,9 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="40"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="超时(秒)：" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                            <Slider Grid.Column="1" Name="TimeoutSlider" Minimum="5" Maximum="60" Value="10" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="2" Name="TimeoutValueTextBlock" Text="10" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            <TextBlock Text="探测超时：" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                            <Slider Grid.Column="1" Name="TimeoutSlider" Minimum="0.1" Maximum="5" Value="0.3" TickFrequency="0.1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Name="TimeoutValueTextBlock" Text="0.3s" VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="11"/>
                         </Grid>
                         <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                             <Button Name="ParseTargetsButton" Content="解析目标" Width="110" Height="30" Background="#27AE60" Foreground="White" FontWeight="Bold" Click="ParseTargetsButton_Click" Margin="0,0,10,0"/>
