@@ -217,24 +217,24 @@ namespace NetSecurityScanner.Views
                 };
 
                 _parsedTargets = TargetParser.ParseTargets(targetValue, targetType);
-                if (_parsedTargets.Any())
-                {
-                    _ipItems.Clear();
-                    foreach (var ip in _parsedTargets)
-                    {
-                        _ipItems.Add(new IpScanItem { IpAddress = ip, Status = "等待中", StatusIcon = "...", ProgressText = "0%", DurationText = "00:00" });
-                    }
-                    ParsedTargetCountTextBlock.Text = $"已解析: {_parsedTargets.Count} 个目标";
-                    ParsedTargetCountTextBlock.Foreground = System.Windows.Media.Brushes.Green;
-                    TotalTargetsTextBlock.Text = $"总目标: {_parsedTargets.Count}";
-                    MessageBox.Show($"成功解析 {_parsedTargets.Count} 个扫描目标", "解析成功", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
+                var outcome = BatchScanOrchestrator.ValidateTargets(_parsedTargets);
+                if (outcome.Error != null)
                 {
                     ParsedTargetCountTextBlock.Text = "已解析: 0 个目标";
                     ParsedTargetCountTextBlock.Foreground = System.Windows.Media.Brushes.Red;
-                    MessageBox.Show("未能解析到有效的扫描目标", "解析失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(outcome.Error, "解析失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
                 }
+
+                _parsedTargets = outcome.Targets;
+                _ipItems.Clear();
+                foreach (var ip in _parsedTargets)
+                {
+                    _ipItems.Add(new IpScanItem { IpAddress = ip, Status = "等待中", StatusIcon = "...", ProgressText = "0%", DurationText = "00:00" });
+                }
+                ParsedTargetCountTextBlock.Text = $"已解析: {_parsedTargets.Count} 个目标 (总计 {outcome.Total} / 去重 {outcome.Deduped} / 忽略 {outcome.Invalid})";
+                ParsedTargetCountTextBlock.Foreground = System.Windows.Media.Brushes.Green;
+                TotalTargetsTextBlock.Text = $"总目标: {_parsedTargets.Count}";
             }
             catch (Exception ex)
             {
