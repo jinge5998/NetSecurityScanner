@@ -25,7 +25,6 @@ namespace NetSecurityScanner.Views
         // 深度扫描附加探测的常见 UDP 端口
         private static readonly int[] CommonUdpPorts = { 53, 67, 68, 69, 123, 137, 138, 161, 162, 445, 500, 514, 520, 623, 1900, 4500, 5353, 11211 };
 
-        private readonly BatchScanManager _batchScanManager;
         private readonly ScanHistoryService _historyService;
         private List<string> _parsedTargets;
         private ObservableCollection<IpScanItem> _ipItems;
@@ -51,7 +50,6 @@ namespace NetSecurityScanner.Views
         {
             InitializeComponent();
             Title = $"批量扫描 v{VersionHelper.GetVersion()}";
-            _batchScanManager = new BatchScanManager();
             _historyService = new ScanHistoryService();
             _parsedTargets = new List<string>();
             _ipItems = new ObservableCollection<IpScanItem>();
