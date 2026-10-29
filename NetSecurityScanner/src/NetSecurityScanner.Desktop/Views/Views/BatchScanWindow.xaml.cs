@@ -244,6 +244,23 @@ namespace NetSecurityScanner.Views
 
         private async void StartBatchScanButton_Click(object sender, RoutedEventArgs e)
         {
+            if (_parsedTargets == null || !_parsedTargets.Any())
+            {
+                MessageBox.Show("请先解析扫描目标", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            BuildScanConfigFromUi();
+            if (_parsedTargets.Count > BatchScanOrchestrator.ConfirmThreshold)
+            {
+                var estimate = BatchScanOrchestrator.Estimate(
+                    _parsedTargets.Count, _scanPorts.Count, (int)ConcurrencySlider.Value, TimeoutSlider.Value);
+                var confirm = MessageBox.Show(
+                    $"目标数: {_parsedTargets.Count}\n端口数: {_scanPorts.Count}\n并发数: {(int)ConcurrencySlider.Value}\n预估耗时下限: {estimate:hh\\:mm\\:ss}（粗略下限，实际通常为数倍）\n\n确认开始批量扫描？",
+                    "确认批量扫描", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (confirm != MessageBoxResult.Yes) return;
+            }
+
             await RunBatchScanAsync(_parsedTargets, rescanOnlyFailed: false);
         }
 
