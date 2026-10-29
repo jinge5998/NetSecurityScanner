@@ -309,17 +309,22 @@ namespace NetSecurityScanner.Views
 
             _completedCount = 0;
             _failedCount = 0;
+            _canceledCount = 0;
             _totalVulns = 0;
             _totalCritical = 0;
             _currentRunCount = targets.Count;
             _portResultsByIp.Clear();
             _cancellationTokenSource = new CancellationTokenSource();
+            _pauseController = new AsyncPauseController();
             var token = _cancellationTokenSource.Token;
 
             StartBatchScanButton.IsEnabled = false;
             RescanFailedButton.IsEnabled = false;
             StopBatchScanButton.IsEnabled = true;
             ExportBatchReportButton.IsEnabled = false;
+            PauseBatchScanButton.Visibility = Visibility.Visible;
+            PauseBatchScanButton.IsEnabled = false; // 阶段1为单次流式调用，不支持暂停
+            ResumeBatchScanButton.Visibility = Visibility.Collapsed;
 
             _totalStopwatch.Restart();
             _elapsedTimer.Start();
@@ -338,6 +343,7 @@ namespace NetSecurityScanner.Views
                 // 阶段2：漏洞扫描（仅对有开放端口的目标，按并发上限执行）
                 var targetsWithPorts = targets.Where(t => _portResultsByIp.TryGetValue(t, out var l) && l.Count > 0).ToList();
                 BatchScanStatusTextBlock.Text = $"阶段2/2: 漏洞扫描 ({targetsWithPorts.Count} 个目标有开放端口)...";
+                PauseBatchScanButton.IsEnabled = true;
 
                 int concurrency = (int)ConcurrencySlider.Value;
                 var semaphore = new SemaphoreSlim(concurrency);
@@ -351,9 +357,14 @@ namespace NetSecurityScanner.Views
                 _totalStopwatch.Stop();
                 _elapsedTimer.Stop();
 
+                _pauseController?.Resume(); // 防止仍有派发线程悬挂在闸门
+                _pauseController = null;
+                PauseBatchScanButton.Visibility = Visibility.Collapsed;
+                ResumeBatchScanButton.Visibility = Visibility.Collapsed;
+
                 StartBatchScanButton.IsEnabled = true;
                 StopBatchScanButton.IsEnabled = false;
-                RescanFailedButton.IsEnabled = _ipItems.Any(i => i.Status == "失败");
+                RescanFailedButton.IsEnabled = _ipItems.Any(i => i.Status == "失败" || i.Status == "已取消");
                 ExportBatchReportButton.IsEnabled = true;
 
                 BatchScanStatusTextBlock.Text = "扫描完成";
@@ -361,7 +372,7 @@ namespace NetSecurityScanner.Views
                 RemainingTimeTextBlock.Text = "预计剩余: 00:00:00";
 
                 MessageBox.Show(
-                    $"批量扫描完成！\n\n总目标: {targets.Count}\n已完成: {_completedCount}\n失败: {_failedCount}\n总漏洞: {_totalVulns}\n严重漏洞: {_totalCritical}\n耗时: {_totalStopwatch.Elapsed:hh\\:mm\\:ss}",
+                    $"批量扫描完成！\n\n总目标: {targets.Count}\n已完成: {_completedCount}\n失败: {_failedCount}\n已取消: {_canceledCount}\n总漏洞: {_totalVulns}\n严重漏洞: {_totalCritical}\n耗时: {_totalStopwatch.Elapsed:hh\\:mm\\:ss}",
                     "扫描完成", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
@@ -568,12 +579,17 @@ namespace NetSecurityScanner.Views
         private async Task ScanVulnerabilitiesForTargetAsync(string ip, int index, SemaphoreSlim semaphore, CancellationToken token, VulnerabilityScanner vulnScanner)
         {
             await semaphore.WaitAsync(token);
+            if (_pauseController != null)
+            {
+                await _pauseController.WaitIfPausedAsync(token);
+            }
             var itemStopwatch = new Stopwatch();
+            List<PortScanResult> openPorts = new List<PortScanResult>();
 
             try
             {
-                _portResultsByIp.TryGetValue(ip, out var openPorts);
-                openPorts = openPorts ?? new List<PortScanResult>();
+                _portResultsByIp.TryGetValue(ip, out var foundPorts);
+                openPorts = foundPorts ?? new List<PortScanResult>();
 
                 _ = Dispatcher.BeginInvoke(() =>
                 {
@@ -623,6 +639,13 @@ namespace NetSecurityScanner.Views
                     else
                         _ipItems[index].ThreatLevel = "None";
 
+                    if (openPorts.Count == 0)
+                    {
+                        // 信息标注：不改变统计语义，仅说明无漏洞的原因
+                        _ipItems[index].FailureCategory = BatchScanFailureCategory.NoOpenPort;
+                        _ipItems[index].FailureText = BatchScanOrchestrator.ToDisplayText(BatchScanFailureCategory.NoOpenPort);
+                    }
+
                     Interlocked.Increment(ref _completedCount);
                     Interlocked.Add(ref _totalVulns, vulnResults.Count);
                     Interlocked.Add(ref _totalCritical, _ipItems[index].CriticalCount);
@@ -631,10 +654,27 @@ namespace NetSecurityScanner.Views
                     UpdateProgressBar();
                 });
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException)
+            {
+                itemStopwatch.Stop();
+                _ = Dispatcher.BeginInvoke(() =>
+                {
+                    _ipItems[index].Status = "已取消";
+                    _ipItems[index].StatusIcon = "⊘";
+                    _ipItems[index].DurationText = itemStopwatch.Elapsed.ToString(@"mm\:ss");
+                    _ipItems[index].FailureCategory = BatchScanFailureCategory.Canceled;
+                    _ipItems[index].FailureText = BatchScanOrchestrator.ToDisplayText(BatchScanFailureCategory.Canceled);
+
+                    Interlocked.Increment(ref _canceledCount);
+                    UpdateGlobalStatistics();
+                    UpdateProgressBar();
+                });
+                throw;
+            }
             catch (Exception ex)
             {
                 itemStopwatch.Stop();
+                var category = BatchScanOrchestrator.Classify(ex, reachedTarget: true, hasOpenPorts: openPorts.Count > 0, canceled: token.IsCancellationRequested);
                 _ = Dispatcher.BeginInvoke(() =>
                 {
                     _ipItems[index].Status = "失败";
@@ -642,6 +682,10 @@ namespace NetSecurityScanner.Views
                     _ipItems[index].ProgressText = "失败";
                     _ipItems[index].DurationText = itemStopwatch.Elapsed.ToString(@"mm\:ss");
                     _ipItems[index].ErrorMessage = ex.Message;
+                    _ipItems[index].FailureCategory = category;
+                    _ipItems[index].FailureText = category == BatchScanFailureCategory.ScanException
+                        ? $"{BatchScanOrchestrator.ToDisplayText(category)}: {ex.Message}"
+                        : BatchScanOrchestrator.ToDisplayText(category);
 
                     Interlocked.Increment(ref _failedCount);
                     UpdateGlobalStatistics();
@@ -673,12 +717,20 @@ namespace NetSecurityScanner.Views
             FailedTargetsTextBlock.Text = $"失败: {_failedCount}";
             TotalVulnerabilitiesTextBlock.Text = $"总漏洞: {_totalVulns}";
             TotalCriticalTextBlock.Text = $"严重: {_totalCritical}";
+
+            var breakdown = _ipItems
+                .Where(i => i.FailureCategory != BatchScanFailureCategory.None)
+                .GroupBy(i => i.FailureCategory)
+                .OrderBy(g => g.Key)
+                .Select(g => $"{BatchScanOrchestrator.ToDisplayText(g.Key)}: {g.Count()}")
+                .ToList();
+            FailureBreakdownTextBlock.Text = breakdown.Count > 0 ? string.Join("   ", breakdown) : "";
         }
 
         private void UpdateProgressBar()
         {
             int total = _currentRunCount > 0 ? _currentRunCount : _parsedTargets.Count;
-            int done = _completedCount + _failedCount;
+            int done = _completedCount + _failedCount + _canceledCount;
             BatchScanProgressBar.Value = total > 0 ? (double)done / total * 100 : 0;
             BatchScanProgressTextBlock.Text = $"{done}/{total}";
         }
@@ -841,10 +893,20 @@ namespace NetSecurityScanner.Views
 
         private void PauseBatchScanButton_Click(object sender, RoutedEventArgs e)
         {
+            if (_pauseController == null) return;
+            _pauseController.Pause();
+            PauseBatchScanButton.Visibility = Visibility.Collapsed;
+            ResumeBatchScanButton.Visibility = Visibility.Visible;
+            BatchScanStatusTextBlock.Text = "已暂停（进行中的目标将继续完成）";
         }
 
         private void ResumeBatchScanButton_Click(object sender, RoutedEventArgs e)
         {
+            if (_pauseController == null) return;
+            _pauseController.Resume();
+            ResumeBatchScanButton.Visibility = Visibility.Collapsed;
+            PauseBatchScanButton.Visibility = Visibility.Visible;
+            BatchScanStatusTextBlock.Text = "继续扫描...";
         }
 
         private void RescanCategoryMenuItem_SubmenuOpened(object sender, RoutedEventArgs e)
