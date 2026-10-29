@@ -44,6 +44,7 @@
                     <TextBlock Name="ElapsedTimeTextBlock" Text="已用时间: 00:00:00" FontSize="12" Foreground="#7F8C8D" Margin="0,0,20,0"/>
                     <TextBlock Name="RemainingTimeTextBlock" Text="预计剩余: --:--:--" FontSize="12" Foreground="#7F8C8D" Margin="0,0,20,0"/>
                     <TextBlock Name="CurrentScanningTargetTextBlock" Text="当前: -" FontSize="12" Foreground="#7F8C8D"/>
+                    <TextBlock Name="FailureBreakdownTextBlock" Text="" FontSize="12" Foreground="#E74C3C" Margin="20,0,0,0"/>
                 </StackPanel>
 
                 <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
@@ -155,6 +156,7 @@
                                 <ComboBoxItem Content="扫描中" Tag="扫描中"/>
                                 <ComboBoxItem Content="已完成" Tag="已完成"/>
                                 <ComboBoxItem Content="失败" Tag="失败"/>
+                                <ComboBoxItem Content="已取消" Tag="已取消"/>
                             </ComboBox>
                             <TextBlock Text="威胁:" VerticalAlignment="Center" FontSize="11" Foreground="#7F8C8D"/>
                             <ComboBox Name="ThreatFilterComboBox" Width="92" Height="24" FontSize="11" Margin="4,0,0,0" SelectedIndex="0" SelectionChanged="FilterComboBox_SelectionChanged" VerticalContentAlignment="Center">
@@ -172,6 +174,8 @@
                                     <MenuItem Header="复制 IP 地址" Click="CopyIpMenuItem_Click"/>
                                     <MenuItem Header="导出该目标报告" Click="ExportSingleTargetMenuItem_Click"/>
                                     <Separator/>
+                                    <MenuItem Name="RescanCategoryMenuItem" Header="重扫本类失败" SubmenuOpened="RescanCategoryMenuItem_SubmenuOpened"/>
+                                    <Separator/>
                                     <MenuItem Header="从列表移除" Click="RemoveTargetMenuItem_Click"/>
                                 </ContextMenu>
                             </ListView.ContextMenu>
@@ -184,11 +188,13 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="50"/>
                                                 <ColumnDefinition Width="60"/>
+                                                <ColumnDefinition Width="90"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="{Binding StatusIcon}" FontSize="14" Foreground="{Binding ThreatLevel, Converter={StaticResource ThreatLevelToForegroundConverter}}"/>
                                             <TextBlock Grid.Column="1" Text="{Binding IpAddress}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{Binding ThreatLevel, Converter={StaticResource ThreatLevelToForegroundConverter}}"/>
                                             <TextBlock Grid.Column="2" Text="{Binding ProgressText}" FontSize="11" Foreground="{Binding ThreatLevel, Converter={StaticResource ThreatLevelToForegroundConverter}}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                             <TextBlock Grid.Column="3" Text="{Binding DurationText}" FontSize="11" Foreground="{Binding ThreatLevel, Converter={StaticResource ThreatLevelToForegroundConverter}}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                            <TextBlock Grid.Column="4" Text="{Binding FailureText}" FontSize="11" Foreground="#E74C3C" VerticalAlignment="Center" HorizontalAlignment="Center" ToolTip="{Binding ErrorMessage}"/>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -245,6 +251,8 @@
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Name="StartBatchScanButton" Content="开始批量扫描" Width="140" Height="40" Margin="5" Background="#27AE60" Foreground="White" FontWeight="Bold" FontSize="14" Click="StartBatchScanButton_Click"/>
+            <Button Name="PauseBatchScanButton" Content="暂停" Width="100" Height="40" Margin="5" Background="#F39C12" Foreground="White" FontWeight="Bold" Visibility="Collapsed" Click="PauseBatchScanButton_Click"/>
+            <Button Name="ResumeBatchScanButton" Content="继续" Width="100" Height="40" Margin="5" Background="#16A085" Foreground="White" FontWeight="Bold" Visibility="Collapsed" Click="ResumeBatchScanButton_Click"/>
             <Button Name="RescanFailedButton" Content="重扫失败目标" Width="120" Height="40" Margin="5" Background="#E67E22" Foreground="White" FontWeight="Bold" IsEnabled="False" Click="RescanFailedButton_Click"/>
             <Button Name="StopBatchScanButton" Content="停止扫描" Width="120" Height="40" Margin="5" Background="#E74C3C" Foreground="White" FontWeight="Bold" IsEnabled="False" Click="StopBatchScanButton_Click"/>
             <Button Name="ExportBatchReportButton" Content="导出报告" Width="120" Height="40" Margin="5" Background="#3498DB" Foreground="White" FontWeight="Bold" IsEnabled="False" Click="ExportBatchReportButton_Click"/>

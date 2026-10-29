@@ -750,6 +750,18 @@ namespace NetSecurityScanner.Views
             BatchScanStatusTextBlock.Text = "正在停止...";
         }
 
+        private void PauseBatchScanButton_Click(object sender, RoutedEventArgs e)
+        {
+        }
+
+        private void ResumeBatchScanButton_Click(object sender, RoutedEventArgs e)
+        {
+        }
+
+        private void RescanCategoryMenuItem_SubmenuOpened(object sender, RoutedEventArgs e)
+        {
+        }
+
         private async void ExportBatchReportButton_Click(object sender, RoutedEventArgs e)
         {
             await ExportBatchReportAsync();
