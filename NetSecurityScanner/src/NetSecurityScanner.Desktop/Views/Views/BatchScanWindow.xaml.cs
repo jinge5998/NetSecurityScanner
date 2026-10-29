@@ -930,6 +930,8 @@ namespace NetSecurityScanner.Views
         private int _highCount;
         private string _threatLevel = "None";
         private string _errorMessage = "";
+        private BatchScanFailureCategory _failureCategory = BatchScanFailureCategory.None;
+        private string _failureText = "";
 
         public string IpAddress { get; set; } = "";
         public string Status { get => _status; set { _status = value; OnPropertyChanged(nameof(Status)); } }
@@ -942,6 +944,8 @@ namespace NetSecurityScanner.Views
         public int HighCount { get => _highCount; set { _highCount = value; OnPropertyChanged(nameof(HighCount)); } }
         public string ThreatLevel { get => _threatLevel; set { _threatLevel = value; OnPropertyChanged(nameof(ThreatLevel)); } }
         public string ErrorMessage { get => _errorMessage; set { _errorMessage = value; OnPropertyChanged(nameof(ErrorMessage)); } }
+        public BatchScanFailureCategory FailureCategory { get => _failureCategory; set { _failureCategory = value; OnPropertyChanged(nameof(FailureCategory)); } }
+        public string FailureText { get => _failureText; set { _failureText = value; OnPropertyChanged(nameof(FailureText)); } }
         public List<PortScanResult> PortResults { get; set; } = new List<PortScanResult>();
         public List<VulnerabilityResult> VulnResults { get; set; } = new List<VulnerabilityResult>();
 
