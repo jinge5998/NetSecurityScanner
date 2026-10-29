@@ -141,12 +141,40 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <Border Grid.Row="0" Background="#ECF0F1" Padding="8,5" CornerRadius="4,4,0,0">
                             <TextBlock Text="IP列表" FontWeight="Bold" FontSize="13"/>
                         </Border>
-                        <ListView Grid.Row="1" Name="IpListView" SelectionMode="Single" SelectionChanged="IpListView_SelectionChanged" FontSize="12">
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="6,4">
+                            <TextBlock Text="状态:" VerticalAlignment="Center" FontSize="11" Foreground="#7F8C8D"/>
+                            <ComboBox Name="StatusFilterComboBox" Width="82" Height="24" FontSize="11" Margin="4,0,10,0" SelectedIndex="0" SelectionChanged="FilterComboBox_SelectionChanged" VerticalContentAlignment="Center">
+                                <ComboBoxItem Content="全部" Tag="All"/>
+                                <ComboBoxItem Content="等待中" Tag="等待中"/>
+                                <ComboBoxItem Content="扫描中" Tag="扫描中"/>
+                                <ComboBoxItem Content="已完成" Tag="已完成"/>
+                                <ComboBoxItem Content="失败" Tag="失败"/>
+                            </ComboBox>
+                            <TextBlock Text="威胁:" VerticalAlignment="Center" FontSize="11" Foreground="#7F8C8D"/>
+                            <ComboBox Name="ThreatFilterComboBox" Width="92" Height="24" FontSize="11" Margin="4,0,0,0" SelectedIndex="0" SelectionChanged="FilterComboBox_SelectionChanged" VerticalContentAlignment="Center">
+                                <ComboBoxItem Content="全部" Tag="All"/>
+                                <ComboBoxItem Content="严重" Tag="Critical"/>
+                                <ComboBoxItem Content="高危" Tag="High"/>
+                                <ComboBoxItem Content="中危" Tag="Medium"/>
+                                <ComboBoxItem Content="低危" Tag="Low"/>
+                                <ComboBoxItem Content="无威胁" Tag="None"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <ListView Grid.Row="2" Name="IpListView" SelectionMode="Single" SelectionChanged="IpListView_SelectionChanged" FontSize="12">
+                            <ListView.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="复制 IP 地址" Click="CopyIpMenuItem_Click"/>
+                                    <MenuItem Header="导出该目标报告" Click="ExportSingleTargetMenuItem_Click"/>
+                                    <Separator/>
+                                    <MenuItem Header="从列表移除" Click="RemoveTargetMenuItem_Click"/>
+                                </ContextMenu>
+                            </ListView.ContextMenu>
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Border Background="{Binding ThreatLevel, Converter={StaticResource ThreatLevelToBrushConverter}}" Padding="4,3" Margin="1">
@@ -217,6 +245,7 @@
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Name="StartBatchScanButton" Content="开始批量扫描" Width="140" Height="40" Margin="5" Background="#27AE60" Foreground="White" FontWeight="Bold" FontSize="14" Click="StartBatchScanButton_Click"/>
+            <Button Name="RescanFailedButton" Content="重扫失败目标" Width="120" Height="40" Margin="5" Background="#E67E22" Foreground="White" FontWeight="Bold" IsEnabled="False" Click="RescanFailedButton_Click"/>
             <Button Name="StopBatchScanButton" Content="停止扫描" Width="120" Height="40" Margin="5" Background="#E74C3C" Foreground="White" FontWeight="Bold" IsEnabled="False" Click="StopBatchScanButton_Click"/>
             <Button Name="ExportBatchReportButton" Content="导出报告" Width="120" Height="40" Margin="5" Background="#3498DB" Foreground="White" FontWeight="Bold" IsEnabled="False" Click="ExportBatchReportButton_Click"/>
             <Button Name="CloseBatchWindowButton" Content="关闭" Width="100" Height="40" Margin="5" Background="#95A5A6" Foreground="White" Click="CloseBatchWindowButton_Click"/>

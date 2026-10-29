@@ -15,6 +15,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Threading;
 
 namespace NetSecurityScanner.Views
@@ -42,6 +43,8 @@ namespace NetSecurityScanner.Views
         private ScanConfiguration _scanConfig = ScanConfiguration.StandardConfig;
         private List<int> _scanPorts = new List<int>();
         private bool _isDeepMode;
+        private int _currentRunCount;
+        private ListCollectionView _ipItemsView;
         private readonly ConcurrentDictionary<string, List<PortScanResult>> _portResultsByIp = new(StringComparer.OrdinalIgnoreCase);
 
         public BatchScanWindow()
@@ -55,6 +58,9 @@ namespace NetSecurityScanner.Views
             _totalStopwatch = new Stopwatch();
 
             IpListView.ItemsSource = _ipItems;
+            _ipItemsView = (ListCollectionView)CollectionViewSource.GetDefaultView(_ipItems);
+            _ipItemsView.Filter = IpItemFilter;
+            IpListView.ItemsSource = _ipItemsView;
 
             ConcurrencySlider.ValueChanged += (s, e) => ConcurrencyValueTextBlock.Text = ConcurrencySlider.Value.ToString("F0");
             TimeoutSlider.ValueChanged += (s, e) => TimeoutValueTextBlock.Text = $"{TimeoutSlider.Value:F1}s";
@@ -173,6 +179,34 @@ namespace NetSecurityScanner.Views
         }
 
         /// <summary>
+        /// 一键重扫所有失败目标：重置其状态后仅对失败项重新执行完整流水线。
+        /// </summary>
+        private async void RescanFailedButton_Click(object sender, RoutedEventArgs e)
+        {
+            var failedTargets = _ipItems.Where(i => i.Status == "失败").Select(i => i.IpAddress).ToList();
+            if (!failedTargets.Any())
+            {
+                MessageBox.Show("当前没有失败的扫描目标", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            foreach (var ip in failedTargets)
+            {
+                var item = _ipItems.FirstOrDefault(i => i.IpAddress.Equals(ip, StringComparison.OrdinalIgnoreCase));
+                if (item != null)
+                {
+                    item.Status = "等待中";
+                    item.StatusIcon = "...";
+                    item.ProgressText = "0%";
+                    item.DurationText = "00:00";
+                    item.ErrorMessage = "";
+                }
+            }
+
+            await RunBatchScanAsync(failedTargets, rescanOnlyFailed: true);
+        }
+
+        /// <summary>
         /// 批量扫描主流程（两阶段：阶段1 一次 Rust 多目标端口扫描；阶段2 按并发上限逐目标漏洞扫描）。
         /// </summary>
         /// <param name="targets">待扫描目标。</param>
@@ -191,11 +225,13 @@ namespace NetSecurityScanner.Views
             _failedCount = 0;
             _totalVulns = 0;
             _totalCritical = 0;
+            _currentRunCount = targets.Count;
             _portResultsByIp.Clear();
             _cancellationTokenSource = new CancellationTokenSource();
             var token = _cancellationTokenSource.Token;
 
             StartBatchScanButton.IsEnabled = false;
+            RescanFailedButton.IsEnabled = false;
             StopBatchScanButton.IsEnabled = true;
             ExportBatchReportButton.IsEnabled = false;
 
@@ -231,6 +267,7 @@ namespace NetSecurityScanner.Views
 
                 StartBatchScanButton.IsEnabled = true;
                 StopBatchScanButton.IsEnabled = false;
+                RescanFailedButton.IsEnabled = _ipItems.Any(i => i.Status == "失败");
                 ExportBatchReportButton.IsEnabled = true;
 
                 BatchScanStatusTextBlock.Text = "扫描完成";
@@ -547,7 +584,7 @@ namespace NetSecurityScanner.Views
 
         private void UpdateProgressBar()
         {
-            int total = _parsedTargets.Count;
+            int total = _currentRunCount > 0 ? _currentRunCount : _parsedTargets.Count;
             int done = _completedCount + _failedCount;
             BatchScanProgressBar.Value = total > 0 ? (double)done / total * 100 : 0;
             BatchScanProgressTextBlock.Text = $"{done}/{total}";
@@ -565,6 +602,141 @@ namespace NetSecurityScanner.Views
                 PortResultDataGrid.ItemsSource = item.PortResults;
                 VulnResultDataGrid.ItemsSource = item.VulnResults;
             }
+        }
+
+        /// <summary>
+        /// IP 列表过滤器：状态（"扫描中"匹配端口/漏洞扫描中两种中间态）+ 威胁级别组合筛选。
+        /// </summary>
+        private bool IpItemFilter(object obj)
+        {
+            if (obj is not IpScanItem item) return false;
+
+            string statusTag = (StatusFilterComboBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
+            string threatTag = (ThreatFilterComboBox?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All";
+
+            bool statusOk = statusTag switch
+            {
+                "All" => true,
+                "扫描中" => item.Status.Contains("扫描中"),
+                _ => item.Status == statusTag
+            };
+            bool threatOk = threatTag == "All" || item.ThreatLevel == threatTag;
+            return statusOk && threatOk;
+        }
+
+        private void FilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            _ipItemsView?.Refresh();
+        }
+
+        private void CopyIpMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (IpListView.SelectedItem is IpScanItem item)
+            {
+                Clipboard.SetText(item.IpAddress);
+                BatchScanStatusTextBlock.Text = $"已复制: {item.IpAddress}";
+            }
+        }
+
+        private void RemoveTargetMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (IpListView.SelectedItem is not IpScanItem item) return;
+
+            if (StopBatchScanButton.IsEnabled)
+            {
+                MessageBox.Show("扫描进行中，请先停止扫描再移除目标", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            _ipItems.Remove(item);
+            _parsedTargets.Remove(item.IpAddress);
+            TotalTargetsTextBlock.Text = $"总目标: {_parsedTargets.Count}";
+            ParsedTargetCountTextBlock.Text = $"已解析: {_parsedTargets.Count} 个目标";
+        }
+
+        private async void ExportSingleTargetMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (IpListView.SelectedItem is not IpScanItem item) return;
+            if (item.Status != "已完成" && item.Status != "失败")
+            {
+                MessageBox.Show("该目标尚未完成扫描，暂无结果可导出", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = "HTML文件|*.html|CSV文件|*.csv",
+                FileName = $"扫描报告_{item.IpAddress}_{DateTime.Now:yyyyMMdd_HHmmss}",
+                Title = $"导出 {item.IpAddress} 的扫描报告"
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            try
+            {
+                string content = Path.GetExtension(dialog.FileName).Equals(".html", StringComparison.OrdinalIgnoreCase)
+                    ? GenerateSingleTargetHtmlReport(item)
+                    : GenerateSingleTargetCsvReport(item);
+                await File.WriteAllTextAsync(dialog.FileName, content, Encoding.UTF8);
+                MessageBox.Show($"报告已保存到:\n{dialog.FileName}", "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"导出失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private static string GenerateSingleTargetHtmlReport(IpScanItem item)
+        {
+            string Esc(string s) => System.Net.WebUtility.HtmlEncode(s ?? "");
+            var sb = new StringBuilder();
+            sb.AppendLine("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>扫描报告</title>");
+            sb.AppendLine("<style>body{font-family:Arial,sans-serif;margin:40px;background:#f5f5f5}");
+            sb.AppendLine(".header{background:#9B59B6;color:white;padding:24px;text-align:center;border-radius:8px}");
+            sb.AppendLine("table{width:100%;background:white;border-collapse:collapse;margin:16px 0}");
+            sb.AppendLine("th{background:#9B59B6;color:white;padding:10px;text-align:left}");
+            sb.AppendLine("td{padding:8px;border-bottom:1px solid #ddd}</style></head><body>");
+            sb.AppendLine($"<div class='header'><h1>目标扫描报告: {Esc(item.IpAddress)}</h1><p>生成时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}</p></div>");
+            sb.AppendLine($"<p><strong>状态:</strong> {Esc(item.Status)} &nbsp; <strong>威胁级别:</strong> {Esc(item.ThreatLevel)} &nbsp; <strong>开放端口:</strong> {item.OpenPortsCount} &nbsp; <strong>漏洞:</strong> {item.VulnCount} (严重 {item.CriticalCount} / 高危 {item.HighCount}) &nbsp; <strong>耗时:</strong> {Esc(item.DurationText)}</p>");
+            if (!string.IsNullOrEmpty(item.ErrorMessage))
+            {
+                sb.AppendLine($"<p><strong>错误信息:</strong> {Esc(item.ErrorMessage)}</p>");
+            }
+
+            sb.AppendLine("<h2>开放端口</h2><table><thead><tr><th>端口</th><th>服务</th><th>版本</th></tr></thead><tbody>");
+            foreach (var p in item.PortResults)
+            {
+                sb.AppendLine($"<tr><td>{p.PortNumber}</td><td>{Esc(p.Service)}</td><td>{Esc(p.ServiceVersion)}</td></tr>");
+            }
+            sb.AppendLine("</tbody></table>");
+
+            sb.AppendLine("<h2>漏洞列表</h2><table><thead><tr><th>漏洞名称</th><th>风险等级</th><th>端口</th><th>描述</th></tr></thead><tbody>");
+            foreach (var v in item.VulnResults)
+            {
+                sb.AppendLine($"<tr><td>{Esc(v.Name)}</td><td>{Esc(v.RiskLevel)}</td><td>{v.Port}</td><td>{Esc(v.Description)}</td></tr>");
+            }
+            sb.AppendLine("</tbody></table>");
+            sb.AppendLine("<p style='text-align:center;color:#7f8c8d;margin-top:32px'>由 NetSecurityScanner 生成</p></body></html>");
+            return sb.ToString();
+        }
+
+        private static string GenerateSingleTargetCsvReport(IpScanItem item)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("IP地址,状态,威胁级别,开放端口数,漏洞数,严重,高危,扫描时长,错误信息");
+            sb.AppendLine($"{item.IpAddress},{item.Status},{item.ThreatLevel},{item.OpenPortsCount},{item.VulnCount},{item.CriticalCount},{item.HighCount},{item.DurationText},{item.ErrorMessage}");
+            sb.AppendLine();
+            sb.AppendLine("端口,服务,版本");
+            foreach (var p in item.PortResults)
+            {
+                sb.AppendLine($"{p.PortNumber},{p.Service},{p.ServiceVersion}");
+            }
+            sb.AppendLine();
+            sb.AppendLine("漏洞名称,风险等级,端口,描述");
+            foreach (var v in item.VulnResults)
+            {
+                sb.AppendLine($"\"{v.Name}\",{v.RiskLevel},{v.Port},\"{v.Description}\"");
+            }
+            return sb.ToString();
         }
 
         private void StopBatchScanButton_Click(object sender, RoutedEventArgs e)
