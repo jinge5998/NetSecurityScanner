@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using NetSecurityScanner.Core.Models;
+using NetSecurityScanner.Core.Services;
 using NetSecurityScanner.Models;
 using NetSecurityScanner.Services;
 using NetSecurityScanner.Utils;
@@ -33,8 +34,13 @@ namespace NetSecurityScanner.Views
         private Stopwatch _totalStopwatch;
         private int _completedCount;
         private int _failedCount;
+        private int _canceledCount;
         private int _totalVulns;
         private int _totalCritical;
+        private readonly BatchScanSettingsService _settingsService = new();
+        private DispatcherTimer _settingsSaveTimer;
+        private bool _loadingSettings;
+        private AsyncPauseController _pauseController;
 
         // 扫描引擎配置（A1/A2：模式联动 ScanProfileConfig，统一走 Rust 服务并自动回退内置）
         private RustScannerClient _rustClient;
@@ -60,8 +66,15 @@ namespace NetSecurityScanner.Views
             _ipItemsView.Filter = IpItemFilter;
             IpListView.ItemsSource = _ipItemsView;
 
-            ConcurrencySlider.ValueChanged += (s, e) => ConcurrencyValueTextBlock.Text = ConcurrencySlider.Value.ToString("F0");
-            TimeoutSlider.ValueChanged += (s, e) => TimeoutValueTextBlock.Text = $"{TimeoutSlider.Value:F1}s";
+            ConcurrencySlider.ValueChanged += (s, e) => { ConcurrencyValueTextBlock.Text = ConcurrencySlider.Value.ToString("F0"); MarkSettingsDirty(); };
+            TimeoutSlider.ValueChanged += (s, e) => { TimeoutValueTextBlock.Text = $"{TimeoutSlider.Value:F1}s"; MarkSettingsDirty(); };
+
+            _settingsSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            _settingsSaveTimer.Tick += (s, e) =>
+            {
+                _settingsSaveTimer.Stop();
+                _settingsService.Save(CaptureSettingsFromUi());
+            };
 
             _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _elapsedTimer.Tick += (s, e) =>
@@ -79,11 +92,68 @@ namespace NetSecurityScanner.Views
                 }
             };
 
-            BatchTargetTypeComboBox.SelectedIndex = 0;
+            LoadAndApplySettings();
+        }
+
+        /// <summary>
+        /// 配置变化时调用：500ms 防抖后统一落盘，避免拖动滑块时高频写盘。
+        /// InitializeComponent 期间（计时器尚未创建）与配置回填期间不触发。
+        /// </summary>
+        private void MarkSettingsDirty()
+        {
+            if (_loadingSettings || _settingsSaveTimer == null) return;
+            _settingsSaveTimer.Stop();
+            _settingsSaveTimer.Start();
+        }
+
+        private BatchScanSettings CaptureSettingsFromUi() => new()
+        {
+            ScanModeTag = (BatchScanModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Standard",
+            Concurrency = (int)ConcurrencySlider.Value,
+            TimeoutSeconds = Math.Round(TimeoutSlider.Value, 1),
+            TargetTypeTag = (BatchTargetTypeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Range",
+            StatusFilterTag = (StatusFilterComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All",
+            ThreatFilterTag = (ThreatFilterComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "All"
+        };
+
+        /// <summary>
+        /// 启动时还原配置。先设下拉框（其 SelectionChanged 会联动超时默认值），后设滑块以保留已存值。
+        /// </summary>
+        private void LoadAndApplySettings()
+        {
+            var settings = _settingsService.Load();
+            _loadingSettings = true;
+            try
+            {
+                SelectComboItemByTag(BatchScanModeComboBox, settings.ScanModeTag);
+                SelectComboItemByTag(BatchTargetTypeComboBox, settings.TargetTypeTag);
+                SelectComboItemByTag(StatusFilterComboBox, settings.StatusFilterTag);
+                SelectComboItemByTag(ThreatFilterComboBox, settings.ThreatFilterTag);
+                ConcurrencySlider.Value = Math.Clamp(settings.Concurrency, (int)ConcurrencySlider.Minimum, (int)ConcurrencySlider.Maximum);
+                TimeoutSlider.Value = Math.Clamp(settings.TimeoutSeconds, TimeoutSlider.Minimum, TimeoutSlider.Maximum);
+            }
+            finally
+            {
+                _loadingSettings = false;
+            }
+        }
+
+        private static void SelectComboItemByTag(ComboBox combo, string tag)
+        {
+            foreach (var item in combo.Items)
+            {
+                if (item is ComboBoxItem cbi && string.Equals(cbi.Tag?.ToString(), tag, StringComparison.OrdinalIgnoreCase))
+                {
+                    combo.SelectedItem = cbi;
+                    return;
+                }
+            }
+            if (combo.Items.Count > 0) combo.SelectedIndex = 0;
         }
 
         private void BatchTargetTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            MarkSettingsDirty();
             if (BatchTargetTypeComboBox?.SelectedItem is ComboBoxItem selectedItem)
             {
                 string tag = selectedItem.Tag?.ToString();
@@ -105,6 +175,7 @@ namespace NetSecurityScanner.Views
         private void BatchScanModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (TimeoutSlider == null) return;
+            MarkSettingsDirty();
             string tag = (BatchScanModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "Standard";
             TimeoutSlider.Value = tag switch
             {
@@ -632,6 +703,7 @@ namespace NetSecurityScanner.Views
         private void FilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             _ipItemsView?.Refresh();
+            MarkSettingsDirty();
         }
 
         private void CopyIpMenuItem_Click(object sender, RoutedEventArgs e)
@@ -924,6 +996,9 @@ namespace NetSecurityScanner.Views
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
         {
+            _settingsSaveTimer.Stop();
+            _settingsService.Save(CaptureSettingsFromUi());
+            _pauseController?.Resume();
             _cancellationTokenSource?.Cancel();
             _elapsedTimer.Stop();
             base.OnClosing(e);
