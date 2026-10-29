@@ -506,6 +506,13 @@ namespace NetSecurityScanner.Views
 
                 itemStopwatch.Stop();
 
+                // A5: 持久化到扫描历史（每个目标独立上下文，失败不影响扫描结果）
+                try
+                {
+                    await new ScanHistoryService().SaveScanResultAsync(ip, vulnResults, _scanConfig);
+                }
+                catch { }
+
                 _ = Dispatcher.BeginInvoke(() =>
                 {
                     _ipItems[index].Status = "已完成";
@@ -754,7 +761,7 @@ namespace NetSecurityScanner.Views
         {
             var dialog = new SaveFileDialog
             {
-                Filter = "HTML文件|*.html|CSV文件|*.csv",
+                Filter = "HTML文件|*.html|CSV文件|*.csv|JSON文件|*.json",
                 FileName = $"批量扫描报告_{DateTime.Now:yyyyMMdd_HHmmss}",
                 Title = "保存批量扫描报告"
             };
@@ -771,10 +778,16 @@ namespace NetSecurityScanner.Views
                     var html = GenerateHtmlReport();
                     await File.WriteAllTextAsync(filePath, html);
                 }
+                else if (extension == ".json")
+                {
+                    var json = GenerateJsonReport();
+                    await File.WriteAllTextAsync(filePath, json, new UTF8Encoding(false));
+                }
                 else
                 {
                     var csv = GenerateCsvReport();
-                    await File.WriteAllTextAsync(filePath, csv);
+                    // 带 BOM 的 UTF-8，保证 Excel 打开中文不乱码
+                    await File.WriteAllTextAsync(filePath, csv, new UTF8Encoding(true));
                 }
 
                 MessageBox.Show($"报告已保存到:\n{filePath}", "报告生成成功", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -825,6 +838,61 @@ namespace NetSecurityScanner.Views
 
             sb.AppendLine($"<p style='text-align:center;color:#7f8c8d;margin-top:40px'>由 NetSecurityScanner 生成</p></body></html>");
             return sb.ToString();
+        }
+
+        /// <summary>
+        /// 生成 JSON 格式批量扫描报告（含汇总与每目标端口/漏洞明细）。
+        /// </summary>
+        private string GenerateJsonReport()
+        {
+            var report = new
+            {
+                generatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                scanMode = _scanConfig.Mode.ToString(),
+                summary = new
+                {
+                    totalTargets = _parsedTargets.Count,
+                    completed = _completedCount,
+                    failed = _failedCount,
+                    totalVulnerabilities = _totalVulns,
+                    criticalVulnerabilities = _totalCritical,
+                    duration = _totalStopwatch.Elapsed.ToString(@"hh\:mm\:ss")
+                },
+                targets = _ipItems.Select(item => new
+                {
+                    ip = item.IpAddress,
+                    status = item.Status,
+                    threatLevel = item.ThreatLevel,
+                    openPortsCount = item.OpenPortsCount,
+                    vulnerabilityCount = item.VulnCount,
+                    criticalCount = item.CriticalCount,
+                    highCount = item.HighCount,
+                    scanDuration = item.DurationText,
+                    errorMessage = item.ErrorMessage,
+                    openPorts = item.PortResults.Select(p => new
+                    {
+                        port = p.PortNumber,
+                        service = p.Service,
+                        version = p.ServiceVersion
+                    }),
+                    vulnerabilities = item.VulnResults.Select(v => new
+                    {
+                        cveId = v.CveId,
+                        name = v.Name,
+                        riskLevel = v.RiskLevel,
+                        port = v.Port,
+                        service = v.Service,
+                        description = v.Description,
+                        solution = v.Solution
+                    })
+                })
+            };
+
+            return System.Text.Json.JsonSerializer.Serialize(report, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            });
         }
 
         private string GenerateCsvReport()
