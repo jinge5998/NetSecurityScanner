@@ -22,9 +22,23 @@ namespace NetSecurityScanner.Views
         private CancellationTokenSource? _cts;
         private CameraScanResult? _lastResult;
 
-        public CameraSecurityWindow()
+        /// <summary>
+        /// 支持批量扫描窗口传入初始 IP 与已有结果：直接展示历史结果，无需重扫。
+        /// </summary>
+        public CameraSecurityWindow(string? initialIp = null, CameraScanResult? initialResult = null)
         {
             InitializeComponent();
+            if (!string.IsNullOrWhiteSpace(initialIp))
+            {
+                TxtTargetIp.Text = initialIp;
+            }
+            if (initialResult != null)
+            {
+                _lastResult = initialResult;
+                DisplayResult(initialResult);
+                BtnExport.IsEnabled = initialResult.Findings.Any();
+                AppendLog($"[*] 已载入 {initialResult.Target.IpAddress} 的扫描结果（扫描时间 {initialResult.ScanTime:yyyy-MM-dd HH:mm:ss}）");
+            }
         }
 
         private void AppendLog(string msg)
