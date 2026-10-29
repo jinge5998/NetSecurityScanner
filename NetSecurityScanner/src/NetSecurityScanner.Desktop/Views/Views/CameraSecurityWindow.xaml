@@ -574,48 +574,89 @@
                             <ItemsControl x:Name="ListFindings">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Style="{StaticResource DataCell}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="70"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="150"/>
-                                                    <ColumnDefinition Width="120"/>
-                                                </Grid.ColumnDefinitions>
-                                                <Border Grid.Column="0"
-                                                        Width="60"
-                                                        Height="24"
-                                                        CornerRadius="3"
-                                                        Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}">
-                                                    <TextBlock Text="{Binding Severity}"
-                                                               Foreground="White"
-                                                               FontWeight="Bold"
-                                                               FontSize="11"
-                                                               HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"/>
-                                                </Border>
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding Name}"
-                                                           Padding="8,4"
-                                                           FontWeight="SemiBold"
-                                                           TextWrapping="Wrap"/>
-                                                <TextBlock Grid.Column="2"
-                                                           Text="{Binding CveId}"
-                                                           Padding="8,4"
-                                                           Foreground="#2980B9"
-                                                           FontFamily="Consolas"/>
-                                                <TextBlock Grid.Column="3"
-                                                           Text="{Binding CvssScore, StringFormat=F1}"
-                                                           Padding="8,4"
-                                                           FontWeight="Bold"/>
-                                                <TextBlock Grid.Column="4"
-                                                           Text="{Binding DetectionMethod}"
-                                                           Padding="8,4"
-                                                           Foreground="#7F8C8D"
-                                                           FontSize="11"/>
-                                            </Grid>
-                                        </Border>
+                                        <!-- 点击行头展开漏洞详情（描述/证据/修复建议） -->
+                                        <Expander HorizontalContentAlignment="Stretch"
+                                                  BorderBrush="#EAECEF"
+                                                  BorderThickness="0,0,0,1"
+                                                  Background="White">
+                                            <Expander.Header>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="70"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="150"/>
+                                                        <ColumnDefinition Width="120"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0"
+                                                            Width="60"
+                                                            Height="24"
+                                                            CornerRadius="3"
+                                                            VerticalAlignment="Center"
+                                                            Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}">
+                                                        <TextBlock Text="{Binding Severity}"
+                                                                   Foreground="White"
+                                                                   FontWeight="Bold"
+                                                                   FontSize="11"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Name}"
+                                                               Padding="8,4"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               TextWrapping="Wrap"/>
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding CveId}"
+                                                               Padding="8,4"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="#2980B9"
+                                                               FontFamily="Consolas"/>
+                                                    <TextBlock Grid.Column="3"
+                                                               Text="{Binding CvssScore, StringFormat=F1}"
+                                                               Padding="8,4"
+                                                               VerticalAlignment="Center"
+                                                               FontWeight="Bold"/>
+                                                    <TextBlock Grid.Column="4"
+                                                               Text="{Binding DetectionMethod}"
+                                                               Padding="8,4"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="#7F8C8D"
+                                                               FontSize="11"/>
+                                                </Grid>
+                                            </Expander.Header>
+                                            <Border Background="#F8F9FB"
+                                                    Padding="14,10">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Margin="0,0,0,4">
+                                                        <TextBlock Text="描述: "
+                                                                   FontWeight="Bold"
+                                                                   Foreground="#2C3E50"/>
+                                                        <TextBlock Text="{Binding Description, TargetNullValue=—, FallbackValue=—}"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Margin="0,0,0,4">
+                                                        <TextBlock Text="证据: "
+                                                                   FontWeight="Bold"
+                                                                   Foreground="#7F8C8D"/>
+                                                        <TextBlock Text="{Binding Evidence, TargetNullValue=—, FallbackValue=—}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="11"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="修复建议: "
+                                                                   FontWeight="Bold"
+                                                                   Foreground="#27AE60"/>
+                                                        <TextBlock Text="{Binding Remedy, TargetNullValue=—, FallbackValue=—}"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </Expander>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
