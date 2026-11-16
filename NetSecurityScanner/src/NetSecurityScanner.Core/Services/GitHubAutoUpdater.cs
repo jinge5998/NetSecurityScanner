@@ -1,0 +1,890 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace NetSecurityScanner.Services
+{
+    public class AutoUpdateProgressEventArgs : EventArgs
+    {
+        public string Message { get; }
+        public int ProgressPercent { get; }
+        public bool IsError { get; }
+        public string? ErrorMessage { get; }
+
+        public AutoUpdateProgressEventArgs(string message, int progressPercent, bool isError = false, string? errorMessage = null)
+        {
+            Message = message;
+            ProgressPercent = progressPercent;
+            IsError = isError;
+            ErrorMessage = errorMessage;
+        }
+    }
+
+    public class GitHubAutoUpdater : IDisposable
+    {
+        private readonly HttpClient _httpClient;
+        private readonly string _appBaseDir;
+        private readonly string _updateTempDir;
+        private readonly string _backupDir;
+        private readonly string _backupRootDir;
+        private bool _disposed;
+
+        public event EventHandler<AutoUpdateProgressEventArgs>? ProgressChanged;
+
+        /// <summary>
+        /// 用户可配置的下载镜像前缀（来自 UpdateSettings.DownloadProxyPrefix）。
+        /// 为空则跳过用户镜像，直接按 原始 URL → 内置镜像 的顺序尝试。
+        /// </summary>
+        public string DownloadProxyPrefix { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 内置公共镜像前缀（GitHub asset 下载在国内网络环境经常被阻断，
+        /// E2E 测试确认 github.com:443 直连不稳定）。镜像可用性随时间变化，
+        /// 按序回退，全部失败才报网络错误。
+        /// </summary>
+        private static readonly string[] BuiltInMirrorPrefixes =
+        {
+            "https://gh-proxy.com/",
+            "https://ghfast.top/",
+            "https://mirror.ghproxy.com/"
+        };
+
+        /// <summary>生成下载候选 URL 列表：用户配置镜像 → 原始 URL → 内置镜像。</summary>
+        private IEnumerable<string> GetDownloadCandidates(string url)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var candidates = new List<string>();
+            if (!string.IsNullOrWhiteSpace(DownloadProxyPrefix) && seen.Add(JoinPrefix(DownloadProxyPrefix, url)))
+                candidates.Add(JoinPrefix(DownloadProxyPrefix, url));
+            if (seen.Add(url))
+                candidates.Add(url);
+            foreach (var m in BuiltInMirrorPrefixes)
+            {
+                if (seen.Add(JoinPrefix(m, url)))
+                    candidates.Add(JoinPrefix(m, url));
+            }
+            return candidates;
+        }
+
+        private static string JoinPrefix(string prefix, string url)
+        {
+            return prefix.EndsWith("/", StringComparison.Ordinal) ? prefix + url : prefix + "/" + url;
+        }
+
+        public GitHubAutoUpdater()
+        {
+            _httpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromMinutes(10)
+            };
+            _httpClient.DefaultRequestHeaders.Add("User-Agent", "NetSecurityScanner-AutoUpdater");
+
+            _appBaseDir = AppDomain.CurrentDomain.BaseDirectory;
+            _updateTempDir = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Update");
+            _backupDir = Path.Combine(_appBaseDir, ".backup", DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+            _backupRootDir = Path.Combine(_appBaseDir, ".backup");
+        }
+
+        public async Task<bool> DownloadAndInstallAsync(
+            string downloadUrl,
+            string assetName,
+            IProgress<(string Message, int Percent)>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                ReportProgress("准备更新环境...", 0, progress);
+
+                CleanDirectory(_updateTempDir);
+                Directory.CreateDirectory(_updateTempDir);
+
+                var zipPath = Path.Combine(_updateTempDir, assetName);
+
+                ReportProgress("正在从 GitHub 下载更新包...", 5, progress);
+                var downloadSuccess = await DownloadFileAsync(downloadUrl, zipPath, progress, cancellationToken);
+                if (!downloadSuccess)
+                {
+                    ReportProgress("下载失败", 0, progress, isError: true, errorMessage: "无法从 GitHub 下载更新包");
+                    return false;
+                }
+
+                ReportProgress("下载完成，正在验证文件完整性...", 60, progress);
+                if (!File.Exists(zipPath) || new FileInfo(zipPath).Length == 0)
+                {
+                    ReportProgress("文件验证失败", 0, progress, isError: true, errorMessage: "下载的文件无效");
+                    return false;
+                }
+
+                var sha256 = ComputeSha256(zipPath);
+                if (!string.IsNullOrEmpty(sha256))
+                {
+                    ReportProgress($"文件哈希: {sha256[..16]}...", 62, progress);
+                }
+
+                ReportProgress("正在解压更新包...", 65, progress);
+                var extractDir = Path.Combine(_updateTempDir, "extracted");
+                Directory.CreateDirectory(extractDir);
+                ZipFile.ExtractToDirectory(zipPath, extractDir, overwriteFiles: true);
+
+                ReportProgress("正在备份当前版本...", 75, progress);
+                BackupCurrentVersion();
+
+                ReportProgress("正在应用更新...", 80, progress);
+                var updateSourceDir = FindUpdateSourceDirectory(extractDir);
+                if (updateSourceDir == null)
+                {
+                    ReportProgress("更新包结构无效", 0, progress, isError: true, errorMessage: "无法在更新包中找到应用程序文件");
+                    return false;
+                }
+
+                ApplyUpdate(updateSourceDir, progress);
+
+                ReportProgress("更新完成！正在准备重启...", 95, progress);
+
+                ReportProgress("更新成功，即将重启应用...", 100, progress);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                ReportProgress("更新已取消", 0, progress, isError: true, errorMessage: "用户取消了更新");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                ReportProgress($"更新失败: {ex.Message}", 0, progress, isError: true, errorMessage: ex.Message);
+                try
+                {
+                    Rollback();
+                    ReportProgress("已回滚到更新前版本", 0, progress);
+                }
+                catch (Exception rollbackEx)
+                {
+                    ReportProgress($"回滚失败: {rollbackEx.Message}", 0, progress, isError: true, errorMessage: rollbackEx.Message);
+                }
+                return false;
+            }
+        }
+
+        public async Task<bool> UpdateDataFilesOnlyAsync(
+            string downloadUrl,
+            string assetName,
+            IProgress<(string Message, int Percent)>? progress = null,
+            CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                ReportProgress("准备更新数据文件...", 0, progress);
+                CleanDirectory(_updateTempDir);
+                Directory.CreateDirectory(_updateTempDir);
+
+                var zipPath = Path.Combine(_updateTempDir, assetName);
+
+                ReportProgress("正在从 GitHub 下载...", 10, progress);
+                var downloadSuccess = await DownloadFileAsync(downloadUrl, zipPath, progress, cancellationToken);
+                if (!downloadSuccess) return false;
+
+                ReportProgress("正在解压...", 60, progress);
+                var extractDir = Path.Combine(_updateTempDir, "extracted");
+                Directory.CreateDirectory(extractDir);
+                ZipFile.ExtractToDirectory(zipPath, extractDir, overwriteFiles: true);
+
+                ReportProgress("正在更新数据文件...", 70, progress);
+                var updateSourceDir = FindUpdateSourceDirectory(extractDir);
+                if (updateSourceDir == null) return false;
+
+                var dataDir = Path.Combine(updateSourceDir, "Data");
+                var localDataDir = Path.Combine(_appBaseDir, "Data");
+
+                if (Directory.Exists(dataDir))
+                {
+                    if (!Directory.Exists(localDataDir))
+                        Directory.CreateDirectory(localDataDir);
+
+                    foreach (var file in Directory.GetFiles(dataDir, "*.json", SearchOption.AllDirectories))
+                    {
+                        var relativePath = file.Substring(dataDir.Length).TrimStart(Path.DirectorySeparatorChar);
+                        var targetPath = Path.Combine(localDataDir, relativePath);
+                        var targetDir = Path.GetDirectoryName(targetPath);
+                        if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                            Directory.CreateDirectory(targetDir);
+                        File.Copy(file, targetPath, overwrite: true);
+                    }
+
+                    ReportProgress("数据文件更新完成", 100, progress);
+                    return true;
+                }
+
+                ReportProgress("更新包中未找到 Data 目录", 0, progress, isError: true);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                ReportProgress($"数据文件更新失败: {ex.Message}", 0, progress, isError: true, errorMessage: ex.Message);
+                return false;
+            }
+        }
+
+        public static bool PendingRestart { get; private set; }
+        public static string? PendingRestartReason { get; private set; }
+        private const string RestartFlagFileName = ".update-restart.flag";
+
+        public static void MarkForRestart(string reason)
+        {
+            PendingRestart = true;
+            PendingRestartReason = reason;
+
+            try
+            {
+                var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                var flagPath = Path.Combine(appBase, RestartFlagFileName);
+                File.WriteAllText(flagPath, reason ?? "restart");
+            }
+            catch { }
+        }
+
+        public static bool IsRestartPending()
+        {
+            if (PendingRestart) return true;
+            try
+            {
+                var flagPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, RestartFlagFileName);
+                return File.Exists(flagPath);
+            }
+            catch { return false; }
+        }
+
+        public static void ClearRestartFlag()
+        {
+            PendingRestart = false;
+            PendingRestartReason = null;
+            try
+            {
+                var flagPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, RestartFlagFileName);
+                if (File.Exists(flagPath)) File.Delete(flagPath);
+            }
+            catch { }
+        }
+
+        public void RestartApplication()
+        {
+            try
+            {
+                var exePath = Process.GetCurrentProcess().MainModule?.FileName;
+                if (string.IsNullOrEmpty(exePath)) return;
+
+                MarkForRestart("manual-restart");
+
+                var scriptPath = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Restart.bat");
+                var script = $@"@echo off
+chcp 65001 >nul
+timeout /t 2 /nobreak >nul
+start """" ""{exePath.Replace("'", "''")}""
+timeout /t 2 /nobreak >nul
+del /f /q ""%~f0"" 2>nul
+";
+                File.WriteAllText(scriptPath, script);
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = "/c call \"" + scriptPath + "\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"重启应用准备失败: {ex.Message}");
+            }
+        }
+
+        public void ScheduleRestart(int delaySeconds = 3)
+        {
+            var exePath = Process.GetCurrentProcess().MainModule?.FileName;
+            if (string.IsNullOrEmpty(exePath)) return;
+
+            MarkForRestart("auto-update");
+
+            var pendingDir = Path.Combine(_updateTempDir, "pending");
+            var appBaseSanitized = _appBaseDir.Replace("'", "''");
+            var exePathSanitized = exePath.Replace("'", "''");
+            var pendingListFile = Path.Combine(_appBaseDir, ".update-pending-files.txt");
+
+            var script = $@"@echo off
+chcp 65001 >nul
+timeout /t {delaySeconds} /nobreak >nul
+
+echo 正在应用延迟替换的文件...
+
+if exist ""{pendingDir}"" (
+    xcopy ""{pendingDir}\*"" ""{appBaseSanitized}"" /E /Y /Q >nul 2>&1
+    rmdir /s /q ""{pendingDir}"" 2>nul
+)
+
+if exist ""{pendingListFile}"" del /f /q ""{pendingListFile}"" 2>nul
+if exist ""{Path.Combine(_appBaseDir, RestartFlagFileName)}"" del /f /q ""{Path.Combine(_appBaseDir, RestartFlagFileName)}"" 2>nul
+
+start """" ""{exePathSanitized}""
+timeout /t 2 /nobreak >nul
+del /f /q ""%~f0"" 2>nul
+";
+            var scriptPath = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Restart.bat");
+            File.WriteAllText(scriptPath, script);
+
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = "/c call \"" + scriptPath + "\"",
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                WindowStyle = ProcessWindowStyle.Hidden
+            });
+        }
+
+        public bool Rollback()
+        {
+            try
+            {
+                if (!Directory.Exists(_backupDir)) return false;
+
+                var backupFiles = Directory.GetFiles(_backupDir, "*", SearchOption.AllDirectories);
+                foreach (var backupFile in backupFiles)
+                {
+                    var relativePath = backupFile.Substring(_backupDir.Length).TrimStart(Path.DirectorySeparatorChar);
+                    var targetPath = Path.Combine(_appBaseDir, relativePath);
+
+                    var targetDir = Path.GetDirectoryName(targetPath);
+                    if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                        Directory.CreateDirectory(targetDir);
+
+                    File.Copy(backupFile, targetPath, overwrite: true);
+                }
+
+                Console.WriteLine("回滚成功");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"回滚失败: {ex.Message}");
+                return false;
+            }
+        }
+
+        public void Cleanup()
+        {
+            try
+            {
+                if (Directory.Exists(_updateTempDir))
+                    Directory.Delete(_updateTempDir, recursive: true);
+            }
+            catch { }
+        }
+
+        public static void CleanupAll()
+        {
+            try
+            {
+                var tempDir = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Update");
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, recursive: true);
+            }
+            catch { }
+
+            try
+            {
+                var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                var pendingFile = Path.Combine(appBase, ".update-pending-files.txt");
+                if (File.Exists(pendingFile))
+                    File.Delete(pendingFile);
+            }
+            catch { }
+        }
+
+        private async Task<bool> DownloadFileAsync(
+            string url,
+            string targetPath,
+            IProgress<(string Message, int Percent)>? progress,
+            CancellationToken cancellationToken)
+        {
+            const int maxRetries = 3;
+            const int retryDelayMs = 2000;
+            var totalDownloadTimeout = TimeSpan.FromMinutes(15);
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                using var totalCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                totalCts.CancelAfter(totalDownloadTimeout);
+
+                try
+                {
+                    ReportProgress($"正在下载... (尝试 {attempt}/{maxRetries})", 5, progress);
+
+                    // 镜像回退下载（E2E 测试发现 github.com:443 在部分网络环境被阻断）：
+                    // 候选顺序 = 用户配置镜像 → 原始 URL → 内置公共镜像；
+                    // 某一候选网络失败自动切下一个，全部失败才计入本次 attempt 失败。
+                    Exception? lastCandidateError = null;
+                    var downloaded = false;
+
+                    foreach (var candidateUrl in GetDownloadCandidates(url))
+                    {
+                        try
+                        {
+                            using var response = await _httpClient.GetAsync(candidateUrl, HttpCompletionOption.ResponseHeadersRead, totalCts.Token);
+                            response.EnsureSuccessStatusCode();
+
+                            var totalBytes = response.Content.Headers.ContentLength ?? -1;
+                            var bytesRead = 0L;
+                            var buffer = new byte[81920];
+
+                            await using var contentStream = await response.Content.ReadAsStreamAsync(totalCts.Token);
+                            await using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+                            int read;
+                            while ((read = await contentStream.ReadAsync(buffer, totalCts.Token)) > 0)
+                            {
+                                await fileStream.WriteAsync(buffer.AsMemory(0, read), totalCts.Token);
+                                bytesRead += read;
+
+                                if (totalBytes > 0)
+                                {
+                                    var percent = (int)(5 + (bytesRead * 55.0 / totalBytes));
+                                    ReportProgress($"正在下载... {FormatBytes(bytesRead)}/{FormatBytes(totalBytes)}", percent, progress);
+                                }
+                                else
+                                {
+                                    var percent = (int)(5 + Math.Min(bytesRead / 1024.0 / 1024.0 / 50.0 * 55.0, 55.0));
+                                    ReportProgress($"正在下载... {FormatBytes(bytesRead)}", percent, progress);
+                                }
+                            }
+
+                            if (totalBytes > 0 && bytesRead != totalBytes)
+                            {
+                                throw new IOException($"下载不完整：期望 {totalBytes} 字节，实际 {bytesRead} 字节");
+                            }
+
+                            downloaded = true;
+                            break;
+                        }
+                        catch (HttpRequestException ex)
+                        {
+                            lastCandidateError = ex;
+                            ReportProgress($"下载源不可达（{new Uri(candidateUrl).Host}），尝试下一下载源...", 5, progress);
+                        }
+                        catch (IOException ex)
+                        {
+                            lastCandidateError = ex;
+                            ReportProgress($"下载中断（{new Uri(candidateUrl).Host}），尝试下一下载源... ({ex.Message})", 5, progress);
+                        }
+                    }
+
+                    if (!downloaded && lastCandidateError != null)
+                        throw new HttpRequestException($"所有下载源均失败: {lastCandidateError.Message}", lastCandidateError);
+
+                    if (downloaded)
+                        return true;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (OperationCanceledException) when (totalCts.IsCancellationRequested)
+                {
+                    ReportProgress($"下载超时（15分钟限制），将重试...", 5, progress);
+                    if (attempt < maxRetries)
+                        await Task.Delay(retryDelayMs * attempt, cancellationToken);
+                }
+                catch (HttpRequestException ex) when (attempt < maxRetries)
+                {
+                    ReportProgress($"网络错误，{retryDelayMs / 1000} 秒后重试... ({ex.Message})", 5, progress);
+                    await Task.Delay(retryDelayMs * attempt, cancellationToken);
+                }
+                catch (IOException ex) when (attempt < maxRetries)
+                {
+                    ReportProgress($"IO 错误，{retryDelayMs / 1000} 秒后重试... ({ex.Message})", 5, progress);
+                    await Task.Delay(retryDelayMs * attempt, cancellationToken);
+                }
+            }
+
+            Console.WriteLine($"下载失败：已重试 {maxRetries} 次仍无法完成");
+            return false;
+        }
+
+        private void BackupCurrentVersion()
+        {
+            try
+            {
+                if (Directory.Exists(_backupRootDir))
+                {
+                    var backupDirs = Directory.GetDirectories(_backupRootDir)
+                        .OrderByDescending(d => d)
+                        .Skip(3)
+                        .ToList();
+
+                    foreach (var oldDir in backupDirs)
+                    {
+                        try { Directory.Delete(oldDir, recursive: true); } catch { }
+                    }
+                }
+
+                Directory.CreateDirectory(_backupDir);
+
+                BackupRecursive(_appBaseDir, _backupDir, new[] { ".backup", ".git", "bin", "obj", "logs", "Logs", "backups", "Backups" });
+
+                var dataDir = Path.Combine(_appBaseDir, "Data");
+                if (Directory.Exists(dataDir))
+                {
+                    var backupDataDir = Path.Combine(_backupDir, "Data");
+                    Directory.CreateDirectory(backupDataDir);
+                    foreach (var file in Directory.GetFiles(dataDir, "*.json"))
+                    {
+                        try
+                        {
+                            File.Copy(file, Path.Combine(backupDataDir, Path.GetFileName(file)), overwrite: true);
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"备份失败: {ex.Message}");
+            }
+        }
+
+        private static void BackupRecursive(string sourceDir, string targetDir, string[] excludeDirs)
+        {
+            try
+            {
+                var dirInfo = new DirectoryInfo(sourceDir);
+
+                foreach (var file in dirInfo.GetFiles())
+                {
+                    try
+                    {
+                        if (file.Name == "appsettings.json" || file.Name == "user-settings.json")
+                            continue;
+
+                        if (!file.Extension.Equals(".dll", StringComparison.OrdinalIgnoreCase) &&
+                            !file.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) &&
+                            !file.Extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var targetPath = Path.Combine(targetDir, file.Name);
+                        if (!File.Exists(targetPath) || file.LastWriteTimeUtc > new FileInfo(targetPath).LastWriteTimeUtc)
+                        {
+                            file.CopyTo(targetPath, overwrite: true);
+                        }
+                    }
+                    catch { }
+                }
+
+                foreach (var subDir in dirInfo.GetDirectories())
+                {
+                    if (excludeDirs.Any(ed => subDir.Name.Equals(ed, StringComparison.OrdinalIgnoreCase)))
+                        continue;
+
+                    var childTarget = Path.Combine(targetDir, subDir.Name);
+                    Directory.CreateDirectory(childTarget);
+                    BackupRecursive(subDir.FullName, childTarget, excludeDirs);
+                }
+            }
+            catch { }
+        }
+
+        private string? FindUpdateSourceDirectory(string extractDir)
+        {
+            var exeName = "NetSecurityScanner.Desktop.exe";
+
+            if (Directory.GetFiles(extractDir, exeName).Length > 0)
+                return extractDir;
+
+            foreach (var dir in Directory.GetDirectories(extractDir))
+            {
+                if (Directory.GetFiles(dir, exeName).Length > 0)
+                    return dir;
+
+                foreach (var subDir in Directory.GetDirectories(dir))
+                {
+                    if (Directory.GetFiles(subDir, exeName).Length > 0)
+                        return subDir;
+                }
+            }
+
+            foreach (var dir in Directory.GetDirectories(extractDir))
+            {
+                if (Directory.GetFiles(dir, "*.dll").Length > 5)
+                    return dir;
+            }
+
+            return null;
+        }
+
+        private void ApplyUpdate(string sourceDir, IProgress<(string Message, int Percent)>? progress)
+        {
+            var excludeDirs = new[] { "logs", "Logs", "backups", "Backups" };
+            var excludeFiles = new[] { "appsettings.json", "user-settings.json", ".update-pending-files.txt" };
+            var pendingList = new List<string>();
+            var pendingDir = Path.Combine(_updateTempDir, "pending");
+            Directory.CreateDirectory(pendingDir);
+
+            foreach (var file in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
+            {
+                var relativePath = file.Substring(sourceDir.Length).TrimStart(Path.DirectorySeparatorChar);
+                var segments = relativePath.Split(Path.DirectorySeparatorChar);
+
+                if (segments.Any(s => excludeDirs.Contains(s, StringComparer.OrdinalIgnoreCase)))
+                    continue;
+
+                if (excludeFiles.Contains(Path.GetFileName(file)))
+                    continue;
+
+                var targetPath = Path.Combine(_appBaseDir, relativePath);
+                var targetDir = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                    Directory.CreateDirectory(targetDir);
+
+                try
+                {
+                    File.Copy(file, targetPath, overwrite: true);
+                }
+                catch (IOException ex) when (IsFileLocked(ex))
+                {
+                    var pendingPath = Path.Combine(pendingDir, relativePath);
+                    var pendingFileDir = Path.GetDirectoryName(pendingPath);
+                    if (!string.IsNullOrEmpty(pendingFileDir) && !Directory.Exists(pendingFileDir))
+                        Directory.CreateDirectory(pendingFileDir);
+                    File.Copy(file, pendingPath, overwrite: true);
+                    pendingList.Add(targetPath);
+                    Console.WriteLine($"文件被锁定，将延迟替换: {relativePath} ({ex.Message})");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"无法更新文件 {relativePath}: {ex.Message}");
+                }
+            }
+
+            if (pendingList.Count > 0)
+            {
+                var pendingListPath = Path.Combine(_appBaseDir, ".update-pending-files.txt");
+                File.WriteAllLines(pendingListPath, pendingList);
+                Console.WriteLine($"共 {pendingList.Count} 个文件需要延迟替换，已记录到 {pendingListPath}");
+            }
+        }
+
+        public static bool TryApplyPendingFilesOnStartup()
+        {
+            try
+            {
+                var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                var pendingListFile = Path.Combine(appBase, ".update-pending-files.txt");
+                if (!File.Exists(pendingListFile)) return false;
+
+                var pendingDir = Path.Combine(Path.GetTempPath(), "NetSecurityScanner_Update", "pending");
+                if (!Directory.Exists(pendingDir))
+                {
+                    File.Delete(pendingListFile);
+                    return false;
+                }
+
+                var pendingTargets = File.ReadAllLines(pendingListFile)
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .ToList();
+
+                var applied = 0;
+                foreach (var targetPath in pendingTargets)
+                {
+                    try
+                    {
+                        var relativePath = targetPath.Substring(appBase.Length).TrimStart(Path.DirectorySeparatorChar);
+                        var sourcePath = Path.Combine(pendingDir, relativePath);
+
+                        if (!File.Exists(sourcePath)) continue;
+
+                        var targetDir = Path.GetDirectoryName(targetPath);
+                        if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                            Directory.CreateDirectory(targetDir);
+
+                        if (!File.Exists(targetPath))
+                        {
+                            File.Move(sourcePath, targetPath);
+                            applied++;
+                        }
+                        else
+                        {
+                            try
+                            {
+                                File.Copy(sourcePath, targetPath, overwrite: true);
+                                File.Delete(sourcePath);
+                                applied++;
+                            }
+                            catch (IOException)
+                            {
+                                Console.WriteLine($"启动时文件仍被锁定，跳过: {relativePath}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"启动时应用延迟文件失败: {ex.Message}");
+                    }
+                }
+
+                try
+                {
+                    File.Delete(pendingListFile);
+                }
+                catch { }
+
+                if (Directory.Exists(pendingDir))
+                {
+                    try { Directory.Delete(pendingDir, recursive: true); } catch { }
+                }
+
+                Console.WriteLine($"启动时成功应用 {applied}/{pendingTargets.Count} 个延迟替换文件");
+                return applied > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"启动时检查 pending 文件异常: {ex.Message}");
+                return false;
+            }
+        }
+
+        public static string[] GetAvailableBackups()
+        {
+            try
+            {
+                var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                var backupRoot = Path.Combine(appBase, ".backup");
+                if (!Directory.Exists(backupRoot)) return Array.Empty<string>();
+
+                return Directory.GetDirectories(backupRoot)
+                    .OrderByDescending(d => d)
+                    .ToArray();
+            }
+            catch { return Array.Empty<string>(); }
+        }
+
+        public static bool RollbackTo(string backupPath)
+        {
+            try
+            {
+                if (!Directory.Exists(backupPath)) return false;
+
+                var appBase = AppDomain.CurrentDomain.BaseDirectory;
+                var backupFiles = Directory.GetFiles(backupPath, "*", SearchOption.AllDirectories);
+                var restored = 0;
+
+                foreach (var backupFile in backupFiles)
+                {
+                    try
+                    {
+                        var relativePath = backupFile.Substring(backupPath.Length).TrimStart(Path.DirectorySeparatorChar);
+                        var targetPath = Path.Combine(appBase, relativePath);
+
+                        var targetDir = Path.GetDirectoryName(targetPath);
+                        if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                            Directory.CreateDirectory(targetDir);
+
+                        File.Copy(backupFile, targetPath, overwrite: true);
+                        restored++;
+                    }
+                    catch (IOException ex) when (IsFileLockedStatic(ex))
+                    {
+                        Console.WriteLine($"回滚时文件被锁定（重启后生效）: {backupFile} - {ex.Message}");
+                    }
+                    catch { }
+                }
+
+                Console.WriteLine($"从 {backupPath} 回滚完成，恢复 {restored} 个文件");
+                return restored > 0;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"回滚失败: {ex.Message}");
+                return false;
+            }
+        }
+
+        private static bool IsFileLockedStatic(IOException ex)
+        {
+            var hr = ex.HResult;
+            return hr == -2147024864 || hr == -2147024891 || hr == -2147467259;
+        }
+
+        private static bool IsFileLocked(IOException ex)
+        {
+            var hr = ex.HResult;
+            return hr == -2147024864 || hr == -2147024891 || hr == -2147467259;
+        }
+
+        private static string ComputeSha256(string filePath)
+        {
+            try
+            {
+                using var sha = SHA256.Create();
+                using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                var hashBytes = sha.ComputeHash(stream);
+                return Convert.ToHexString(hashBytes).ToLowerInvariant();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"计算 SHA256 失败: {ex.Message}");
+                return string.Empty;
+            }
+        }
+
+        private void ReportProgress(string message, int percent, IProgress<(string, int)>? progress = null,
+            bool isError = false, string? errorMessage = null)
+        {
+            progress?.Report((message, percent));
+            ProgressChanged?.Invoke(this, new AutoUpdateProgressEventArgs(message, percent, isError, errorMessage));
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            string[] units = { "B", "KB", "MB", "GB" };
+            var unitIndex = 0;
+            double size = bytes;
+            while (size >= 1024 && unitIndex < units.Length - 1)
+            {
+                size /= 1024;
+                unitIndex++;
+            }
+            return $"{size:F1} {units[unitIndex]}";
+        }
+
+        private static void CleanDirectory(string path)
+        {
+            if (!Directory.Exists(path)) return;
+            try
+            {
+                Directory.Delete(path, recursive: true);
+            }
+            catch
+            {
+                foreach (var file in Directory.GetFiles(path, "*", SearchOption.AllDirectories))
+                {
+                    try { File.Delete(file); } catch { }
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _httpClient?.Dispose();
+                _disposed = true;
+            }
+        }
+    }
+}

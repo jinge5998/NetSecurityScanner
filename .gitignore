@@ -1,0 +1,139 @@
+# 构建产物
+**/bin/
+**/obj/
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+# Rider/ReSharper
+.idea/
+*.DotSettings.user
+
+# 日志和临时文件
+*.log
+Logs/
+*.tmp
+*.temp
+
+# 测试结果
+TestResults/
+[Bb]uild[Ll]og.*
+*.coverage
+*.coveragexml
+
+# 发布产物
+publish/
+publish-*/
+[Pp]ackage*/
+*.zip
+*.tar.gz
+*.7z
+
+# 升级包目录与发行文件夹（发布产物，不入库）
+update-*/
+/LicenseKeyGenerator/
+*.rar
+
+# 脚本工具
+scripts/
+
+# 视频和媒体
+*.mp4
+*.avi
+*.mov
+*.wmv
+video-frames/
+
+# node_modules
+node_modules/
+
+# 文档临时文件
+temp_*.txt
+~$*.docx
+~$*.doc
+
+# 系统文件
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# 运行时数据
+ScanHistory/
+Reports/
+PerformanceReports/
+
+# Rust 构建产物
+**/target/
+
+# AI/IDE 工具配置（非项目核心）
+.augment/
+.aws/
+.claude/
+.cline/
+.codex/
+.copilot/
+.continue/
+.cursor/
+.gemini/
+.github/commands/
+.github/copilot-instructions.md
+.kilocode/
+.opencode/
+.qoder/
+.roo/
+.ocr/
+.windsurf/
+.windsurfrules
+.aider*
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+
+# AI 生成产物
+artifacts/
+trae_settings_backup.json
+
+# VSCode 用户配置
+.vscode/
+
+# ===== 第三方工具二进制与依赖（体积大，随 Release 发布，不进源码仓库）=====
+# Nmap 安装包/可执行文件/数据文件（发布包 publish-v*/tools/nmap/ 已携带）
+NetSecurityScanner/nmap.exe
+NetSecurityScanner/nmap-7.993-setup*.exe
+NetSecurityScanner/nmap-7.993.tar.bz2
+NetSecurityScanner/ncat.exe
+NetSecurityScanner/nping.exe
+NetSecurityScanner/zenmap/
+NetSecurityScanner/nselib/
+NetSecurityScanner/licenses/
+NetSecurityScanner/*.dll
+NetSecurityScanner/*.crt
+NetSecurityScanner/nmap-*
+NetSecurityScanner/nse_main.lua
+NetSecurityScanner/*.xsl
+NetSecurityScanner/*.reg
+NetSecurityScanner/Uninstall.exe
+NetSecurityScanner/*.lnk
+NetSecurityScanner/*.ico
+
+# Rust 第三方依赖源码（505MB，构建时 cargo 自动拉取，不进仓库）
+NetSecurityScanner/src/rust-scanner-service/vendor/
+
+# 一次性诊断/下载脚本（下划线前缀，非正式工具）
+NetSecurityScanner/tools/_*.ps1
+
+# 已从版本控制移除的大文件/反编译产物（磁盘保留但不入库）
+NetSecurityScanner/授权码生成器/LicenseKeyGenerator.exe
+NetSecurityScanner/baml-recover/
+NetSecurityScanner/src/NetSecurityScanner.Desktop/msbuild.binlog

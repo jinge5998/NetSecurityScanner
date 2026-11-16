@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>NetSecurityScanner.Test</RootNamespace>
+    <NoWarn>$(NoWarn);NETSDK1138</NoWarn>
+    <StartupObject>NetSecurityScanner.Test.TestLicenseFlow</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Management" Version="6.0.2" />
+  </ItemGroup>
+
+</Project>

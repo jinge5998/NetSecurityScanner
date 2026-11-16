@@ -1,0 +1,318 @@
+<Window x:Class="NetSecurityScanner.Views.AttackPathAnalysisWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:NetSecurityScanner.Views"
+        Title="🛡️ 攻击路径分析" Height="700" Width="1200"
+        WindowStartupLocation="CenterOwner" WindowState="Maximized">
+    <Window.Resources>
+        <local:PriorityToColorConverter x:Key="PriorityToColorConverter"/>
+    </Window.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- 顶部标题栏 -->
+        <Border Grid.Row="0" Padding="20,15" Background="#2c3e50">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="🛡️ 攻击路径分析" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="分析潜在攻击路径，评估风险并提供防御建议" FontSize="12" Foreground="#bdc3c7" Margin="0,5,0,0"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Name="RefreshButton" Content="🔄 刷新" Width="100" Height="35" Margin="0,0,10,0"
+                            Background="#3498db" Foreground="White" BorderThickness="0"
+                            FontWeight="SemiBold" Click="RefreshButton_Click" Cursor="Hand"/>
+                    <Button Name="ExportButton" Content="💾 导出" Width="100" Height="35" Margin="0,0,10,0"
+                            Background="#27ae60" Foreground="White" BorderThickness="0"
+                            FontWeight="SemiBold" Click="ExportButton_Click" Cursor="Hand"/>
+                    <Button Name="CloseButton" Content="✖ 关闭" Width="100" Height="35"
+                            Background="#e74c3c" Foreground="White" BorderThickness="0"
+                            FontWeight="SemiBold" Click="CloseButton_Click" Cursor="Hand"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 主内容区域 -->
+        <Grid Grid.Row="1" Margin="15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="350"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧：攻击路径列表 -->
+            <Border Grid.Column="0" Background="White" CornerRadius="8" BorderBrush="#e0e0e0" BorderThickness="1" Margin="0,0,10,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- 列表标题 -->
+                    <Border Grid.Row="0" Background="#f8f9fa" Padding="15" BorderBrush="#e0e0e0" BorderThickness="0,0,0,1">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <StackPanel Grid.Row="0">
+                                <TextBlock Text="📋 攻击路径列表" FontSize="16" FontWeight="Bold" Foreground="#2c3e50"/>
+                                <TextBlock Name="PathCountText" Text="共 0 条路径" FontSize="12" Foreground="#7f8c8d" Margin="0,5,0,0"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Name="FilterAllButton" Content="全部" Width="50" Height="26" Margin="0,0,5,0"
+                                        Background="#3498db" Foreground="White" BorderThickness="0"
+                                        FontSize="11" FontWeight="SemiBold" Click="FilterAllButton_Click" Cursor="Hand"/>
+                                <Button Name="FilterCriticalButton" Content="严重" Width="50" Height="26" Margin="0,0,5,0"
+                                        Background="#e0e0e0" Foreground="#2c3e50" BorderThickness="0"
+                                        FontSize="11" Click="FilterCriticalButton_Click" Cursor="Hand"/>
+                                <Button Name="FilterHighButton" Content="高危" Width="50" Height="26" Margin="0,0,5,0"
+                                        Background="#e0e0e0" Foreground="#2c3e50" BorderThickness="0"
+                                        FontSize="11" Click="FilterHighButton_Click" Cursor="Hand"/>
+                                <Button Name="FilterMediumButton" Content="中危" Width="50" Height="26"
+                                        Background="#e0e0e0" Foreground="#2c3e50" BorderThickness="0"
+                                        FontSize="11" Click="FilterMediumButton_Click" Cursor="Hand"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- 路径列表 -->
+                    <ListBox Name="AttackPathListBox" Grid.Row="1" Background="Transparent" BorderThickness="0"
+                             SelectionChanged="AttackPathListBox_SelectionChanged">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="12" Margin="0,0,0,8" Background="#f8f9fa" CornerRadius="6"
+                                        BorderBrush="#e0e0e0" BorderThickness="1">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" FontSize="14" Foreground="#2c3e50"/>
+                                            <Border Grid.Column="1" CornerRadius="4" Padding="8,3" Margin="10,0,0,0">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="#3498db"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding RiskLevel}" Value="严重">
+                                                                <Setter Property="Background" Value="#c0392b"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding RiskLevel}" Value="高危">
+                                                                <Setter Property="Background" Value="#e67e22"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding RiskLevel}" Value="中危">
+                                                                <Setter Property="Background" Value="#f39c12"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding RiskLevel}" Value="低危">
+                                                                <Setter Property="Background" Value="#27ae60"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <TextBlock Text="{Binding RiskLevel}" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                            </Border>
+                                        </Grid>
+
+                                        <TextBlock Text="{Binding Description}" FontSize="12" Foreground="#7f8c8d" TextWrapping="Wrap" Margin="0,8,0,8"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="风险评分" FontSize="10" Foreground="#95a5a6"/>
+                                                <TextBlock Text="{Binding RiskScore, StringFormat={}{0:F0}/100}" FontSize="18" FontWeight="Bold" Foreground="#2c3e50"/>
+                                                <ProgressBar Height="4" Margin="0,4,0,0" Value="{Binding RiskScore}" Maximum="100">
+                                                    <ProgressBar.Style>
+                                                        <Style TargetType="ProgressBar">
+                                                            <Setter Property="Foreground" Value="#3498db"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding RiskLevel}" Value="严重">
+                                                                    <Setter Property="Foreground" Value="#c0392b"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding RiskLevel}" Value="高危">
+                                                                    <Setter Property="Foreground" Value="#e67e22"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding RiskLevel}" Value="中危">
+                                                                    <Setter Property="Foreground" Value="#f39c12"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding RiskLevel}" Value="低危">
+                                                                    <Setter Property="Foreground" Value="#27ae60"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ProgressBar.Style>
+                                                </ProgressBar>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="成功概率" FontSize="10" Foreground="#95a5a6"/>
+                                                <TextBlock Text="{Binding SuccessProbability, StringFormat={}{0}%}" FontSize="18" FontWeight="Bold" Foreground="#2c3e50"/>
+                                                <ProgressBar Height="4" Margin="0,4,0,0" Value="{Binding SuccessProbability}" Maximum="100" Foreground="#f39c12"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Margin="0,8,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="攻击步骤" FontSize="10" Foreground="#95a5a6"/>
+                                                <TextBlock Text="{Binding StepCount, StringFormat={}{0} 步}" FontSize="13" FontWeight="SemiBold" Foreground="#7f8c8d"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="预估时间" FontSize="10" Foreground="#95a5a6"/>
+                                                <TextBlock Text="{Binding EstimatedTime}" FontSize="13" FontWeight="SemiBold" Foreground="#7f8c8d"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Border Margin="0,8,0,0" CornerRadius="4" Padding="6,3" HorizontalAlignment="Left">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#e8f5e9"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Priority}" Value="P0-立即修复">
+                                                            <Setter Property="Background" Value="#ffebee"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Priority}" Value="P1-紧急">
+                                                            <Setter Property="Background" Value="#fff3e0"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Priority}" Value="P2-高优先级">
+                                                            <Setter Property="Background" Value="#fff8e1"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock FontSize="11" FontWeight="SemiBold">
+                                                <TextBlock.Text>
+                                                    <Binding Path="Priority"/>
+                                                </TextBlock.Text>
+                                                <TextBlock.Foreground>
+                                                    <Binding Path="Priority">
+                                                        <Binding.Converter>
+                                                            <local:PriorityToColorConverter/>
+                                                        </Binding.Converter>
+                                                    </Binding>
+                                                </TextBlock.Foreground>
+                                            </TextBlock>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
+
+            <!-- 右侧：详细信息面板 -->
+            <Border Grid.Column="1" Background="White" CornerRadius="8" BorderBrush="#e0e0e0" BorderThickness="1">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20">
+                        <!-- 空状态提示 -->
+                        <StackPanel Name="EmptyStatePanel" VerticalAlignment="Center" Margin="0,100,0,0">
+                            <TextBlock Text="🛡️" FontSize="80" HorizontalAlignment="Center" Margin="0,0,0,20"/>
+                            <TextBlock Text="请选择左侧的攻击路径查看详情" FontSize="18" Foreground="#95a5a6" HorizontalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- 详细信息（默认隐藏） -->
+                        <StackPanel Name="DetailPanel" Visibility="Collapsed">
+                            <!-- 路径概览 -->
+                            <Border Background="#f8f9fa" CornerRadius="8" Padding="20" Margin="0,0,0,20"
+                                    BorderBrush="#e0e0e0" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="📊 路径概览" FontSize="18" FontWeight="Bold" Foreground="#2c3e50" Margin="0,0,0,15"/>
+                                    <TextBlock Name="DetailNameText" Text="" FontSize="22" FontWeight="Bold" Foreground="#2c3e50" Margin="0,0,0,10"/>
+                                    <TextBlock Name="DetailDescriptionText" Text="" FontSize="13" Foreground="#7f8c8d" TextWrapping="Wrap" Margin="0,0,0,15"/>
+                                    
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <Border Grid.Column="0" Background="White" CornerRadius="6" Padding="15" Margin="0,0,8,0" BorderBrush="#e0e0e0" BorderThickness="1">
+                                            <StackPanel>
+                                                <TextBlock Text="风险评分" FontSize="11" Foreground="#95a5a6"/>
+                                                <TextBlock Name="DetailRiskScoreText" Text="0" FontSize="28" FontWeight="Bold" Foreground="#e74c3c"/>
+                                                <ProgressBar Height="5" Margin="0,8,0,0" Value="0" Maximum="100" Name="DetailRiskScoreBar" Foreground="#e74c3c"/>
+                                            </StackPanel>
+                                        </Border>
+                                        
+                                        <Border Grid.Column="1" Background="White" CornerRadius="6" Padding="15" Margin="0,0,8,0" BorderBrush="#e0e0e0" BorderThickness="1">
+                                            <StackPanel>
+                                                <TextBlock Text="成功概率" FontSize="11" Foreground="#95a5a6"/>
+                                                <TextBlock Name="DetailSuccessProbText" Text="0%" FontSize="28" FontWeight="Bold" Foreground="#f39c12"/>
+                                                <ProgressBar Height="5" Margin="0,8,0,0" Value="0" Maximum="100" Name="DetailSuccessProbBar" Foreground="#f39c12"/>
+                                            </StackPanel>
+                                        </Border>
+                                        
+                                        <Border Grid.Column="2" Background="White" CornerRadius="6" Padding="15" Margin="0,0,8,0" BorderBrush="#e0e0e0" BorderThickness="1">
+                                            <StackPanel>
+                                                <TextBlock Text="预估攻击时间" FontSize="11" Foreground="#95a5a6"/>
+                                                <TextBlock Name="DetailEstimatedTimeText" Text="未知" FontSize="24" FontWeight="Bold" Foreground="#3498db"/>
+                                                <TextBlock Name="DetailComplexityText" Text="复杂度: 0/10" FontSize="12" Foreground="#95a5a6" Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                        
+                                        <Border Grid.Column="3" Background="White" CornerRadius="6" Padding="15" BorderBrush="#e0e0e0" BorderThickness="1">
+                                            <StackPanel>
+                                                <TextBlock Text="修复优先级" FontSize="11" Foreground="#95a5a6"/>
+                                                <TextBlock Name="DetailPriorityText" Text="P4-低优先级" FontSize="20" FontWeight="Bold" Foreground="#27ae60"/>
+                                                <TextBlock Name="DetailStepCountText" Text="步骤: 0" FontSize="12" Foreground="#95a5a6" Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 潜在影响 -->
+                            <Border Background="#fff5f5" CornerRadius="8" Padding="20" Margin="0,0,0,20"
+                                    BorderBrush="#fecaca" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="⚠️ 潜在影响" FontSize="16" FontWeight="Bold" Foreground="#c0392b" Margin="0,0,0,10"/>
+                                    <TextBlock Name="DetailImpactText" Text="" FontSize="13" Foreground="#7f8c8d" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 攻击步骤流程 -->
+                            <Border Background="#f0f9ff" CornerRadius="8" Padding="20" Margin="0,0,0,20"
+                                    BorderBrush="#bfdbfe" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="🎯 攻击步骤流程" FontSize="16" FontWeight="Bold" Foreground="#2c3e50" Margin="0,0,0,15"/>
+                                    <StackPanel Name="AttackStepsPanel"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 防御建议 -->
+                            <Border Background="#f0fdf4" CornerRadius="8" Padding="20" Margin="0,0,0,20"
+                                    BorderBrush="#bbf7d0" BorderThickness="1">
+                                <StackPanel>
+                                    <TextBlock Text="🛡️ 防御建议" FontSize="16" FontWeight="Bold" Foreground="#16a085" Margin="0,0,0,15"/>
+                                    <StackPanel Name="DefenseAdvicePanel"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
+
+        <!-- 底部状态栏 -->
+        <Border Grid.Row="2" Background="#f8f9fa" Padding="15,10" BorderBrush="#e0e0e0" BorderThickness="0,1,0,0">
+            <Grid>
+                <TextBlock Name="StatusText" Text="就绪" FontSize="12" Foreground="#7f8c8d"/>
+                <TextBlock Name="LastUpdateText" HorizontalAlignment="Right" FontSize="12" Foreground="#95a5a6"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,80 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NetSecurityScanner.Views.AttackLogWindow"
+        Title="攻击日志" Height="700" Width="1100"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <Border Grid.Row="0" Background="#C0392B" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+            <StackPanel>
+                <TextBlock Text="攻击日志查询" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="查看和分析攻击行为日志记录" FontSize="13" Foreground="#FADBD8" Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+        
+        <Grid Grid.Row="1" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <TextBox Grid.Column="0" Name="SearchTextBox" Height="35" FontSize="14" 
+                     Padding="10,5" Margin="0,0,10,0"/>
+            
+            <ComboBox Grid.Column="1" Name="AttackTypeFilterComboBox" Height="35" Margin="0,0,10,0">
+                <ComboBoxItem Content="所有攻击类型" IsSelected="True"/>
+                <ComboBoxItem Content="SQL注入"/>
+                <ComboBoxItem Content="XSS攻击"/>
+                <ComboBoxItem Content="CSRF攻击"/>
+                <ComboBoxItem Content="暴力破解"/>
+            </ComboBox>
+            
+            <ComboBox Grid.Column="2" Name="SeverityFilterComboBox" Height="35" Margin="0,0,10,0">
+                <ComboBoxItem Content="所有级别" IsSelected="True"/>
+                <ComboBoxItem Content="严重"/>
+                <ComboBoxItem Content="高危"/>
+                <ComboBoxItem Content="中危"/>
+                <ComboBoxItem Content="低危"/>
+            </ComboBox>
+            
+            <Button Grid.Column="3" Name="SearchButton" Content="搜索" Width="80" Height="35" 
+                    Background="#3498DB" Foreground="White" FontWeight="Bold"/>
+        </Grid>
+        
+        <Border Grid.Row="2" BorderBrush="#BDC3C7" BorderThickness="1" CornerRadius="4">
+            <DataGrid Name="AttackLogDataGrid" AutoGenerateColumns="False" 
+                      GridLinesVisibility="Horizontal"
+                      SelectionMode="Single">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="时间" Binding="{Binding Timestamp}" Width="130"/>
+                    <DataGridTextColumn Header="源IP" Binding="{Binding SourceIP}" Width="120"/>
+                    <DataGridTextColumn Header="目标IP" Binding="{Binding TargetIP}" Width="120"/>
+                    <DataGridTextColumn Header="攻击类型" Binding="{Binding AttackType}" Width="120"/>
+                    <DataGridTextColumn Header="严重程度" Binding="{Binding Severity}" Width="80"/>
+                    <DataGridTextColumn Header="端口" Binding="{Binding Port}" Width="60"/>
+                    <DataGridTextColumn Header="描述" Binding="{Binding Description}" Width="*"/>
+                    <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="80"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+        
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Name="ViewDetailsButton" Content="查看详情" Width="120" Height="40" 
+                    Margin="5" Background="#9B59B6" Foreground="White" FontWeight="Bold" IsEnabled="False"/>
+            <Button Name="ExportButton" Content="导出日志" Width="120" Height="40" 
+                    Margin="5" Background="#27AE60" Foreground="White" FontWeight="Bold"/>
+            <Button Name="ClearButton" Content="清空日志" Width="120" Height="40" 
+                    Margin="5" Background="#E74C3C" Foreground="White" FontWeight="Bold"/>
+            <Button Name="CloseButton" Content="关闭" Width="100" Height="40" 
+                    Margin="5" Background="#95A5A6" Foreground="White"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,34 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetSecurityScanner.Core", "NetSecurityScanner.Core\NetSecurityScanner.Core.csproj", "{403EAEE2-02C1-462D-BCC5-3B4C2C73E430}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetSecurityScanner.Desktop", "NetSecurityScanner.Desktop\NetSecurityScanner.Desktop.csproj", "{161D0BC0-122D-44E3-A4A6-C4DAA8F311B5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetSecurityScanner.Linux", "NetSecurityScanner.Linux\NetSecurityScanner.Linux.csproj", "{5C1028F3-2549-4B5A-A1A3-2706F85F2241}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{403EAEE2-02C1-462D-BCC5-3B4C2C73E430}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{403EAEE2-02C1-462D-BCC5-3B4C2C73E430}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{403EAEE2-02C1-462D-BCC5-3B4C2C73E430}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{403EAEE2-02C1-462D-BCC5-3B4C2C73E430}.Release|Any CPU.Build.0 = Release|Any CPU
+		{161D0BC0-122D-44E3-A4A6-C4DAA8F311B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{161D0BC0-122D-44E3-A4A6-C4DAA8F311B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{161D0BC0-122D-44E3-A4A6-C4DAA8F311B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{161D0BC0-122D-44E3-A4A6-C4DAA8F311B5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5C1028F3-2549-4B5A-A1A3-2706F85F2241}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5C1028F3-2549-4B5A-A1A3-2706F85F2241}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5C1028F3-2549-4B5A-A1A3-2706F85F2241}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5C1028F3-2549-4B5A-A1A3-2706F85F2241}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

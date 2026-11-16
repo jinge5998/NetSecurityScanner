@@ -1,0 +1,180 @@
+<Window x:Class="NetSecurityScanner.Views.ScanVisualizationWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+        Title="📊 扫描结果可视化" Height="800" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResize">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 标题 -->
+        <Border Grid.Row="0" Background="#667eea" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+            <StackPanel>
+                <TextBlock Text="📊 扫描结果可视化分析" FontSize="26" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="直观展示扫描数据的统计图表和趋势分析" FontSize="14" Foreground="#E8DAEF" Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+        
+        <!-- 统计卡片 -->
+        <Grid Grid.Row="1" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            
+            <Border Grid.Column="0" Background="#ff6b6b" CornerRadius="8" Padding="20" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="🔴 严重漏洞" Foreground="White" FontSize="14" Opacity="0.9"/>
+                    <TextBlock Name="CriticalCountText" Text="0" FontSize="36" FontWeight="Bold" Foreground="White"/>
+                </StackPanel>
+            </Border>
+            
+            <Border Grid.Column="1" Background="#f9ca24" CornerRadius="8" Padding="20" Margin="5,0">
+                <StackPanel>
+                    <TextBlock Text="🟠 高危漏洞" Foreground="White" FontSize="14" Opacity="0.9"/>
+                    <TextBlock Name="HighCountText" Text="0" FontSize="36" FontWeight="Bold" Foreground="White"/>
+                </StackPanel>
+            </Border>
+            
+            <Border Grid.Column="2" Background="#6c5ce7" CornerRadius="8" Padding="20" Margin="5,0">
+                <StackPanel>
+                    <TextBlock Text="🔵 开放端口" Foreground="White" FontSize="14" Opacity="0.9"/>
+                    <TextBlock Name="OpenPortsText" Text="0" FontSize="36" FontWeight="Bold" Foreground="White"/>
+                </StackPanel>
+            </Border>
+            
+            <Border Grid.Column="3" Background="#00b894" CornerRadius="8" Padding="20" Margin="10,0,0,0">
+                <StackPanel>
+                    <TextBlock Text="🟢 安全评分" Foreground="White" FontSize="14" Opacity="0.9"/>
+                    <TextBlock Name="SecurityScoreText" Text="100" FontSize="36" FontWeight="Bold" Foreground="White"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- 图表区域 -->
+        <TabControl Grid.Row="2" BorderThickness="0">
+            <!-- 风险分布 -->
+            <TabItem Header="🥧 风险分布">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="20" Margin="0,0,10,0" >
+                        <StackPanel>
+                            <TextBlock Text="漏洞风险等级分布" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="#2d3436"/>
+                            <lvc:PieChart Name="RiskPieChart" Height="400" LegendPosition="Right"/>
+                        </StackPanel>
+                    </Border>
+                    
+                    <Border Grid.Column="1" Background="White" CornerRadius="8" Padding="20" Margin="10,0,0,0" >
+                        <StackPanel>
+                            <TextBlock Text="漏洞类型统计" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="#2d3436"/>
+                            <lvc:PieChart Name="VulnTypePieChart" Height="400" LegendPosition="Right"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+            
+            <!-- 端口分析 -->
+            <TabItem Header="📊 端口分析">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <Border Grid.Row="0" Background="White" CornerRadius="8" Padding="20" Margin="0,0,0,10" >
+                        <StackPanel>
+                            <TextBlock Text="端口开放情况" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="#2d3436"/>
+                            <lvc:CartesianChart Name="PortBarChart" Height="250"/>
+                        </StackPanel>
+                    </Border>
+                    
+                    <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="20" Margin="0,10,0,0" >
+                        <StackPanel>
+                            <TextBlock Text="服务类型分布" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="#2d3436"/>
+                            <lvc:CartesianChart Name="ServiceBarChart" Height="250"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+            
+            <!-- 趋势分析 -->
+            <TabItem Header="📈 趋势分析">
+                <Grid Margin="10">
+                    <Border Background="White" CornerRadius="8" Padding="20" >
+                        <StackPanel>
+                            <TextBlock Text="扫描趋势（最近30天）" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" Foreground="#2d3436"/>
+                            <lvc:CartesianChart Name="TrendLineChart" Height="500"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+            
+            <!-- 综合报表 -->
+            <TabItem Header="📋 综合报表">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <Border Grid.Column="0" Background="White" CornerRadius="8" Padding="15" Margin="0,0,10,0" >
+                        <StackPanel>
+                            <TextBlock Text="TOP 10 高危端口" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" Foreground="#2d3436"/>
+                            <DataGrid Name="TopPortsDataGrid" AutoGenerateColumns="False" 
+                                      CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                                      AlternatingRowBackground="#f8f9fa" HeadersVisibility="Column">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="端口" Binding="{Binding Port}" Width="60"/>
+                                    <DataGridTextColumn Header="服务" Binding="{Binding Service}" Width="*"/>
+                                    <DataGridTextColumn Header="数量" Binding="{Binding Count}" Width="60"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+                    
+                    <Border Grid.Column="1" Background="White" CornerRadius="8" Padding="15" Margin="5,0" >
+                        <StackPanel>
+                            <TextBlock Text="TOP 10 常见漏洞" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" Foreground="#2d3436"/>
+                            <DataGrid Name="TopVulnsDataGrid" AutoGenerateColumns="False" 
+                                      CanUserAddRows="False" GridLinesVisibility="Horizontal"
+                                      AlternatingRowBackground="#f8f9fa" HeadersVisibility="Column">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="排名" Binding="{Binding Rank}" Width="50"/>
+                                    <DataGridTextColumn Header="漏洞名称" Binding="{Binding Name}" Width="*"/>
+                                    <DataGridTextColumn Header="次数" Binding="{Binding Count}" Width="50"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+                    </Border>
+                    
+                    <Border Grid.Column="2" Background="White" CornerRadius="8" Padding="15" Margin="10,0,0,0" >
+                        <StackPanel>
+                            <TextBlock Text="安全建议摘要" FontSize="16" FontWeight="Bold" Margin="0,0,0,10" Foreground="#2d3436"/>
+                            <ScrollViewer Height="400" VerticalScrollBarVisibility="Auto">
+                                <StackPanel Name="SecuritySuggestionsPanel">
+                                    <!-- 动态生成 -->
+                                </StackPanel>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Window>
+
+
+
+

@@ -1,0 +1,62 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NetSecurityScanner.Views.PluginManagerWindow"
+        Title="插件管理" Height="700" Width="1000"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <Border Grid.Row="0" Background="#9B59B6" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+            <StackPanel>
+                <TextBlock Text="插件管理" FontSize="24" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="管理扫描插件、浏览插件市场" FontSize="13" Foreground="#E8DAEF" Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+        
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,15">
+            <Button Name="InstallPluginButton" Content="安装插件" Width="100" Height="35" Margin="5" 
+                    Background="#27AE60" Foreground="White" FontWeight="Bold"/>
+            <Button Name="PluginMarketButton" Content="插件市场" Width="100" Height="35" Margin="5" 
+                    Background="#3498DB" Foreground="White" FontWeight="Bold"/>
+            <TextBox Name="SearchTextBox" Width="200" Height="35" Margin="20,0,0,0" Padding="10,5"/>
+            <Button Name="RefreshButton" Content="刷新" Width="80" Height="35" Margin="5" 
+                    Background="#95A5A6" Foreground="White"/>
+        </StackPanel>
+        
+        <Border Grid.Row="2" BorderBrush="#BDC3C7" BorderThickness="1" CornerRadius="4">
+            <DataGrid Name="PluginsDataGrid" AutoGenerateColumns="False" 
+                      GridLinesVisibility="Horizontal"
+                      SelectionMode="Single">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="插件名称" Binding="{Binding Name}" Width="2*"/>
+                    <DataGridTextColumn Header="版本" Binding="{Binding Version}" Width="*"/>
+                    <DataGridTextColumn Header="作者" Binding="{Binding Author}" Width="*"/>
+                    <DataGridTextColumn Header="描述" Binding="{Binding Description}" Width="3*"/>
+                    <DataGridCheckBoxColumn Header="已启用" Binding="{Binding IsEnabled}" Width="*"/>
+                    <DataGridTemplateColumn Header="操作" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="启用/禁用" Width="80" Height="25" Margin="2"
+                                            Background="#3498DB" Foreground="White" FontSize="11"/>
+                                    <Button Content="卸载" Width="60" Height="25" Margin="2"
+                                            Background="#E74C3C" Foreground="White" FontSize="11"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+        </Border>
+        
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+            <Button Name="CloseButton" Content="关闭" Width="100" Height="40" 
+                    Margin="5" Background="#95A5A6" Foreground="White"/>
+        </StackPanel>
+    </Grid>
+</Window>

@@ -1,0 +1,15 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  
+  <!-- 全局样式定义 -->
+  <Design.PreviewWith>
+    <Border Padding="20">
+      <StackPanel Spacing="10">
+        <Button Content="Primary Button" Classes="accent" />
+        <TextBox Watermark="Enter text here..." />
+        <CheckBox Content="Check me!" IsChecked="True" />
+      </StackPanel>
+    </Border>
+  </Design.PreviewWith>
+  
+</ResourceDictionary>

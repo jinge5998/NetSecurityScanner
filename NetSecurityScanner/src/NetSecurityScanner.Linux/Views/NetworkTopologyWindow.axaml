@@ -1,0 +1,203 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="NetSecurityScanner.Views.NetworkTopologyWindow"
+        Title="网络拓扑发现" Height="800" Width="1400"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                    <GradientStop Color="#0984e3" Offset="0"/>
+                    <GradientStop Color="#00b894" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Grid>
+                <StackPanel>
+                    <TextBlock Text="网络拓扑发现与可视化" FontSize="26" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="自动发现网络设备并生成可视化拓扑图，分析设备间关系" FontSize="13" Foreground="#dfe6e9" Margin="0,5,0,0"/>
+                </StackPanel>
+                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                    <Button Name="ExportButton" Content="导出结果" Width="100" Height="35"
+                            Margin="0,0,8,0" Background="White" Foreground="#0984e3" BorderThickness="0"
+                            FontWeight="SemiBold" IsEnabled="False"/>
+                    <Button Name="CloseButton" Content="关闭" Width="80" Height="35"
+                            Background="#e17055" Foreground="White" BorderThickness="0"
+                            FontWeight="SemiBold"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Background="White" CornerRadius="8" Padding="15" Margin="0,0,0,15"
+                BorderBrush="#e0e0e0" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="网络范围:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="SemiBold" FontSize="14"/>
+                    <TextBox Name="NetworkRangeTextBox" Width="280" Height="35" FontSize="14"
+                             Padding="10,5" Text="192.168.1.0/24"/>
+                    <TextBlock Text="示例: 192.168.1.0/24 或 10.0.0.1-10.0.0.254"
+                               VerticalAlignment="Center" Margin="10,0,0,0" Foreground="Gray" FontSize="12"/>
+                </StackPanel>
+
+                <Button Grid.Column="3" Name="StartDiscoveryButton" Content="开始发现" Width="130" Height="40"
+                        Margin="10,0,0,0" Background="#00b894" Foreground="White" FontWeight="Bold"/>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Background="White" CornerRadius="8" BorderBrush="#e0e0e0" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Grid Grid.Column="0">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0" Background="#f8f9fa" Padding="10" BorderBrush="#e0e0e0" BorderThickness="0,0,0,1">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="网络拓扑图" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                            <Button Name="RefreshLayoutButton" Content="刷新布局" Width="100" Height="28"
+                                    Margin="0,0,5,0" Background="#3498db" Foreground="White" BorderThickness="0"/>
+                            <Button Name="ZoomInButton" Content="放大" Width="80" Height="28"
+                                    Margin="0,0,5,0" Background="#2ecc71" Foreground="White" BorderThickness="0"/>
+                            <Button Name="ZoomOutButton" Content="缩小" Width="80" Height="28"
+                                    Margin="0,0,5,0" Background="#e67e22" Foreground="White" BorderThickness="0"/>
+                            <Button Name="ResetViewButton" Content="重置视图" Width="100" Height="28"
+                                    Background="#9b59b6" Foreground="White" BorderThickness="0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="1" BorderBrush="#e0e0e0" BorderThickness="0">
+                        <TextBlock Text="拓扑图区域 - 待接入绘图库 (如 SkiaSharp.Avalonia)" 
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" 
+                                   Foreground="Gray" FontSize="16"/>
+                    </Border>
+                </Grid>
+
+                <Border Grid.Column="1" Width="380" BorderBrush="#e0e0e0" BorderThickness="1,0,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="280"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Background="#f8f9fa" Padding="15" BorderBrush="#e0e0e0" BorderThickness="0,0,0,1">
+                            <StackPanel>
+                                <TextBlock Text="网络统计" FontWeight="Bold" FontSize="16" Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,5">
+                                        <TextBlock Text="总设备数" FontSize="12" Foreground="Gray"/>
+                                        <TextBlock Name="TotalDevicesText" Text="0" FontSize="24" FontWeight="Bold" Foreground="#2d3436"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,5">
+                                        <TextBlock Text="在线设备" FontSize="12" Foreground="Gray"/>
+                                        <TextBlock Name="OnlineDevicesText" Text="0" FontSize="24" FontWeight="Bold" Foreground="#00b894"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,5">
+                                        <TextBlock Text="开放端口" FontSize="12" Foreground="Gray"/>
+                                        <TextBlock Name="TotalPortsText" Text="0" FontSize="24" FontWeight="Bold" Foreground="#0984e3"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,5">
+                                        <TextBlock Text="子网数" FontSize="12" Foreground="Gray"/>
+                                        <TextBlock Name="SubnetCountText" Text="0" FontSize="24" FontWeight="Bold" Foreground="#6c5ce7"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,5">
+                                        <TextBlock Text="关系数" FontSize="12" Foreground="Gray"/>
+                                        <TextBlock Name="RelationshipCountText" Text="0" FontSize="24" FontWeight="Bold" Foreground="#e17055"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Grid.Row="1" BorderBrush="#e0e0e0" BorderThickness="0,0,0,1">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" Background="#f8f9fa" Padding="12" BorderBrush="#e0e0e0" BorderThickness="0,0,0,1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="设备列表" FontWeight="Bold" FontSize="14"/>
+                                        <TextBlock Name="DeviceCountTextBlock" Text="(0)" Margin="10,0,0,0" Foreground="Gray"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <DataGrid Grid.Row="1" Name="DevicesDataGrid" AutoGenerateColumns="False"
+                                          GridLinesVisibility="Horizontal"
+                                          BorderThickness="0"
+                                          SelectionMode="Single">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="IP地址" Binding="{Binding IPAddress}" Width="100"/>
+                                        <DataGridTextColumn Header="主机名" Binding="{Binding Hostname}" Width="*"/>
+                                        <DataGridTextColumn Header="类型" Binding="{Binding DeviceType}" Width="80"/>
+                                        <DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="60"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="2">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Name="DeviceDetailPanel" Margin="15">
+                                    <TextBlock Text="选择一个设备查看详情"
+                                               HorizontalAlignment="Center" Foreground="#b2bec3"
+                                               FontSize="14" Margin="20"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="3" Background="#f8f9fa" CornerRadius="0,0,8,8" Padding="15" Margin="0,15,0,0"
+                BorderBrush="#e0e0e0" BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Name="StatusTextBlock" Text="就绪" VerticalAlignment="Center" Foreground="Gray" FontSize="13"/>
+                <ProgressBar Grid.Column="1" Name="DiscoveryProgressBar" Width="400" Height="20" Margin="20,0" IsVisible="False"/>
+                <Button Grid.Column="2" Name="StopDiscoveryButton" Content="停止" Width="100" Height="35"
+                        IsEnabled="False" Background="#e17055" Foreground="White" BorderThickness="0"
+                        FontWeight="SemiBold"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
