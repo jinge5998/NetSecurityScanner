@@ -44,6 +44,7 @@
                     <TextBlock Name="ElapsedTimeTextBlock" Text="已用时间: 00:00:00" FontSize="12" Foreground="#7F8C8D" Margin="0,0,20,0"/>
                     <TextBlock Name="RemainingTimeTextBlock" Text="预计剩余: --:--:--" FontSize="12" Foreground="#7F8C8D" Margin="0,0,20,0"/>
                     <TextBlock Name="CurrentScanningTargetTextBlock" Text="当前: -" FontSize="12" Foreground="#7F8C8D"/>
+                    <TextBlock Name="FailureBreakdownTextBlock" Text="" FontSize="12" Foreground="#E74C3C" Margin="20,0,0,0"/>
                 </StackPanel>
 
                 <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
@@ -104,10 +105,10 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="扫描模式：" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                            <ComboBox Grid.Column="1" Name="BatchScanModeComboBox" Height="25" SelectedIndex="1">
-                                <ComboBoxItem Content="闪电扫描" Tag="Lightning"/>
-                                <ComboBoxItem Content="标准扫描" Tag="Standard"/>
-                                <ComboBoxItem Content="深度扫描" Tag="Deep"/>
+                            <ComboBox Grid.Column="1" Name="BatchScanModeComboBox" Height="25" SelectedIndex="1" SelectionChanged="BatchScanModeComboBox_SelectionChanged">
+                                <ComboBoxItem Content="闪电扫描 (Top10端口)" Tag="Lightning"/>
+                                <ComboBoxItem Content="标准扫描 (1-1000)" Tag="Standard"/>
+                                <ComboBoxItem Content="深度扫描 (全端口+UDP)" Tag="Deep"/>
                             </ComboBox>
                         </Grid>
                         <Grid Margin="0,0,0,5">
@@ -126,9 +127,9 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="40"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="超时(秒)：" VerticalAlignment="Center" FontWeight="SemiBold"/>
-                            <Slider Grid.Column="1" Name="TimeoutSlider" Minimum="5" Maximum="60" Value="10" TickFrequency="5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
-                            <TextBlock Grid.Column="2" Name="TimeoutValueTextBlock" Text="10" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            <TextBlock Text="探测超时：" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                            <Slider Grid.Column="1" Name="TimeoutSlider" Minimum="0.1" Maximum="5" Value="0.3" TickFrequency="0.1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Name="TimeoutValueTextBlock" Text="0.3s" VerticalAlignment="Center" HorizontalAlignment="Center" FontSize="11"/>
                         </Grid>
                         <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
                             <Button Name="ParseTargetsButton" Content="解析目标" Width="110" Height="30" Background="#27AE60" Foreground="White" FontWeight="Bold" Click="ParseTargetsButton_Click" Margin="0,0,10,0"/>
@@ -141,12 +142,43 @@
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
                         <Border Grid.Row="0" Background="#ECF0F1" Padding="8,5" CornerRadius="4,4,0,0">
                             <TextBlock Text="IP列表" FontWeight="Bold" FontSize="13"/>
                         </Border>
-                        <ListView Grid.Row="1" Name="IpListView" SelectionMode="Single" SelectionChanged="IpListView_SelectionChanged" FontSize="12">
+                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="6,4">
+                            <TextBlock Text="状态:" VerticalAlignment="Center" FontSize="11" Foreground="#7F8C8D"/>
+                            <ComboBox Name="StatusFilterComboBox" Width="82" Height="24" FontSize="11" Margin="4,0,10,0" SelectedIndex="0" SelectionChanged="FilterComboBox_SelectionChanged" VerticalContentAlignment="Center">
+                                <ComboBoxItem Content="全部" Tag="All"/>
+                                <ComboBoxItem Content="等待中" Tag="等待中"/>
+                                <ComboBoxItem Content="扫描中" Tag="扫描中"/>
+                                <ComboBoxItem Content="已完成" Tag="已完成"/>
+                                <ComboBoxItem Content="失败" Tag="失败"/>
+                                <ComboBoxItem Content="已取消" Tag="已取消"/>
+                            </ComboBox>
+                            <TextBlock Text="威胁:" VerticalAlignment="Center" FontSize="11" Foreground="#7F8C8D"/>
+                            <ComboBox Name="ThreatFilterComboBox" Width="92" Height="24" FontSize="11" Margin="4,0,0,0" SelectedIndex="0" SelectionChanged="FilterComboBox_SelectionChanged" VerticalContentAlignment="Center">
+                                <ComboBoxItem Content="全部" Tag="All"/>
+                                <ComboBoxItem Content="严重" Tag="Critical"/>
+                                <ComboBoxItem Content="高危" Tag="High"/>
+                                <ComboBoxItem Content="中危" Tag="Medium"/>
+                                <ComboBoxItem Content="低危" Tag="Low"/>
+                                <ComboBoxItem Content="无威胁" Tag="None"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <ListView Grid.Row="2" Name="IpListView" SelectionMode="Single" SelectionChanged="IpListView_SelectionChanged" FontSize="12">
+                            <ListView.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="复制 IP 地址" Click="CopyIpMenuItem_Click"/>
+                                    <MenuItem Header="导出该目标报告" Click="ExportSingleTargetMenuItem_Click"/>
+                                    <Separator/>
+                                    <MenuItem Name="RescanCategoryMenuItem" Header="重扫本类失败" SubmenuOpened="RescanCategoryMenuItem_SubmenuOpened"/>
+                                    <Separator/>
+                                    <MenuItem Header="从列表移除" Click="RemoveTargetMenuItem_Click"/>
+                                </ContextMenu>
+                            </ListView.ContextMenu>
                             <ListView.ItemTemplate>
                                 <DataTemplate>
                                     <Border Background="{Binding ThreatLevel, Converter={StaticResource ThreatLevelToBrushConverter}}" Padding="4,3" Margin="1">
@@ -156,11 +188,13 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="50"/>
                                                 <ColumnDefinition Width="60"/>
+                                                <ColumnDefinition Width="90"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="{Binding StatusIcon}" FontSize="14" Foreground="{Binding ThreatLevel, Converter={StaticResource ThreatLevelToForegroundConverter}}"/>
                                             <TextBlock Grid.Column="1" Text="{Binding IpAddress}" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{Binding ThreatLevel, Converter={StaticResource ThreatLevelToForegroundConverter}}"/>
                                             <TextBlock Grid.Column="2" Text="{Binding ProgressText}" FontSize="11" Foreground="{Binding ThreatLevel, Converter={StaticResource ThreatLevelToForegroundConverter}}" VerticalAlignment="Center" HorizontalAlignment="Center"/>
                                             <TextBlock Grid.Column="3" Text="{Binding DurationText}" FontSize="11" Foreground="{Binding ThreatLevel, Converter={StaticResource ThreatLevelToForegroundConverter}}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                                            <TextBlock Grid.Column="4" Text="{Binding FailureText}" FontSize="11" Foreground="#E74C3C" VerticalAlignment="Center" HorizontalAlignment="Center" ToolTip="{Binding ErrorMessage}"/>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -217,6 +251,9 @@
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
             <Button Name="StartBatchScanButton" Content="开始批量扫描" Width="140" Height="40" Margin="5" Background="#27AE60" Foreground="White" FontWeight="Bold" FontSize="14" Click="StartBatchScanButton_Click"/>
+            <Button Name="PauseBatchScanButton" Content="暂停" Width="100" Height="40" Margin="5" Background="#F39C12" Foreground="White" FontWeight="Bold" Visibility="Collapsed" Click="PauseBatchScanButton_Click"/>
+            <Button Name="ResumeBatchScanButton" Content="继续" Width="100" Height="40" Margin="5" Background="#16A085" Foreground="White" FontWeight="Bold" Visibility="Collapsed" Click="ResumeBatchScanButton_Click"/>
+            <Button Name="RescanFailedButton" Content="重扫失败目标" Width="120" Height="40" Margin="5" Background="#E67E22" Foreground="White" FontWeight="Bold" IsEnabled="False" Click="RescanFailedButton_Click"/>
             <Button Name="StopBatchScanButton" Content="停止扫描" Width="120" Height="40" Margin="5" Background="#E74C3C" Foreground="White" FontWeight="Bold" IsEnabled="False" Click="StopBatchScanButton_Click"/>
             <Button Name="ExportBatchReportButton" Content="导出报告" Width="120" Height="40" Margin="5" Background="#3498DB" Foreground="White" FontWeight="Bold" IsEnabled="False" Click="ExportBatchReportButton_Click"/>
             <Button Name="CloseBatchWindowButton" Content="关闭" Width="100" Height="40" Margin="5" Background="#95A5A6" Foreground="White" Click="CloseBatchWindowButton_Click"/>

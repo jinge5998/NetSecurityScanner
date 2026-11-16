@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using NetSecurityScanner.Models;
 
@@ -380,16 +381,34 @@ namespace NetSecurityScanner.Services
     /// </summary>
     internal class GitHubReleaseResponse
     {
+        // 严重 bug 修复：GitHub API 返回 snake_case 键（tag_name/html_url/...），
+        // 此前类上没有任何 [JsonPropertyName] 特性，而反序列化选项只有
+        // PropertyNameCaseInsensitive（大小写不敏感≠命名策略转换），
+        // 导致 TagName 恒为 null → "解析远程更新信息失败" → 更新检查永远失败。
+        // 现补齐全部 snake_case 映射。
         public string Url { get; set; } = string.Empty;
+
+        [JsonPropertyName("assets_url")]
         public string AssetsUrl { get; set; } = string.Empty;
+
+        [JsonPropertyName("html_url")]
         public string HtmlUrl { get; set; } = string.Empty;
+
         public int Id { get; set; }
+
+        [JsonPropertyName("tag_name")]
         public string TagName { get; set; } = string.Empty;
+
         public string Name { get; set; } = string.Empty;
         public string Body { get; set; } = string.Empty;
         public bool Prerelease { get; set; }
+
+        [JsonPropertyName("created_at")]
         public DateTime CreatedAt { get; set; }
+
+        [JsonPropertyName("published_at")]
         public DateTime PublishedAt { get; set; }
+
         public List<GitHubAsset> Assets { get; set; } = new List<GitHubAsset>();
     }
 
@@ -399,9 +418,15 @@ namespace NetSecurityScanner.Services
     internal class GitHubAsset
     {
         public string Url { get; set; } = string.Empty;
+
+        [JsonPropertyName("browser_download_url")]
         public string BrowserDownloadUrl { get; set; } = string.Empty;
+
         public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("content_type")]
         public string ContentType { get; set; } = string.Empty;
+
         public long Size { get; set; }
     }
 }

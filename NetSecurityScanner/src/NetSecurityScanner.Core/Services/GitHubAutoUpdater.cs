@@ -38,6 +38,46 @@ namespace NetSecurityScanner.Services
 
         public event EventHandler<AutoUpdateProgressEventArgs>? ProgressChanged;
 
+        /// <summary>
+        /// 用户可配置的下载镜像前缀（来自 UpdateSettings.DownloadProxyPrefix）。
+        /// 为空则跳过用户镜像，直接按 原始 URL → 内置镜像 的顺序尝试。
+        /// </summary>
+        public string DownloadProxyPrefix { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 内置公共镜像前缀（GitHub asset 下载在国内网络环境经常被阻断，
+        /// E2E 测试确认 github.com:443 直连不稳定）。镜像可用性随时间变化，
+        /// 按序回退，全部失败才报网络错误。
+        /// </summary>
+        private static readonly string[] BuiltInMirrorPrefixes =
+        {
+            "https://gh-proxy.com/",
+            "https://ghfast.top/",
+            "https://mirror.ghproxy.com/"
+        };
+
+        /// <summary>生成下载候选 URL 列表：用户配置镜像 → 原始 URL → 内置镜像。</summary>
+        private IEnumerable<string> GetDownloadCandidates(string url)
+        {
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var candidates = new List<string>();
+            if (!string.IsNullOrWhiteSpace(DownloadProxyPrefix) && seen.Add(JoinPrefix(DownloadProxyPrefix, url)))
+                candidates.Add(JoinPrefix(DownloadProxyPrefix, url));
+            if (seen.Add(url))
+                candidates.Add(url);
+            foreach (var m in BuiltInMirrorPrefixes)
+            {
+                if (seen.Add(JoinPrefix(m, url)))
+                    candidates.Add(JoinPrefix(m, url));
+            }
+            return candidates;
+        }
+
+        private static string JoinPrefix(string prefix, string url)
+        {
+            return prefix.EndsWith("/", StringComparison.Ordinal) ? prefix + url : prefix + "/" + url;
+        }
+
         public GitHubAutoUpdater()
         {
             _httpClient = new HttpClient
@@ -387,40 +427,69 @@ del /f /q ""%~f0"" 2>nul
                 {
                     ReportProgress($"正在下载... (尝试 {attempt}/{maxRetries})", 5, progress);
 
-                    using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, totalCts.Token);
-                    response.EnsureSuccessStatusCode();
+                    // 镜像回退下载（E2E 测试发现 github.com:443 在部分网络环境被阻断）：
+                    // 候选顺序 = 用户配置镜像 → 原始 URL → 内置公共镜像；
+                    // 某一候选网络失败自动切下一个，全部失败才计入本次 attempt 失败。
+                    Exception? lastCandidateError = null;
+                    var downloaded = false;
 
-                    var totalBytes = response.Content.Headers.ContentLength ?? -1;
-                    var bytesRead = 0L;
-                    var buffer = new byte[81920];
-
-                    await using var contentStream = await response.Content.ReadAsStreamAsync(totalCts.Token);
-                    await using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-                    int read;
-                    while ((read = await contentStream.ReadAsync(buffer, totalCts.Token)) > 0)
+                    foreach (var candidateUrl in GetDownloadCandidates(url))
                     {
-                        await fileStream.WriteAsync(buffer.AsMemory(0, read), totalCts.Token);
-                        bytesRead += read;
+                        try
+                        {
+                            using var response = await _httpClient.GetAsync(candidateUrl, HttpCompletionOption.ResponseHeadersRead, totalCts.Token);
+                            response.EnsureSuccessStatusCode();
 
-                        if (totalBytes > 0)
-                        {
-                            var percent = (int)(5 + (bytesRead * 55.0 / totalBytes));
-                            ReportProgress($"正在下载... {FormatBytes(bytesRead)}/{FormatBytes(totalBytes)}", percent, progress);
+                            var totalBytes = response.Content.Headers.ContentLength ?? -1;
+                            var bytesRead = 0L;
+                            var buffer = new byte[81920];
+
+                            await using var contentStream = await response.Content.ReadAsStreamAsync(totalCts.Token);
+                            await using var fileStream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+                            int read;
+                            while ((read = await contentStream.ReadAsync(buffer, totalCts.Token)) > 0)
+                            {
+                                await fileStream.WriteAsync(buffer.AsMemory(0, read), totalCts.Token);
+                                bytesRead += read;
+
+                                if (totalBytes > 0)
+                                {
+                                    var percent = (int)(5 + (bytesRead * 55.0 / totalBytes));
+                                    ReportProgress($"正在下载... {FormatBytes(bytesRead)}/{FormatBytes(totalBytes)}", percent, progress);
+                                }
+                                else
+                                {
+                                    var percent = (int)(5 + Math.Min(bytesRead / 1024.0 / 1024.0 / 50.0 * 55.0, 55.0));
+                                    ReportProgress($"正在下载... {FormatBytes(bytesRead)}", percent, progress);
+                                }
+                            }
+
+                            if (totalBytes > 0 && bytesRead != totalBytes)
+                            {
+                                throw new IOException($"下载不完整：期望 {totalBytes} 字节，实际 {bytesRead} 字节");
+                            }
+
+                            downloaded = true;
+                            break;
                         }
-                        else
+                        catch (HttpRequestException ex)
                         {
-                            var percent = (int)(5 + Math.Min(bytesRead / 1024.0 / 1024.0 / 50.0 * 55.0, 55.0));
-                            ReportProgress($"正在下载... {FormatBytes(bytesRead)}", percent, progress);
+                            lastCandidateError = ex;
+                            ReportProgress($"下载源不可达（{new Uri(candidateUrl).Host}），尝试下一下载源...", 5, progress);
+                        }
+                        catch (IOException ex)
+                        {
+                            lastCandidateError = ex;
+                            ReportProgress($"下载中断（{new Uri(candidateUrl).Host}），尝试下一下载源... ({ex.Message})", 5, progress);
                         }
                     }
 
-                    if (totalBytes > 0 && bytesRead != totalBytes)
-                    {
-                        throw new IOException($"下载不完整：期望 {totalBytes} 字节，实际 {bytesRead} 字节");
-                    }
+                    if (!downloaded && lastCandidateError != null)
+                        throw new HttpRequestException($"所有下载源均失败: {lastCandidateError.Message}", lastCandidateError);
 
-                    return true;
+                    if (downloaded)
+                        return true;
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {

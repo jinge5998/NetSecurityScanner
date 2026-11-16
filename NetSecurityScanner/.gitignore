@@ -1,0 +1,26 @@
+# ===== Rust 构建产物 =====
+src/rust-scanner-service/target/
+
+# 第三方源码（vendor）仅提交源码，排除其自身构建产物
+src/rust-scanner-service/vendor/*/target/
+
+# ===== .NET 构建产物 =====
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.pdb
+.vs/
+
+# ===== 发布目录（按版本生成，体积大）=====
+publish-v*/
+publish/
+
+# ===== 测试产物 =====
+TestResults/
+
+# ===== 临时调试目录 =====
+.tmp-test/
+
+# ===== 构建日志 =====
+build.log

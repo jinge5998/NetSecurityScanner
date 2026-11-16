@@ -136,76 +136,118 @@
         <GroupBox Header=" 扫描配置 "
                   Style="{StaticResource CardGroupBox}">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="200"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="140"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
-                <TextBlock Grid.Column="0"
-                           Text="目标 IP:"
-                           VerticalAlignment="Center"
-                           Margin="0,0,8,0"
-                           FontWeight="Bold"/>
-                <TextBox Grid.Column="1"
-                         x:Name="TxtTargetIp"
-                         Text="192.168.1.100"
-                         Height="32"
-                         FontSize="14"
-                         Padding="8,0"
-                         VerticalContentAlignment="Center"/>
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="180"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Column="2"
-                           Text="品牌:"
-                           VerticalAlignment="Center"
-                           Margin="20,0,8,0"
-                           FontWeight="Bold"/>
-                <ComboBox Grid.Column="3"
-                          x:Name="CmbVendor"
-                          Height="32"
-                          FontSize="13"
-                          SelectedIndex="0">
-                    <ComboBoxItem Content="自动识别"/>
-                    <ComboBoxItem Content="Hikvision 海康威视"/>
-                    <ComboBoxItem Content="Dahua 大华"/>
-                    <ComboBoxItem Content="Axis"/>
-                    <ComboBoxItem Content="Uniview 宇视"/>
-                    <ComboBoxItem Content="TP-Link"/>
-                </ComboBox>
+                    <TextBlock Grid.Column="0"
+                               Text="目标 IP:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"
+                               FontWeight="Bold"/>
+                    <TextBox Grid.Column="1"
+                             x:Name="TxtTargetIp"
+                             Text="192.168.1.100"
+                             Height="32"
+                             FontSize="14"
+                             Padding="8,0"
+                             VerticalContentAlignment="Center"/>
 
-                <Button Grid.Column="5"
-                        x:Name="BtnStart"
-                        Content="▶ 开始扫描"
-                        Style="{StaticResource PrimaryButton}"
-                        Width="130"
-                        Height="36"
-                        Margin="20,0,8,0"
-                        Click="BtnStart_Click"/>
-                <Button Grid.Column="5"
-                        x:Name="BtnStop"
-                        Content="■ 停止"
-                        Style="{StaticResource DangerButton}"
-                        Width="100"
-                        Height="36"
-                        Margin="160,0,0,0"
-                        Visibility="Collapsed"
-                        Click="BtnStop_Click"/>
-                <Button Grid.Column="6"
-                        x:Name="BtnExport"
-                        Content="导出报告"
-                        Height="36"
-                        Padding="16,8"
-                        VerticalAlignment="Center"
-                        Click="BtnExport_Click"
-                        IsEnabled="False"
-                        Background="#95A5A6"
-                        Foreground="White"
-                        BorderThickness="0"
-                        Cursor="Hand"/>
+                    <TextBlock Grid.Column="2"
+                               Text="品牌:"
+                               VerticalAlignment="Center"
+                               Margin="16,0,8,0"
+                               FontWeight="Bold"/>
+                    <ComboBox Grid.Column="3"
+                              x:Name="CmbVendor"
+                              Height="32"
+                              FontSize="13"
+                              SelectedIndex="0">
+                        <ComboBoxItem Content="自动识别"
+                                      Tag=""/>
+                        <ComboBoxItem Content="Hikvision 海康威视"
+                                      Tag="Hikvision"/>
+                        <ComboBoxItem Content="Dahua 大华"
+                                      Tag="Dahua"/>
+                        <ComboBoxItem Content="Axis"
+                                      Tag="Axis"/>
+                        <ComboBoxItem Content="Uniview 宇视"
+                                      Tag="Uniview"/>
+                        <ComboBoxItem Content="TP-Link"
+                                      Tag="TP-Link"/>
+                    </ComboBox>
+
+                    <TextBlock Grid.Column="4"
+                               Text="扫描模式:"
+                               VerticalAlignment="Center"
+                               Margin="16,0,8,0"
+                               FontWeight="Bold"/>
+                    <ComboBox Grid.Column="5"
+                              x:Name="CmbScanMode"
+                              Height="32"
+                              FontSize="13"
+                              SelectedIndex="0">
+                        <ComboBoxItem Content="完整扫描"
+                                      Tag="Full"/>
+                        <ComboBoxItem Content="快速扫描"
+                                      Tag="Quick"/>
+                    </ComboBox>
+
+                    <CheckBox Grid.Column="6"
+                              x:Name="ChkWeakPassword"
+                              Content="弱口令检测（需授权）"
+                              IsChecked="False"
+                              VerticalAlignment="Center"
+                              Margin="16,0,0,0"
+                              FontWeight="Bold"
+                              Foreground="#C0392B"
+                              Checked="ChkWeakPassword_Checked"/>
+                </Grid>
+
+                <StackPanel Grid.Row="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,10,0,0">
+                    <Button x:Name="BtnStart"
+                            Content="▶ 开始扫描"
+                            Style="{StaticResource PrimaryButton}"
+                            Width="130"
+                            Height="36"
+                            Margin="0,0,8,0"
+                            Click="BtnStart_Click"/>
+                    <Button x:Name="BtnStop"
+                            Content="■ 停止"
+                            Style="{StaticResource DangerButton}"
+                            Width="100"
+                            Height="36"
+                            Margin="0,0,8,0"
+                            Visibility="Collapsed"
+                            Click="BtnStop_Click"/>
+                    <Button x:Name="BtnExport"
+                            Content="导出报告"
+                            Height="36"
+                            Padding="16,8"
+                            VerticalAlignment="Center"
+                            Click="BtnExport_Click"
+                            IsEnabled="False"
+                            Background="#95A5A6"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"/>
+                </StackPanel>
             </Grid>
         </GroupBox>
 
@@ -214,9 +256,27 @@
               Margin="0,0,0,8"
               Visibility="Collapsed"
               x:Name="ProgressBar">
-            <ProgressBar Height="20"
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <ProgressBar x:Name="ScanProgressBar"
+                         Height="20"
+                         Minimum="0"
+                         Maximum="100"
+                         Value="0"
+                         IsIndeterminate="False"
                          Foreground="#3498DB"
                          Background="#E0E3EB"/>
+            <TextBlock Grid.Column="1"
+                       x:Name="LblProgressPercent"
+                       Text="0%"
+                       Width="48"
+                       TextAlignment="Right"
+                       VerticalAlignment="Center"
+                       Margin="8,0,0,0"
+                       FontWeight="Bold"
+                       Foreground="#2C3E50"/>
         </Grid>
 
         <!-- 主区域：左日志 + 右结果 -->
@@ -514,48 +574,89 @@
                             <ItemsControl x:Name="ListFindings">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Style="{StaticResource DataCell}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="70"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="150"/>
-                                                    <ColumnDefinition Width="120"/>
-                                                </Grid.ColumnDefinitions>
-                                                <Border Grid.Column="0"
-                                                        Width="60"
-                                                        Height="24"
-                                                        CornerRadius="3"
-                                                        Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}">
-                                                    <TextBlock Text="{Binding Severity}"
-                                                               Foreground="White"
-                                                               FontWeight="Bold"
-                                                               FontSize="11"
-                                                               HorizontalAlignment="Center"
-                                                               VerticalAlignment="Center"/>
-                                                </Border>
-                                                <TextBlock Grid.Column="1"
-                                                           Text="{Binding Name}"
-                                                           Padding="8,4"
-                                                           FontWeight="SemiBold"
-                                                           TextWrapping="Wrap"/>
-                                                <TextBlock Grid.Column="2"
-                                                           Text="{Binding CveId}"
-                                                           Padding="8,4"
-                                                           Foreground="#2980B9"
-                                                           FontFamily="Consolas"/>
-                                                <TextBlock Grid.Column="3"
-                                                           Text="{Binding CvssScore, StringFormat=F1}"
-                                                           Padding="8,4"
-                                                           FontWeight="Bold"/>
-                                                <TextBlock Grid.Column="4"
-                                                           Text="{Binding DetectionMethod}"
-                                                           Padding="8,4"
-                                                           Foreground="#7F8C8D"
-                                                           FontSize="11"/>
-                                            </Grid>
-                                        </Border>
+                                        <!-- 点击行头展开漏洞详情（描述/证据/修复建议） -->
+                                        <Expander HorizontalContentAlignment="Stretch"
+                                                  BorderBrush="#EAECEF"
+                                                  BorderThickness="0,0,0,1"
+                                                  Background="White">
+                                            <Expander.Header>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="70"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="150"/>
+                                                        <ColumnDefinition Width="120"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0"
+                                                            Width="60"
+                                                            Height="24"
+                                                            CornerRadius="3"
+                                                            VerticalAlignment="Center"
+                                                            Background="{Binding Severity, Converter={StaticResource SeverityToBrush}}">
+                                                        <TextBlock Text="{Binding Severity}"
+                                                                   Foreground="White"
+                                                                   FontWeight="Bold"
+                                                                   FontSize="11"
+                                                                   HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Name}"
+                                                               Padding="8,4"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               TextWrapping="Wrap"/>
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding CveId}"
+                                                               Padding="8,4"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="#2980B9"
+                                                               FontFamily="Consolas"/>
+                                                    <TextBlock Grid.Column="3"
+                                                               Text="{Binding CvssScore, StringFormat=F1}"
+                                                               Padding="8,4"
+                                                               VerticalAlignment="Center"
+                                                               FontWeight="Bold"/>
+                                                    <TextBlock Grid.Column="4"
+                                                               Text="{Binding DetectionMethod}"
+                                                               Padding="8,4"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="#7F8C8D"
+                                                               FontSize="11"/>
+                                                </Grid>
+                                            </Expander.Header>
+                                            <Border Background="#F8F9FB"
+                                                    Padding="14,10">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Margin="0,0,0,4">
+                                                        <TextBlock Text="描述: "
+                                                                   FontWeight="Bold"
+                                                                   Foreground="#2C3E50"/>
+                                                        <TextBlock Text="{Binding Description, TargetNullValue=—, FallbackValue=—}"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Margin="0,0,0,4">
+                                                        <TextBlock Text="证据: "
+                                                                   FontWeight="Bold"
+                                                                   Foreground="#7F8C8D"/>
+                                                        <TextBlock Text="{Binding Evidence, TargetNullValue=—, FallbackValue=—}"
+                                                                   FontFamily="Consolas"
+                                                                   FontSize="11"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="修复建议: "
+                                                                   FontWeight="Bold"
+                                                                   Foreground="#27AE60"/>
+                                                        <TextBlock Text="{Binding Remedy, TargetNullValue=—, FallbackValue=—}"
+                                                                   TextWrapping="Wrap"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </Expander>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>

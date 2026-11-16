@@ -64,6 +64,19 @@ namespace NetSecurityScanner.Core.Models
         public bool EnableServiceDetection { get; set; } = true;
 
         /// <summary>
+        /// 服务检测强度（0-9），对应专家模式 ServiceIntensity。
+        /// 强度越高，Rust/C# 引擎对开放端口的 banner 探测越深（更多尝试 / 更宽松单次超时）。
+        /// </summary>
+        [Range(0, 9)]
+        public int ServiceIntensity { get; set; } = 2;
+
+        /// <summary>
+        /// 服务识别单次超时（毫秒），对应专家模式 ServiceDetectTimeout 滑块。0 表示由引擎默认。
+        /// </summary>
+        [Range(0, 30000)]
+        public int ServiceDetectTimeoutMs { get; set; } = 0;
+
+        /// <summary>
         /// 创建当前配置的浅表副本。
         /// </summary>
         public ScanProfileConfig Clone()
@@ -85,6 +98,11 @@ namespace NetSecurityScanner.Core.Models
                 UdpTimeoutMs = Math.Clamp(UdpTimeoutMs, 50, 5000);
             }
             RetryCount = Math.Clamp(RetryCount, 0, 5);
+            ServiceIntensity = Math.Clamp(ServiceIntensity, 0, 9);
+            if (ServiceDetectTimeoutMs != 0)
+            {
+                ServiceDetectTimeoutMs = Math.Clamp(ServiceDetectTimeoutMs, 1, 30000);
+            }
 
             if (string.IsNullOrWhiteSpace(PortRange))
             {

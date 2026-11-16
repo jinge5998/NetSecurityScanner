@@ -950,7 +950,7 @@ namespace NetSecurityScanner.Services
 
             AddInfoRow(infoTable, "报告生成:", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), fonts.BoldBodyFont, fonts.BodyFont);
 
-            infoTable.WriteSelectedRows(0, -1, 122, 560, cb); // 绝对定位起始y=560
+            infoTable.WriteSelectedRows(0, -1, 122, 570, cb); // 绝对定位起始y=570（原 560 与下方统计卡间距仅约10pt，字体度量偏差即重叠）
 
             // 4. 统计卡片区域 - 同样使用WriteSelectedRows定位
             var statsContainer = new PdfPTable(4);
@@ -970,7 +970,7 @@ namespace NetSecurityScanner.Services
             AddExpertStatCard(statsContainer, "漏洞总数", $"{vulnCount}个", new BaseColor(220, 38, 38), fonts);
             AddExpertStatCard(statsContainer, "高危占比", $"{highRiskPercent}%", new BaseColor(243, 156, 18), fonts);
 
-            statsContainer.WriteSelectedRows(0, -1, 57, 420, cb); // 绝对定位起始y=420
+            statsContainer.WriteSelectedRows(0, -1, 57, 400, cb); // 绝对定位起始y=400（拉开与上方信息表的间距）
 
             // 5. 分隔线
             DrawSeparatorLine(cb, 280, 1.0f, COLOR_SEPARATOR);
@@ -1052,7 +1052,6 @@ namespace NetSecurityScanner.Services
         {
             var cb = writer.DirectContent;
             var deepBlue = new BaseColor(26, 54, 93);
-            var darkGray = new BaseColor(30, 41, 59);
             var separatorColor = new BaseColor(203, 213, 225);
 
             // 标题 - 目 录 (18pt粗体深蓝色居中)
@@ -1076,43 +1075,31 @@ namespace NetSecurityScanner.Services
             cb.LineTo(515, 735);
             cb.Stroke();
 
-            // 目录项表格 - 使用PdfPTable + WriteSelectedRows绝对定位
-            var tocTable = new PdfPTable(3); // 序号/章节名/页码
+            // 目录项表格 - 使用PdfPTable + WriteSelectedRows绝对定位。
+            // 单列布局：条目自身含引导点，不再有独立页码列（改为锚点跳转）
+            var tocTable = new PdfPTable(1);
             tocTable.TotalWidth = 450;
-            tocTable.SetWidths(new float[] { 0.8f, 3.5f, 0.7f });
+            tocTable.SetWidths(new float[] { 1f });
 
             var chapterFont = new Font(fonts.BaseFont, 11, Font.NORMAL, COLOR_TEXT);
             var subChapterFont = new Font(fonts.BaseFont, 10, Font.NORMAL, COLOR_TEXT);
-            var pageFont = new Font(fonts.BaseFont, 11, Font.BOLD, darkGray);
-            var subPageFont = new Font(fonts.BaseFont, 10, Font.BOLD, darkGray);
             var dotColor = new BaseColor(200, 210, 220);
             var dotFont = new Font(fonts.BaseFont, 9, Font.NORMAL, dotColor);
 
+            // 目录条目修复：此前完全硬编码 18 条（"第一章~第五章 + 附录A/B"，页码写死），
+            // 而实际正文是「一~八」共 8 章、无附录——目录与内容严重不符，且页码永远不准。
+            // 现改为动态列出 8 个章节，条目挂 SetLocalGoto 锚点、章节标题挂 SetLocalDestination，
+            // 实现点击跳转（PDF 内锚点跳转是可靠的，页码前向引用则不可靠，故不再显示页码）。
             var tocEntries = new[]
             {
-                (Title: "第一章  执行摘要", Page: "3", IsChapter: true),
-                (Title: "  1.1  核心统计数据", Page: "3", IsChapter: false),
-                (Title: "  1.2  Top 5 高危漏洞", Page: "4", IsChapter: false),
-                (Title: "  1.3  服务分布摘要", Page: "4", IsChapter: false),
-
-                (Title: "第二章  端口扫描结果", Page: "5", IsChapter: true),
-
-                (Title: "第三章  漏洞详情分析", Page: "7", IsChapter: true),
-                (Title: "  3.1  漏洞概览表", Page: "7", IsChapter: false),
-                (Title: "  3.2  漏洞详细信息", Page: "9", IsChapter: false),
-
-                (Title: "第四章  风险评估汇总", Page: "11", IsChapter: true),
-                (Title: "  4.1  风险评估项目", Page: "11", IsChapter: false),
-                (Title: "  4.2  风险分布可视化", Page: "12", IsChapter: false),
-                (Title: "  4.3  安全建议概述", Page: "12", IsChapter: false),
-
-                (Title: "第五章  修复建议与安全加固", Page: "13", IsChapter: true),
-                (Title: "  5.1  修复优先级矩阵", Page: "13", IsChapter: false),
-                (Title: "  5.2  高危漏洞修复建议", Page: "14", IsChapter: false),
-                (Title: "  5.3  通用安全加固建议", Page: "15", IsChapter: false),
-
-                (Title: "附录 A  术语说明", Page: "16", IsChapter: true),
-                (Title: "附录 B  参考链接", Page: "16", IsChapter: true)
+                (Title: "一、执行摘要", Dest: "sec1", IsChapter: true),
+                (Title: "二、端口扫描结果", Dest: "sec2", IsChapter: true),
+                (Title: "三、漏洞详情分析", Dest: "sec3", IsChapter: true),
+                (Title: "四、风险评估汇总", Dest: "sec4", IsChapter: true),
+                (Title: "五、修复建议与安全加固", Dest: "sec5", IsChapter: true),
+                (Title: "六、威胁情报分析", Dest: "sec6", IsChapter: true),
+                (Title: "七、合规参考", Dest: "sec7", IsChapter: true),
+                (Title: "八、结论与建议", Dest: "sec8", IsChapter: true)
             };
 
             foreach (var entry in tocEntries)
@@ -1125,13 +1112,13 @@ namespace NetSecurityScanner.Services
 
                 var titlePara = new Paragraph();
                 var titleFont = entry.IsChapter ? chapterFont : subChapterFont;
-                titlePara.Add(new Phrase(entry.Title, titleFont));
+                // 可点击跳转到对应章节（锚点在各章标题处挂载）
+                titlePara.Add(new Chunk(entry.Title, titleFont).SetLocalGoto(entry.Dest));
 
                 var maxDots = entry.IsChapter ? 50 : 40;
                 var dotCount = Math.Max(5, maxDots - entry.Title.Length * 2);
                 var dots = new string('.', dotCount);
                 titlePara.Add(new Phrase(dots, dotFont));
-                titlePara.Add(new Phrase(entry.Page, entry.IsChapter ? pageFont : subPageFont));
 
                 titleCell.Phrase = titlePara;
                 tocTable.AddCell(titleCell);
@@ -1150,7 +1137,8 @@ namespace NetSecurityScanner.Services
             var disclaimerCT = new ColumnText(cb);
             disclaimerCT.SetSimpleColumn(72, 60, 523, 110);
 
-            var disclaimerText = "⚠️ 免责声明：本报告由自动化安全扫描工具生成，结果仅供参考。" +
+            // 注意：不用 ⚠️（emoji + 变体选择符），部分中文字体缺该字形会渲染为方块
+            var disclaimerText = "【注意】免责声明：本报告由自动化安全扫描工具生成，结果仅供参考。" +
                                  "对于关键安全问题，建议进行人工验证和深度分析。";
 
             var disclaimerPara = new Paragraph(disclaimerText,
@@ -1172,7 +1160,7 @@ namespace NetSecurityScanner.Services
             RiskAssessmentSummary riskAssessment, string targetIp,
             string reportGenerationTime, int compositeRecordCount = 0)
         {
-            doc.Add(new Paragraph("一、执行摘要", fonts.SectionTitleFont)
+            doc.Add(new Paragraph(new Chunk("一、执行摘要", fonts.SectionTitleFont).SetLocalDestination("sec1"))
             {
                 SpacingBefore = 20,
                 SpacingAfter = 12
@@ -1369,7 +1357,7 @@ namespace NetSecurityScanner.Services
 
         private static void GeneratePortScanResultsSection(Document doc, FontCollection fonts, List<PortScanResult> results)
         {
-            doc.Add(new Paragraph("二、端口扫描结果", fonts.SectionTitleFont)
+            doc.Add(new Paragraph(new Chunk("二、端口扫描结果", fonts.SectionTitleFont).SetLocalDestination("sec2"))
             {
                 SpacingBefore = 20,
                 SpacingAfter = 12
@@ -1482,7 +1470,7 @@ namespace NetSecurityScanner.Services
         private static void GenerateVulnerabilityDetailsSection(Document doc, FontCollection fonts,
             List<VulnerabilityResult> vulnerabilities)
         {
-            doc.Add(new Paragraph("三、漏洞详情分析", fonts.SectionTitleFont)
+            doc.Add(new Paragraph(new Chunk("三、漏洞详情分析", fonts.SectionTitleFont).SetLocalDestination("sec3"))
             {
                 SpacingBefore = 20,
                 SpacingAfter = 12
@@ -1547,7 +1535,10 @@ namespace NetSecurityScanner.Services
                     table.AddCell(CreateCell(name, fonts.TableCellFont, bg));
 
                     var riskScheme = GetRiskColorScheme(riskLevel);
-                    var riskFont = new Font(fonts.BaseFont, 9, Font.BOLD, riskScheme.ForegroundColor);
+                    // 排版修复：CreateEnhancedRiskCell 会把单元格背景设为 riskScheme.ForegroundColor，
+                    // 此处字体颜色也用同一 ForegroundColor → 文字与背景同色，风险列整列不可见。
+                    // 徽章语义应为「彩底白字」（与 HTML 版一致），故字体固定用白色。
+                    var riskFont = new Font(fonts.BaseFont, 9, Font.BOLD, BaseColor.WHITE);
                     table.AddCell(CreateEnhancedRiskCell(riskScheme.DisplayName, riskFont, riskScheme));
 
                     table.AddCell(CreateCell(port, fonts.TableCellFont, bg, Element.ALIGN_CENTER));
@@ -1752,7 +1743,7 @@ namespace NetSecurityScanner.Services
             RiskAssessmentSummary riskAssessment, List<VulnerabilityResult> vulns,
             List<PortScanResult> ports)
         {
-            doc.Add(new Paragraph("四、风险评估汇总", fonts.SectionTitleFont)
+            doc.Add(new Paragraph(new Chunk("四、风险评估汇总", fonts.SectionTitleFont).SetLocalDestination("sec4"))
             {
                 SpacingBefore = 20,
                 SpacingAfter = 12
@@ -1827,7 +1818,9 @@ namespace NetSecurityScanner.Services
                     pieCell.BorderWidth = 0.5f;
                     pieCell.Padding = 10;
                     pieCell.BackgroundColor = new BaseColor(252, 252, 252);
-                    pieCell.FixedHeight = 160;
+                    // 修复：原 160pt 内高减去 Padding=10 后恰好 140pt，与 ScaleToFit(140,140)
+                    // 零余量，位图抗锯齿边缘极易被裁剪或触发意外换页，留出缓冲
+                    pieCell.FixedHeight = 180;
 
                     var pieImage = GeneratePieChart(validCategories.Select(c => (c.Label, c.Count, c.Color)).ToList(), fonts);
                     if (pieImage != null)
@@ -1903,7 +1896,9 @@ namespace NetSecurityScanner.Services
                     var barPhrase = new Paragraph();
                     var filledBlocks = Math.Max(1, (int)(percent / 5));
                     var emptyBlocks = 20 - filledBlocks;
-                    barPhrase.Add(new Phrase(new string('█', filledBlocks) + new string('░', emptyBlocks),
+                    // 修复：█/░ 属 Block Elements 区段，部分中文字体缺字形渲染为方块。
+                    // 改用中文黑/白方块 ■/□（CJK 字体必有），视觉效果等价
+                    barPhrase.Add(new Phrase(new string('■', filledBlocks) + new string('□', emptyBlocks),
                         new Font(fonts.BaseFont, 8, Font.NORMAL, cat.Color)));
                     barPhrase.Add(new Phrase($" {percent:F1}%", fonts.SmallFont));
                     barCell.Phrase = barPhrase;
@@ -2003,7 +1998,7 @@ namespace NetSecurityScanner.Services
         private static void GenerateRemediationSection(Document doc, FontCollection fonts,
             List<VulnerabilityResult> vulns)
         {
-            doc.Add(new Paragraph("五、修复建议与安全加固", fonts.SectionTitleFont)
+            doc.Add(new Paragraph(new Chunk("五、修复建议与安全加固", fonts.SectionTitleFont).SetLocalDestination("sec5"))
             {
                 SpacingBefore = 20,
                 SpacingAfter = 12
@@ -2210,7 +2205,7 @@ namespace NetSecurityScanner.Services
         private static void GenerateThreatIntelligenceSection(Document doc, FontCollection fonts,
             List<VulnerabilityResult> vulns, List<PortScanResult> ports, string targetIp)
         {
-            doc.Add(new Paragraph("六、威胁情报分析", fonts.SectionTitleFont)
+            doc.Add(new Paragraph(new Chunk("六、威胁情报分析", fonts.SectionTitleFont).SetLocalDestination("sec6"))
             {
                 SpacingBefore = 20,
                 SpacingAfter = 12
@@ -2358,7 +2353,7 @@ namespace NetSecurityScanner.Services
         private static void GenerateComplianceSection(Document doc, FontCollection fonts,
             List<VulnerabilityResult> vulns, List<PortScanResult> ports)
         {
-            doc.Add(new Paragraph("七、合规参考", fonts.SectionTitleFont)
+            doc.Add(new Paragraph(new Chunk("七、合规参考", fonts.SectionTitleFont).SetLocalDestination("sec7"))
             {
                 SpacingBefore = 20,
                 SpacingAfter = 12
@@ -2534,7 +2529,7 @@ namespace NetSecurityScanner.Services
         private static void GenerateConclusionSection(Document doc, FontCollection fonts,
             List<VulnerabilityResult> vulns, List<PortScanResult> ports, string targetIp)
         {
-            doc.Add(new Paragraph("八、结论与建议", fonts.SectionTitleFont)
+            doc.Add(new Paragraph(new Chunk("八、结论与建议", fonts.SectionTitleFont).SetLocalDestination("sec8"))
             {
                 SpacingBefore = 20,
                 SpacingAfter = 12
@@ -2849,8 +2844,11 @@ namespace NetSecurityScanner.Services
                     PaddingTop = 5
                 };
 
+                // 修复：页脚此前输出"共 Y 页"——Y 是未实现的占位符，每页都可见。
+                // iText 单遍写入拿不到总页数（总页数需 PdfTemplate 二次回填），
+                // 最简诚实做法是只显示当前页码。
                 var rightFooterCell = new PdfPCell(new Phrase(
-                    $"第 {_pageNumber} 页 / 共 Y 页", font))
+                    $"第 {_pageNumber} 页", font))
                 {
                     Border = Rectangle.BOX,
                     BorderColor = COLOR_BORDER,
@@ -2987,8 +2985,22 @@ namespace NetSecurityScanner.Services
         {
             if (string.IsNullOrWhiteSpace(riskLevel)) return DefaultRiskColor;
 
-            if (RiskColors.TryGetValue(riskLevel.Trim(), out var scheme))
+            var level = riskLevel.Trim();
+            if (RiskColors.TryGetValue(level, out var scheme))
                 return scheme;
+
+            // 模糊匹配修复：RiskColors 的键是「严重/高/中/低」，但漏洞库数据存的是
+            // 「高危/中危/低危」——精确匹配失败会落入 DefaultRiskColor，
+            // 徽章变灰并显示"未分类"。先尝试去掉「危」字再查一次，
+            // 再做前缀匹配兜底（如"critical"/"high" 等英文等级）。
+            var normalized = level.EndsWith("危") ? level.Substring(0, level.Length - 1) : level;
+            if (normalized != level && RiskColors.TryGetValue(normalized, out scheme))
+                return scheme;
+
+            if (IsCritical(level)) return RiskColors["严重"];
+            if (IsHigh(level)) return RiskColors["高"];
+            if (IsMedium(level)) return RiskColors["中"];
+            if (IsLow(level)) return RiskColors["低"];
 
             return DefaultRiskColor;
         }

@@ -2,17 +2,14 @@
 //! 支持命名管道和 TCP 套接字两种通信方式
 
 use anyhow::{Context, Result};
-use interprocess::local_socket::{
-    tokio::prelude::*,
-    GenericNamespaced, ListenerOptions,
-};
+use interprocess::local_socket::{tokio::prelude::*, GenericNamespaced, ListenerOptions};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::protocol::{IpcMessage, IpcResponse};
-use crate::scanner::{PortScanner, ScanConfig, PortScanResult, ScanProgress};
+use crate::scanner::{PortScanResult, PortScanner, ScanConfig, ScanProgress};
 
 /// 启动 IPC 服务
 pub async fn start_ipc_server(
@@ -39,11 +36,14 @@ async fn start_named_pipe_server(pipe_name: &str, scanner: Arc<PortScanner>) -> 
     let name_str = format!("{}{}", pipe_name, if cfg!(windows) { "" } else { ".sock" });
 
     // 创建名称（使用 GenericNamespaced 实现跨平台命名空间映射）
-    let name = name_str.to_ns_name::<GenericNamespaced>()
+    let name = name_str
+        .to_ns_name::<GenericNamespaced>()
         .context("无法创建命名管道名称")?;
 
     // 创建监听器
-    let listener = ListenerOptions::new().name(name).create_tokio()
+    let listener = ListenerOptions::new()
+        .name(name)
+        .create_tokio()
         .context("无法创建命名管道监听器")?;
 
     info!("命名管道服务已启动，等待连接...");
@@ -123,8 +123,11 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
     let request_id = message.request_id.clone();
     info!(
         "[{}] 收到扫描请求: {} 目标, {} 端口, protocol={}, detect_service={}",
-        request_id, message.targets.len(), message.ports.len(),
-        message.protocol, message.detect_service.unwrap_or(false)
+        request_id,
+        message.targets.len(),
+        message.ports.len(),
+        message.protocol,
+        message.detect_service.unwrap_or(false)
     );
 
     // 执行扫描
@@ -154,9 +157,8 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
 
     // 启动扫描任务
     let scan_start = std::time::Instant::now();
-    let mut scan_task = tokio::spawn(async move {
-        scanner.scan_batch(config, progress_tx, result_tx).await
-    });
+    let mut scan_task =
+        tokio::spawn(async move { scanner.scan_batch(config, progress_tx, result_tx).await });
 
     let mut scan_done = false;
     let mut scan_result: Result<Vec<PortScanResult>, anyhow::Error> = Ok(Vec::new());
@@ -206,6 +208,7 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
                         if e.is_panic() {
                             error!("[{}] 扫描任务 panic!", request_id);
                         }
+                        scan_result = Err(anyhow::anyhow!("扫描任务异常终止: {}", e));
                     }
                 }
                 scan_done = true;
@@ -274,7 +277,10 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
 
     info!(
         "[{}] select! 循环退出: progress_count={}, result_count={}, client_alive={}, elapsed={}ms",
-        request_id, progress_count, result_count, client_alive,
+        request_id,
+        progress_count,
+        result_count,
+        client_alive,
         scan_start.elapsed().as_millis()
     );
 
@@ -282,7 +288,9 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
     let mut drained_progress = 0u64;
     let mut drained_results = 0u64;
     while let Ok(progress) = progress_rx.try_recv() {
-        if !client_alive { break; }
+        if !client_alive {
+            break;
+        }
         drained_progress += 1;
         let response = IpcResponse::Progress(progress);
         if let Ok(json) = serde_json::to_string(&response) {
@@ -295,7 +303,9 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
         }
     }
     while let Ok(result) = result_tx_recv.try_recv() {
-        if !client_alive { break; }
+        if !client_alive {
+            break;
+        }
         drained_results += 1;
         let response = IpcResponse::Result(result);
         if let Ok(json) = serde_json::to_string(&response) {
@@ -320,12 +330,23 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
     }
 
     // 发送完成响应
-    let results = scan_result.unwrap_or_default();
+    // 修复: 扫描任务返回错误(如无效IP、引擎错误)时必须向客户端报告, 不能静默吞掉变成"成功0结果"
+    let results = match scan_result {
+        Ok(r) => r,
+        Err(e) => {
+            warn!("[{}] 扫描失败, 发送 Error 响应: {:#}", request_id, e);
+            send_error_response(stream, 400, &format!("扫描失败: {:#}", e)).await?;
+            return Ok(());
+        }
+    };
     let open_count = results.iter().filter(|r| r.status == "开放").count();
     let total_scan_time: u64 = results.iter().map(|r| r.scan_time_ms).sum();
     info!(
         "[{}] 发送 Complete: total_results={}, open_ports={}, scan_time_ms={}, wall_elapsed={}ms",
-        request_id, results.len(), open_count, total_scan_time,
+        request_id,
+        results.len(),
+        open_count,
+        total_scan_time,
         scan_start.elapsed().as_millis()
     );
     let complete_response = IpcResponse::Complete {
@@ -340,87 +361,88 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
 
     info!(
         "[{}] 扫描完成: {} 结果, {} 开放端口, 总耗时 {}ms",
-        request_id, results.len(), open_count, scan_start.elapsed().as_millis()
+        request_id,
+        results.len(),
+        open_count,
+        scan_start.elapsed().as_millis()
     );
     Ok(())
 }
 
-/// 处理命名管道客户端连接
-async fn handle_client_connection(mut stream: LocalSocketStream, scanner: Arc<PortScanner>) -> Result<()> {
-    info!("开始处理客户端连接");
-    // 读取请求
-    let request_data = {
-        let mut reader = BufReader::new(&mut stream);
-        match read_request(&mut reader).await {
-            Ok(data) => {
-                info!("读取到 {} 字节请求", data.len());
-                data
-            }
+/// 在单条连接上顺序处理多个扫描请求
+///
+/// 专家模式对同一目标会分阶段扫描：先发 TCP 请求，拿到结果后再发 UDP 请求，
+/// 且复用同一条连接（见 `ExpertModeWindow` 的「TCP 阶段」「UDP 阶段」）。
+/// 原实现每条连接只读一个请求就返回并断开，第二次请求会打到已关闭的连接上，
+/// 客户端随即读取异常并整体回退到内置 C# 扫描器。
+/// 这里改为循环处理，直到客户端关闭连接（读到 EOF）或读取出错才退出。
+///
+/// `reader` 必须在整个循环内保持存活：若每轮新建 `BufReader`，
+/// 其内部已缓冲但未消费的字节会被直接丢弃，造成请求丢失。
+async fn serve_connection<R, W>(
+    mut reader: BufReader<R>,
+    mut writer: W,
+    scanner: Arc<PortScanner>,
+) -> Result<()>
+where
+    R: tokio::io::AsyncRead + Unpin,
+    W: AsyncWriteExt + Unpin,
+{
+    loop {
+        let request_data = match read_request(&mut reader).await {
+            Ok(data) => data,
             Err(e) => {
                 error!("读取请求失败: {}", e);
                 return Err(e);
             }
-        }
-    };
+        };
 
-    if request_data.is_empty() {
-        return Ok(());
-    }
-
-    debug!("收到请求: {} 字节", request_data.len());
-
-    // 解析请求 - 错误时发送 Error 响应, 保持连接
-    let message: IpcMessage = match serde_json::from_slice(&request_data) {
-        Ok(msg) => msg,
-        Err(e) => {
-            eprintln!("[handle_client_connection] 解析请求失败: {}", e);
-            warn!("解析请求失败: {}", e);
-            send_error_response(&mut stream, 400, &format!("解析请求失败: {}", e)).await?;
+        // 读到 EOF 说明客户端已关闭连接，本连接处理结束
+        if request_data.is_empty() {
+            debug!("客户端关闭连接, 结束本连接的处理");
             return Ok(());
         }
-    };
 
-    // 执行扫描循环
-    run_scan_loop(&mut stream, message, scanner).await
+        info!("读取到 {} 字节请求", request_data.len());
+        debug!("收到请求: {} 字节", request_data.len());
+
+        // 解析失败时发送 Error 响应并继续处理后续请求, 不中断连接
+        let message: IpcMessage = match serde_json::from_slice(&request_data) {
+            Ok(msg) => msg,
+            Err(e) => {
+                warn!("解析请求失败: {}", e);
+                send_error_response(&mut writer, 400, &format!("解析请求失败: {}", e)).await?;
+                continue;
+            }
+        };
+
+        // 执行本次扫描；客户端断开时该调用会正常返回, 后续读取将得到 EOF 并退出循环
+        run_scan_loop(&mut writer, message, scanner.clone()).await?;
+    }
+}
+
+/// 处理命名管道客户端连接
+async fn handle_client_connection(
+    stream: LocalSocketStream,
+    scanner: Arc<PortScanner>,
+) -> Result<()> {
+    info!("开始处理客户端连接");
+    let (read_half, write_half) = tokio::io::split(stream);
+    serve_connection(BufReader::new(read_half), write_half, scanner).await
 }
 
 /// 处理 TCP 客户端连接
-async fn handle_tcp_client(mut stream: tokio::net::TcpStream, scanner: Arc<PortScanner>) -> Result<()> {
-    // 读取请求
-    let request_data = {
-        let mut reader = BufReader::new(&mut stream);
-        match read_request(&mut reader).await {
-            Ok(data) => data,
-            Err(e) => {
-                return Err(e);
-            }
-        }
-    };
-
-    if request_data.is_empty() {
-        return Ok(());
-    }
-
-    debug!("收到请求: {} 字节", request_data.len());
-
-    // 解析请求 - 错误时发送 Error 响应, 保持连接
-    let message: IpcMessage = match serde_json::from_slice(&request_data) {
-        Ok(msg) => msg,
-        Err(e) => {
-            eprintln!("[handle_tcp_client] 解析请求失败: {}", e);
-            warn!("解析请求失败: {}", e);
-            send_error_response(&mut stream, 400, &format!("解析请求失败: {}", e)).await?;
-            return Ok(());
-        }
-    };
-
-    // 执行扫描循环
-    run_scan_loop(&mut stream, message, scanner).await
+async fn handle_tcp_client(stream: tokio::net::TcpStream, scanner: Arc<PortScanner>) -> Result<()> {
+    let (read_half, write_half) = tokio::io::split(stream);
+    serve_connection(BufReader::new(read_half), write_half, scanner).await
 }
 
 /// 从 stream 读取一行 (以 \n 结尾)
 async fn read_request<S: AsyncBufReadExt + Unpin>(stream: &mut S) -> Result<Vec<u8>> {
     let mut buf = Vec::new();
-    stream.read_until(b'\n', &mut buf).await.context("读取请求失败")?;
+    stream
+        .read_until(b'\n', &mut buf)
+        .await
+        .context("读取请求失败")?;
     Ok(buf)
 }

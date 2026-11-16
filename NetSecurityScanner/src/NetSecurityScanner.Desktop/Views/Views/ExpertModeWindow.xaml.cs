@@ -115,9 +115,13 @@ namespace NetSecurityScanner.Views
         private int _totalScannedTargets;
         private int _totalOpenPorts;
         private bool _useRustScanner = true; // default to Rust
+        private NmapEngineExecutor? _nmapExecutor; // 懒初始化：检测本机 nmap.exe
+        private bool _nmapAvailable; // nmap 是否可用（影响 Nmap 引擎单选按钮）
         private RustScannerClient? _rustClient;
         private string? _currentRustExe; // 缓存本次专家模式会话使用的 Rust 引擎路径
         private bool _rustServiceStarted; // 标记 Rust 服务是否已启动（跨目标复用）
+        // 本次扫描中 Rust 引擎已失败：后续目标直接使用内置扫描器，避免每个目标都重复启动进程（每次启动耗时且必然失败）
+        private bool _rustEngineFailedThisScan;
         private PluginScheduler? _scheduler;
         private List<ScanHistoryItem> _scanHistory = new();
         private ScanProfileConfig? _recommendedConfig;
@@ -134,6 +138,29 @@ namespace NetSecurityScanner.Views
         private TaskCompletionSource<bool> _scanTaskCompletionSource;
         // 保护 _allPortScanResults / _allVulnResults 多线程读写的互斥锁
         private readonly object _resultsLock = new object();
+
+        // ===== 批量扫描队列 (EXP-002) =====
+        // 队列项集合绑定到队列 Tab 的 DataGrid；每个队列项持有独立的配置快照，
+        // 执行时不回读界面控件，保证"加入队列时的参数"与"实际执行的参数"一致。
+        private readonly System.Collections.ObjectModel.ObservableCollection<ExpertScanQueueItem> _scanQueue
+            = new System.Collections.ObjectModel.ObservableCollection<ExpertScanQueueItem>();
+        private bool _isQueueRunning;           // 队列执行器是否在运行
+        private CancellationTokenSource _queueCts; // 当前正在执行的队列任务的取消源（"跳过当前"用）
+
+        // 实时结果表的唯一数据视图：筛选只改 Filter 谓词，绝不替换 ItemsSource。
+        // 历史缺陷：筛选/深度扫描时把 ItemsSource 换成 List 快照，导致后续扫描结果无法显示（表恒为空）。
+        private ListCollectionView? _portResultsView;
+        private ListCollectionView? _vulnResultsView;
+
+        // 按钮类筛选谓词（null 表示不按类别筛选）与对应的可读描述。
+        // 与关键字过滤组合使用：两者都满足才显示，避免"点了筛选后再搜索"时条件互相覆盖。
+        private Func<object, bool>? _portCategoryFilter;
+        private Func<object, bool>? _vulnCategoryFilter;
+        private string _portFilterDescription = "全部";
+        private string _vulnFilterDescription = "全部";
+        // 结果流式写入时状态栏会收到大量 CollectionChanged，用挂起标记合并为一次 UI 刷新
+        private bool _portFilterStatusPending;
+        private bool _vulnFilterStatusPending;
 
         // 当前扫描策略：把「性能调优」Tab 配置的并发/超时下发给 PortScanner。
         // 存为字段而非层层传参：ExecuteNativeScanAsync 有 7 个调用点（含多处 Rust 降级），
@@ -158,6 +185,21 @@ namespace NetSecurityScanner.Views
                 _jsonDatabaseService = new JsonDatabaseService();
                 _allPortScanResults = new BulkObservableCollection<PortScanResult>();
                 _allVulnResults = new BulkObservableCollection<VulnerabilityResult>();
+
+                // 单一数据视图：集合 → 视图 → DataGrid，三者绑定关系全程不变。
+                // 筛选只修改视图的 Filter 谓词，因此扫描中的增量结果始终能显示出来。
+                _portResultsView = new ListCollectionView(_allPortScanResults);
+                _vulnResultsView = new ListCollectionView(_allVulnResults);
+                RealTimePortResultsDataGrid.ItemsSource = _portResultsView;
+                RealTimeVulnResultsDataGrid.ItemsSource = _vulnResultsView;
+
+                // 批量扫描队列 (EXP-002)：队列列表绑定
+                ScanQueueDataGrid.ItemsSource = _scanQueue;
+
+                // 结果持续写入时同步刷新"显示 X / 共 Y"的筛选状态栏
+                _allPortScanResults.CollectionChanged += (_, __) => ScheduleFilterStatusUpdate(true);
+                _allVulnResults.CollectionChanged += (_, __) => ScheduleFilterStatusUpdate(false);
+
                 this.Loaded += ExpertModeWindow_Loaded;
                 this.Closing += ExpertModeWindow_Closing;
                 this.Dispatcher.UnhandledException += (s, ex) =>
@@ -191,6 +233,17 @@ namespace NetSecurityScanner.Views
                 ParseTargetCount();
                 UpdateScanPlanPreview();
 
+                // 初始化结果筛选状态栏（"显示全部 N 条"）
+                UpdatePortFilterStatus();
+                UpdateVulnFilterStatus();
+
+                // 初始化 ToggleButton 激活态 + Reset 按钮启用态
+                UpdateFilterToggleButtons(isPort: true);
+                UpdateFilterToggleButtons(isPort: false);
+
+                // 结果区导出按钮：无结果时禁用
+                UpdateResultExportButtonsState();
+
                 try
                 {
                     var exe = RustScannerClient.FindRustScannerExecutable();
@@ -200,6 +253,27 @@ namespace NetSecurityScanner.Views
                     RefreshRustEngineStatus();
                 }
                 catch { _useRustScanner = false; }
+
+                // 探测本机 nmap 可用性，决定是否启用 Nmap 引擎单选按钮
+                try
+                {
+                    _nmapExecutor = new NmapEngineExecutor();
+                    _nmapAvailable = _nmapExecutor.IsAvailable;
+                    if (NmapEngineRadio != null)
+                    {
+                        NmapEngineRadio.IsEnabled = _nmapAvailable;
+                        NmapEngineRadio.ToolTip = _nmapAvailable
+                            ? $"检测到 nmap: {_nmapExecutor.NmapPath}"
+                            : "未在本机检测到 nmap.exe。请安装 nmap（https://nmap.org/download.html）后本引擎可用；未安装时仍可用 RustScan 或内置 C# 引擎扫描。";
+                    }
+                    // 初始化 nmap 引导状态面板（检测按钮可后续刷新）
+                    RefreshNmapGuideStatus(null);
+                }
+                catch
+                {
+                    _nmapAvailable = false;
+                    if (NmapEngineRadio != null) NmapEngineRadio.IsEnabled = false;
+                }
 
                 TargetInputTextBox.TextChanged += (_, __) =>
                 {
@@ -335,15 +409,34 @@ namespace NetSecurityScanner.Views
         private void ScanEngineRadio_Checked(object sender, RoutedEventArgs e)
         {
             if (EngineStatusTextBlock == null) return;
-            _useRustScanner = RustEngineRadio?.IsChecked == true;
-            if (_useRustScanner)
+            if (NmapEngineRadio?.IsChecked == true)
             {
-                RefreshRustEngineStatus();
+                _useRustScanner = false;
+                if (_nmapAvailable && _nmapExecutor != null)
+                {
+                    EngineStatusTextBlock.Text = "🌐 Nmap 引擎就绪（高级扫描选项将实际生效）";
+                    EngineStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x8E, 0x44, 0xAD));
+                    if (EnginePathTextBlock != null)
+                        EnginePathTextBlock.Text = $"路径: {_nmapExecutor.NmapPath}";
+                }
+                else
+                {
+                    EngineStatusTextBlock.Text = "⚠️ 未检测到 nmap，将使用内置 C# 引擎";
+                    EngineStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0x7E, 0x22));
+                }
             }
             else
             {
-                EngineStatusTextBlock.Text = "使用内置C#扫描引擎";
-                EngineStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0x98, 0xDB));
+                _useRustScanner = RustEngineRadio?.IsChecked == true;
+                if (_useRustScanner)
+                {
+                    RefreshRustEngineStatus();
+                }
+                else
+                {
+                    EngineStatusTextBlock.Text = "使用内置C#扫描引擎";
+                    EngineStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x34, 0x98, 0xDB));
+                }
             }
             UpdateScanPlanPreview();
         }
@@ -889,6 +982,14 @@ namespace NetSecurityScanner.Views
                 AppendLog("扫描进行中，请先点击「停止」或等待当前扫描完成");
                 return;
             }
+            // 队列运行期间禁止发起单次扫描：FinalizeScan 会在每个队列任务结束时
+            // 复位 _isScanning 与按钮状态，若无此防线，用户可在任务间隙并发启动
+            // 第二条扫描链路，造成结果集合与统计计数被交叉污染。
+            if (_isQueueRunning)
+            {
+                AppendLog("⚠️ 批量扫描队列执行中，请等待队列完成或先清空队列");
+                return;
+            }
 
             var config = CollectConfig();
 
@@ -1027,6 +1128,8 @@ namespace NetSecurityScanner.Views
             if (SavePresetButton != null) SavePresetButton.IsEnabled = enabled;
             if (ExportNmapButton != null) ExportNmapButton.IsEnabled = enabled;
             if (ValidateConfigButton != null) ValidateConfigButton.IsEnabled = enabled;
+            // 扫描期间禁用「清空结果」：此时清空会让统计与实际进度错位，应先停止扫描
+            if (ClearResultsButton != null) ClearResultsButton.IsEnabled = enabled;
         }
 
         private string GetPortModeText()
@@ -1037,7 +1140,13 @@ namespace NetSecurityScanner.Views
             return "常用端口(Top 1000)";
         }
 
-        private async Task ExecuteExpertScanAsync(ExpertScanConfiguration config, CancellationToken cancellationToken)
+        /// <param name="isQueueMode">
+        /// 批量扫描队列模式（EXP-002）下为 true：
+        /// 1) 不清空实时结果集合——多个队列任务的结果累积显示，符合"批量"预期；
+        /// 2) 不弹每任务汇总对话框——队列逐任务弹窗会打断连续执行，
+        ///    完成情况由队列进度条与队列项状态展示。
+        /// </param>
+        private async Task ExecuteExpertScanAsync(ExpertScanConfiguration config, CancellationToken cancellationToken, bool isQueueMode = false)
         {
             try
             {
@@ -1046,11 +1155,14 @@ namespace NetSecurityScanner.Views
                 // 而 BulkObservableCollection 绑定到 DataGrid，直接 Clear() 会触发 Reset 通知，
                 // DataGrid 在后台线程处理通知会抛出 "调用线程无法访问此对象" 异常。
                 // 因此必须把集合清空调度到 UI 线程执行。
-                Dispatcher.Invoke(() =>
+                if (!isQueueMode)
                 {
-                    _allPortScanResults.Clear();
-                    _allVulnResults.Clear();
-                });
+                    Dispatcher.Invoke(() =>
+                    {
+                        _allPortScanResults.Clear();
+                        _allVulnResults.Clear();
+                    });
+                }
                 _totalScannedTargets = 0;
                 _totalOpenPorts = 0;
 
@@ -1129,8 +1241,16 @@ namespace NetSecurityScanner.Views
                     VulnerabilitiesStat.Text = "0";
                     ExpertScanProgressBar.Value = 0;
                     ExpertScanProgressText.Text = "准备扫描...";
-                    RealTimePortResultsDataGrid.ItemsSource = _allPortScanResults;
-                    RealTimeVulnResultsDataGrid.ItemsSource = _allVulnResults;
+                    // 新扫描开始：清除上次遗留的类别筛选与关键字，否则新结果可能被旧条件全部隐藏（表现为表格为空）
+                    bool hadFilter = _portCategoryFilter != null || _vulnCategoryFilter != null
+                        || !string.IsNullOrWhiteSpace(PortResultSearchTextBox?.Text)
+                        || !string.IsNullOrWhiteSpace(VulnResultSearchTextBox?.Text);
+                    ResetPortFilters();
+                    ResetVulnFilters();
+                    if (hadFilter)
+                        AppendLog("ℹ️ 新扫描开始：已自动清除上次的筛选条件");
+                    RealTimePortResultsDataGrid.ItemsSource = _portResultsView;
+                    RealTimeVulnResultsDataGrid.ItemsSource = _vulnResultsView;
                     StartExpertScanButton.Content = $"⏳ 扫描中: {0}/{targets.Count}";
                 });
 
@@ -1142,6 +1262,9 @@ namespace NetSecurityScanner.Views
                 if (_useRustScanner)
                 {
                     _rustServiceStarted = false;
+                    _rustEngineFailedThisScan = false;
+                    // 清除上次扫描留下的降级提示，恢复到基于可执行文件的真实状态
+                    Dispatcher.BeginInvoke(new Action(RefreshRustEngineStatus), DispatcherPriority.Background);
                     try
                     {
                         if (_rustClient == null)
@@ -1178,22 +1301,22 @@ namespace NetSecurityScanner.Views
                                 if (connected)
                                     AppendLog("🚀 Rust 引擎已预启动，将在多目标间复用");
                                 else
-                                    AppendLog("⚠️ Rust 引擎连接失败，将降级到内置扫描器");
+                                    MarkRustEngineUnavailable("Rust 引擎连接失败");
                             }
                             else
                             {
-                                AppendLog("⚠️ Rust 引擎启动失败，将降级到内置扫描器");
+                                MarkRustEngineUnavailable("Rust 引擎启动失败");
                             }
                         }
                         else
                         {
-                            AppendLog("⚠️ 找不到 Rust 引擎，将降级到内置扫描器");
+                            MarkRustEngineUnavailable("找不到 Rust 引擎可执行文件");
                         }
                     }
                     catch (Exception ex)
                     {
-                        AppendLog($"⚠️ Rust 引擎预启动异常: {ex.Message}，将降级到内置扫描器");
                         _rustServiceStarted = false;
+                        MarkRustEngineUnavailable($"Rust 引擎预启动异常: {ex.Message}");
                     }
                 }
 
@@ -1270,6 +1393,25 @@ namespace NetSecurityScanner.Views
                         {
                             allResults = await ExecuteRustScanAsync(target, ports, config, cancellationToken);
                         }
+                        else if (NmapEngineRadio?.IsChecked == true && _nmapAvailable && _nmapExecutor != null)
+                        {
+                            // Nmap 引擎：实际调用本机 nmap.exe（真正执行，而非仅生成命令字符串）。
+                            // 把界面选定的端口列表注入配置副本，使 NmapCommandBuilder 生成 -p <ports>，
+                            // 从而让 nmap 只扫这批端口；失败时回退到内置 C# 引擎。
+                            AppendLog($"  🌐 使用 Nmap 引擎扫描 {target} ...");
+                            try
+                            {
+                                allResults = await ExecuteNmapScanAsync(target, ports, config, cancellationToken);
+                                AppendLog($"  🌐 Nmap 引擎返回 {allResults.Count} 条端口结果");
+                            }
+                            catch (OperationCanceledException) { throw; }
+                            catch (Exception nmapEx)
+                            {
+                                AppendLog($"  ⚠️ Nmap 引擎异常（回退内置 C# 引擎）: {nmapEx.Message}");
+                                var progress = new Progress<int>(p => { });
+                                allResults = await ExecuteNativeScanAsync(target, ports, config, progress, cancellationToken);
+                            }
+                        }
                         else
                         {
                             var progress = new Progress<int>(p => { });
@@ -1335,13 +1477,14 @@ namespace NetSecurityScanner.Views
 
                             AppendLog($"  漏洞扫描完成: 发现 {vulnResults.Count} 个漏洞");
                         }
-                        else if (openPorts.Count == 0)
+                        else
                         {
+                            // shouldRunVulnScan = openPorts.Any() 与此分支互补且穷尽。
+                            // 原先还有第三个 else-if（!config.ScriptScan && !config.ServiceDetection），
+                            // 但 shouldRunVulnScan 为 false ⟺ openPorts.Count == 0，该分支恒不可达；
+                            // 勾选 ScriptScan 与否对漏洞扫描判定也没有任何影响（只要有开放端口就执行）。
+                            // 保留此分支仅用于记录跳过原因。
                             AppendLog($"  跳过漏洞扫描: 无开放端口");
-                        }
-                        else if (!config.ScriptScan && !config.ServiceDetection)
-                        {
-                            AppendLog($"  跳过漏洞扫描: 脚本扫描和服务检测均未启用");
                         }
 
                         // 弱口令扫描（含 PostgreSQL 5432 / MSSQL 1433）
@@ -1431,18 +1574,11 @@ namespace NetSecurityScanner.Views
                             Console.WriteLine($"保存扫描历史记录失败: {saveEx.Message}");
                         }
 
-                        // Save results to file - 使用唯一时间戳避免多目标时文件覆盖
+                        // Save results to file - 使用唯一时间戳避免多目标时文件覆盖。
+                        // US-03：按 JSON/HTML/CSV 勾选框决定实际保存的文件格式（此前恒为 JSON）。
                         if (config.SaveOutput && !string.IsNullOrWhiteSpace(config.OutputDir))
                         {
-                            var safeFileName = target.Replace(".", "_").Replace("/", "_");
-                            var filePath = Path.Combine(config.OutputDir, $"expert_scan_{safeFileName}_{targetStartTime:yyyyMMdd_HHmmss_fff}.json");
-                            var dir = Path.GetDirectoryName(filePath);
-                            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
-                            {
-                                Directory.CreateDirectory(dir);
-                            }
-                            var json = JsonSerializer.Serialize(scanResult, new JsonSerializerOptions { WriteIndented = true });
-                            File.WriteAllText(filePath, json, new System.Text.UTF8Encoding(true));
+                            WriteAutoSaveOutputs(scanResult, config, target, targetStartTime);
                         }
 
                         completedCount++;
@@ -1491,7 +1627,8 @@ namespace NetSecurityScanner.Views
                         var cancelSummary = $"扫描已取消！\n共扫描 {completedCount}/{targets.Count} 个目标\n发现 {_totalOpenPorts} 个开放端口\n发现 {_allVulnResults.Count} 个漏洞";
                         if (failedTargets.Count > 0)
                             cancelSummary += $"\n⚠️ {failedTargets.Count} 个目标扫描失败（详见扫描日志）";
-                        MessageBox.Show(cancelSummary, "扫描已取消", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        if (!isQueueMode)
+                            MessageBox.Show(cancelSummary, "扫描已取消", MessageBoxButton.OK, MessageBoxImage.Warning);
                     }
                     else
                     {
@@ -1517,7 +1654,8 @@ namespace NetSecurityScanner.Views
                         var doneSummary = $"专家模式扫描完成！\n共扫描 {completedCount}/{targets.Count} 个目标\n发现 {_totalOpenPorts} 个开放端口\n发现 {finalVulnCount} 个漏洞";
                         if (failedTargets.Count > 0)
                             doneSummary += $"\n⚠️ {failedTargets.Count} 个目标扫描失败：{string.Join(", ", failedTargets.Take(3))}{(failedTargets.Count > 3 ? "..." : "")}";
-                        MessageBox.Show(doneSummary, "扫描完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                        if (!isQueueMode)
+                            MessageBox.Show(doneSummary, "扫描完成", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                 });
             }
@@ -1526,7 +1664,8 @@ namespace NetSecurityScanner.Views
                 Dispatcher.Invoke(() =>
                 {
                     AppendLog($"❌ 扫描异常: {ex.Message}");
-                    MessageBox.Show($"扫描过程中发生错误: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    if (!isQueueMode)
+                        MessageBox.Show($"扫描过程中发生错误: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 });
                 // 异常路径也要清理资源（FinalizeScan 内部 try/catch 保护）
                 FinalizeScan();
@@ -1536,6 +1675,14 @@ namespace NetSecurityScanner.Views
         private async Task<List<PortScanResult>> ExecuteRustScanAsync(string target, List<int> ports, ExpertScanConfiguration config, CancellationToken cancellationToken)
         {
             var allResults = new List<PortScanResult>();
+
+            // 本次扫描已确认 Rust 引擎不可用：直接走内置扫描器，避免逐目标重复启动进程（每次启动耗时且必然失败）
+            if (_rustEngineFailedThisScan)
+            {
+                var fallbackProgress = new Progress<int>(p => { });
+                return await ExecuteNativeScanAsync(target, ports, config, fallbackProgress, cancellationToken);
+            }
+
             try
             {
                 // 使用预启动的 Rust 服务（跨目标复用）
@@ -1563,7 +1710,7 @@ namespace NetSecurityScanner.Views
                         : RustScannerClient.FindRustScannerExecutable();
                     if (exe == null)
                     {
-                        AppendLog("  ⚠️ 找不到 Rust 引擎可执行文件，降级到内置 C# 扫描器");
+                        MarkRustEngineUnavailable("找不到 Rust 引擎可执行文件");
                         var progress = new Progress<int>(p => { });
                         return await ExecuteNativeScanAsync(target, ports, config, progress, cancellationToken);
                     }
@@ -1576,7 +1723,7 @@ namespace NetSecurityScanner.Views
                         config.UdpTimeout > 0 ? config.UdpTimeout : 500);
                     if (!started)
                     {
-                        AppendLog("  ⚠️ Rust 服务启动失败, 降级到内置 C# 扫描器");
+                        MarkRustEngineUnavailable("Rust 服务启动失败");
                         var progress = new Progress<int>(p => { });
                         return await ExecuteNativeScanAsync(target, ports, config, progress, cancellationToken);
                     }
@@ -1584,8 +1731,8 @@ namespace NetSecurityScanner.Views
                     var connected = await _rustClient.ConnectAsync();
                     if (!connected)
                     {
-                        AppendLog("  ⚠️ 连接 Rust 服务失败, 降级到内置 C# 扫描器");
                         try { _rustClient.StopService(); } catch { }
+                        MarkRustEngineUnavailable("连接 Rust 服务失败");
                         var progress = new Progress<int>(p => { });
                         return await ExecuteNativeScanAsync(target, ports, config, progress, cancellationToken);
                     }
@@ -1616,27 +1763,69 @@ namespace NetSecurityScanner.Views
                     }
                 }
 
-                var profileConfig = new ScanProfileConfig
-                {
-                    TcpConcurrency = config.TcpConcurrency,
-                    UdpConcurrency = config.UdpConcurrency,
-                    TimeoutMs = config.TcpTimeout,
-                    // UDP 超时单独下发，避免 Rust 端复用 TCP 超时导致 UDP 结果失真
-                    UdpTimeoutMs = config.UdpTimeout > 0 ? config.UdpTimeout : 0,
-                    RetryCount = config.RetryCount,
-                    EnableServiceDetection = config.ServiceDetection,
-                    EnablePingProbe = config.PingProbe && config.HostDiscovery
-                };
+                // 用统一的 ScanConfigMapper 构造下发参数。
+                // 背景：此处原先手工 new ScanProfileConfig 只填了 8 个字段，
+                // ServiceIntensity（服务检测强度）与 ServiceDetectTimeoutMs（服务识别超时）被漏掉，
+                // 界面上这两项对 Rust 引擎路径完全无效；而 Mapper 里已含完整映射，
+                // 却只在契约测试中被调用，生产路径从未使用。现改为统一走 Mapper，
+                // 以后新增可下发字段只需改 Mapper 一处，不会再出现两侧漂移。
+                var profileConfig = ScanConfigMapper.ToScanProfileConfig(config);
 
-                // Rust 引擎的协议取值约定为 tcp / udp / both（见 scanner.rs 的 ScanConfig.protocol 注释）。
-                // 此前传 "tcp,udp" 会被 Rust 走 else 分支按 both 处理，但并不会命中
-                // proto == "both" 的 UDP 并发名额分配逻辑，导致 UDP 并发控制失效、UDP 扫描大量超时。
-                // 因此 TCP+UDP 同时勾选时必须传 "both"。
-                var protocol = config.TcpScan && config.UdpScan ? "both" : (config.UdpScan ? "udp" : "tcp");
-                var rustResults = await _rustClient.ScanPortsAsync(
-                    new List<string> { target }, ports, protocol,
-                    config.TcpConcurrency, config.TcpTimeout, config.UdpTimeout,
-                    config.ServiceDetection, true, cancellationToken, profileConfig);
+                // Rust 引擎把 "both" 解释为「先 UDP 后 TCP」，且 UDP 阶段在整段扫描结束前
+                // 不回传任何 progress/result。端口范围大 + 目的主机不回 UDP 探测时，该阶段会持续
+                // 数十分钟（65535 端口 / UDP并发 50 / 超时 1s ≈ 22 分钟）且界面无任何进度，
+                // 看起来像「专家模式不扫描端口」。
+                // 因此拆成两次请求：先 TCP（有实时进度与结果），再 UDP，并为 UDP 阶段显示不确定进度。
+                var tcpResults = new List<RustPortResult>();
+                var udpResults = new List<RustPortResult>();
+
+                if (config.TcpScan)
+                {
+                    AppendLog("  ▶ TCP 端口扫描阶段开始");
+                    tcpResults = await _rustClient.ScanPortsAsync(
+                        new List<string> { target }, ports, "tcp",
+                        config.TcpConcurrency, config.TcpTimeout, config.UdpTimeout,
+                        config.ServiceDetection, true, cancellationToken, profileConfig);
+                    AppendLog($"  ✓ TCP 阶段完成，返回 {tcpResults.Count} 条结果");
+                }
+
+                if (config.UdpScan && !cancellationToken.IsCancellationRequested)
+                {
+                    AppendLog("  ▶ UDP 端口扫描阶段开始（引擎在整段 UDP 扫描结束前不回传进度，进度条切换为不确定态）");
+                    Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        ExpertScanProgressBar.IsIndeterminate = true;
+                        ExpertScanProgressText.Text = $"UDP 探测中: {target}（该阶段无中间进度）";
+                    }), DispatcherPriority.Background);
+
+                    try
+                    {
+                        udpResults = await _rustClient.ScanPortsAsync(
+                            new List<string> { target }, ports, "udp",
+                            config.TcpConcurrency, config.TcpTimeout, config.UdpTimeout,
+                            config.ServiceDetection, true, cancellationToken, profileConfig);
+                    }
+                    finally
+                    {
+                        Dispatcher.BeginInvoke(new Action(() =>
+                        {
+                            ExpertScanProgressBar.IsIndeterminate = false;
+                        }), DispatcherPriority.Background);
+                    }
+                    AppendLog($"  ✓ UDP 阶段完成，返回 {udpResults.Count} 条结果");
+                }
+
+                // 合并：TCP 结果优先，UDP 仅在 TCP 未覆盖的端口上补充
+                var tcpPorts = new HashSet<int>();
+                var rustResults = new List<RustPortResult>();
+                foreach (var r in tcpResults)
+                {
+                    if (tcpPorts.Add(r.Port)) rustResults.Add(r);
+                }
+                foreach (var r in udpResults)
+                {
+                    if (!tcpPorts.Contains(r.Port)) rustResults.Add(r);
+                }
 
                 AppendLog($"  Rust返回原始结果数: {rustResults.Count}");
                 foreach (var r in rustResults)
@@ -1664,13 +1853,75 @@ namespace NetSecurityScanner.Views
             }
             catch (Exception ex)
             {
-                AppendLog($"  Rust引擎扫描失败，降级到内置扫描器: {ex.Message}");
-                _rustServiceStarted = false; // 标记服务不可用，下次尝试重新启动
+                _rustServiceStarted = false; // 标记服务不可用
                 try { _rustClient?.StopService(); } catch { }
+                MarkRustEngineUnavailable($"Rust 引擎扫描失败: {ex.Message}");
                 var progress = new Progress<int>(p => { });
                 allResults = await ExecuteNativeScanAsync(target, ports, config, progress, cancellationToken);
             }
             return allResults;
+        }
+
+        /// <summary>
+        /// 标记本次扫描的 Rust 引擎不可用（只提示一次），剩余目标统一使用内置 C# 扫描器。
+        /// 同时把引擎状态区更新为降级提示，避免状态区仍显示"就绪"而与实际执行引擎不符。
+        /// </summary>
+        private void MarkRustEngineUnavailable(string reason)
+        {
+            if (_rustEngineFailedThisScan)
+                return;
+            _rustEngineFailedThisScan = true;
+            AppendLog($"  ⚠️ {reason}，本次扫描剩余目标将统一使用内置 C# 扫描器");
+
+            try
+            {
+                if (Dispatcher == null || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+                    return;
+
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (EngineStatusTextBlock != null)
+                    {
+                        EngineStatusTextBlock.Text = "⚠️ 本次扫描已降级为内置 C# 扫描器（Rust 引擎不可用）";
+                        EngineStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0xE6, 0x7E, 0x22));
+                    }
+                    if (EnginePathTextBlock != null)
+                    {
+                        EnginePathTextBlock.Text = $"降级原因: {reason}";
+                        EnginePathTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0xC0, 0x39, 0x2B));
+                    }
+                }), DispatcherPriority.Background);
+            }
+            catch { /* 窗口销毁阶段忽略 */ }
+        }
+
+        /// <summary>
+        /// 用 Nmap 引擎实际扫描目标端口（真正调用本机 nmap.exe）。
+        ///
+        /// 此前 nmap 只用于「命令预览」与「导出命令文件」，本方法让它真正执行：
+        /// 把界面选定的端口注入配置副本 → NmapCommandBuilder 生成参数 →
+        /// NmapEngineExecutor 启动 nmap 并解析 <c>-oX -</c> 的 XML 结果。
+        /// </summary>
+        private async Task<List<PortScanResult>> ExecuteNmapScanAsync(string target, List<int> ports, ExpertScanConfiguration config, CancellationToken cancellationToken)
+        {
+            if (_nmapExecutor == null) throw new InvalidOperationException("Nmap 引擎未初始化");
+
+            // 用 JSON 深拷贝配置，注入本次选定的端口列表，避免改动用户界面配置对象。
+            // 注意：ExpertScanConfiguration 是多字段 POCO，用 JSON 往返复制最省心且成员不会遗漏。
+            ExpertScanConfiguration copy;
+            try
+            {
+                var json = JsonSerializer.Serialize(config);
+                copy = JsonSerializer.Deserialize<ExpertScanConfiguration>(json) ?? new ExpertScanConfiguration();
+            }
+            catch
+            {
+                copy = new ExpertScanConfiguration();
+            }
+            copy.PortMode = "Custom";
+            copy.CustomPorts = string.Join(",", ports.Take(1024));
+
+            return await _nmapExecutor.ScanAsync(target, ports, copy, null, cancellationToken).ConfigureAwait(false);
         }
 
         private async Task<List<PortScanResult>> ExecuteNativeScanAsync(string target, List<int> ports, ExpertScanConfiguration config, IProgress<int> progress, CancellationToken cancellationToken)
@@ -1715,6 +1966,47 @@ namespace NetSecurityScanner.Views
                 allResults = mergedPorts.Values.ToList();
             }
             return allResults;
+        }
+
+        /// <summary>
+        /// US-03：依据专家模式输出格式勾选（JSON/HTML/CSV）把单目标扫描结果保存到 OutputDir。
+        /// 三者均未勾选时回退为 JSON（保持旧版行为兼容）；HTML/CSV 输出对文本做转义，避免把
+        /// 目标返回的任意内容当作可执行脚本落地。
+        /// </summary>
+        private void WriteAutoSaveOutputs(
+            CompleteScanResult scanResult, ExpertScanConfiguration config,
+            string target, DateTime targetStartTime)
+        {
+            try
+            {
+                var safeFileName = target.Replace(".", "_").Replace("/", "_");
+                var stamp = targetStartTime.ToString("yyyyMMdd_HHmmss_fff");
+                var baseName = $"expert_scan_{safeFileName}_{stamp}";
+
+                bool writeJson = config.OutputJson || (!config.OutputHtml && !config.OutputCsv);
+                if (writeJson)
+                    WriteTextFile(Path.Combine(config.OutputDir, baseName + ".json"),
+                        JsonSerializer.Serialize(scanResult, new JsonSerializerOptions { WriteIndented = true }));
+                if (config.OutputHtml)
+                    WriteTextFile(Path.Combine(config.OutputDir, baseName + ".html"),
+                        ScanReportExporter.SerializeHtml(scanResult));
+                if (config.OutputCsv)
+                    WriteTextFile(Path.Combine(config.OutputDir, baseName + ".csv"),
+                        ScanReportExporter.SerializeCsv(scanResult));
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"⚠️ 自动保存结果失败: {ex.Message}");
+            }
+        }
+
+        /// <summary>安全写出文本文件（自动建目录，UTF-8 BOM 与旧实现一致）。</summary>
+        private void WriteTextFile(string path, string content)
+        {
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+            File.WriteAllText(path, content, new System.Text.UTF8Encoding(true));
         }
 
         /// <summary>
@@ -1775,7 +2067,15 @@ namespace NetSecurityScanner.Views
                     TcpTimeout = tcpTimeout,
                     UdpTimeout = udpTimeout,
                     SmallPortRangeTimeout = tcpTimeout
-                }
+                },
+
+                // US-01 / US-04：把「服务检测强度（探测深度分级）」与「服务识别超时」接线到内置 C# 引擎。
+                // 此前二者仅生成 Nmap 命令；此处下发后，PortScanner 对开放端口的 banner 探测
+                // 会真正按强度分档尝试、并按滑块超时等待。
+                ServiceDetectionConfig = NetSecurityScanner.Models.ServiceDetectionConfig.FromIntensity(
+                    config.ServiceDetection,
+                    config.ServiceIntensity,
+                    config.ServiceDetectTimeout)
             };
         }
 
@@ -3440,17 +3740,8 @@ namespace NetSecurityScanner.Views
             {
                 try
                 {
-                    var report = new
-                    {
-                        ExportTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                        TotalTargets = _totalScannedTargets,
-                        TotalOpenPorts = _totalOpenPorts,
-                        TotalVulnerabilities = _allVulnResults.Count,
-                        PortScanResults = _allPortScanResults,
-                        VulnerabilityResults = _allVulnResults
-                    };
-                    var json = JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
-                    File.WriteAllText(dialog.FileName, json, new System.Text.UTF8Encoding(true));
+                    ExpertResultExportFormatter.WriteJsonFile(
+                        dialog.FileName, _allPortScanResults, _allVulnResults, _totalScannedTargets, _totalOpenPorts);
                     MessageBox.Show($"JSON报告已保存到:\n{dialog.FileName}", "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
@@ -3458,6 +3749,140 @@ namespace NetSecurityScanner.Views
                     MessageBox.Show($"导出失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
+        }
+
+        /// <summary>
+        /// 结果区「导出」按钮：点击展开下拉菜单（当前筛选 / 全部 × CSV / JSON）。
+        /// 与「导出CSV/导出JSON」共用 ExpertResultExportFormatter，只是数据来源不同。
+        /// </summary>
+        private void PortExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenExportMenu(PortExportButton);
+        }
+
+        private void VulnExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenExportMenu(VulnExportButton);
+        }
+
+        private static void OpenExportMenu(Button button)
+        {
+            if (button?.ContextMenu == null) return;
+            button.ContextMenu.PlacementTarget = button;
+            button.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            button.ContextMenu.IsOpen = true;
+        }
+
+        /// <summary>
+        /// 下拉菜单项统一入口：Tag 形如 "csv:current" / "json:all"。
+        /// </summary>
+        private void ExportPortResultsMenu_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuItem item && item.Tag is string tag)
+                ExportResultTable(isPort: true, tag);
+        }
+
+        private void ExportVulnResultsMenu_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuItem item && item.Tag is string tag)
+                ExportResultTable(isPort: false, tag);
+        }
+
+        /// <summary>
+        /// 导出单张结果表。current 表示取 DataGrid 当前视图（已应用筛选谓词），
+        /// all 表示取底层完整集合。两者都只读集合，不替换 ItemsSource。
+        /// </summary>
+        private void ExportResultTable(bool isPort, string tag)
+        {
+            var parts = tag.Split(':');
+            bool asJson = parts.Length > 0 && parts[0] == "json";
+            bool currentOnly = parts.Length > 1 && parts[1] == "current";
+
+            List<PortScanResult> ports;
+            List<VulnerabilityResult> vulns;
+            int totalCount;
+
+            if (isPort)
+            {
+                if (_allPortScanResults == null || _portResultsView == null) return;
+                totalCount = _allPortScanResults.Count;
+                ports = currentOnly
+                    ? _portResultsView.Cast<PortScanResult>().ToList()
+                    : _allPortScanResults.ToList();
+                vulns = new List<VulnerabilityResult>();
+            }
+            else
+            {
+                if (_allVulnResults == null || _vulnResultsView == null) return;
+                totalCount = _allVulnResults.Count;
+                vulns = currentOnly
+                    ? _vulnResultsView.Cast<VulnerabilityResult>().ToList()
+                    : _allVulnResults.ToList();
+                ports = new List<PortScanResult>();
+            }
+
+            int exportCount = isPort ? ports.Count : vulns.Count;
+            if (exportCount == 0)
+            {
+                var message = totalCount == 0
+                    ? "暂无可导出的结果，请先执行扫描。"
+                    : $"当前筛选下没有结果（共 {totalCount} 条，均被筛选隐藏），请重置筛选或选择「导出全部」。";
+                MessageBox.Show(message, "无可导出结果", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Filter = asJson ? "JSON文件 (*.json)|*.json" : "CSV文件 (*.csv)|*.csv",
+                FileName = BuildResultExportFileName(isPort, currentOnly, asJson),
+                Title = $"导出{(isPort ? "端口" : "漏洞")}结果（{(currentOnly ? "当前筛选" : "全部")}）"
+            };
+
+            if (dialog.ShowDialog() != true)
+                return;
+
+            try
+            {
+                if (asJson)
+                {
+                    ExpertResultExportFormatter.WriteJsonFile(
+                        dialog.FileName, ports, vulns, _totalScannedTargets, _totalOpenPorts);
+                }
+                else
+                {
+                    ExpertResultExportFormatter.WriteCsvFile(dialog.FileName, ports, vulns);
+                }
+
+                MessageBox.Show($"已导出 {exportCount} 条记录到:\n{dialog.FileName}",
+                    "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                AppendLog($"已导出{(isPort ? "端口" : "漏洞")}结果 {exportCount} 条到 {dialog.FileName}");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"导出失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 默认文件名区分端口/漏洞、当前筛选/全部，并带时间戳防止覆盖同名文件。
+        /// </summary>
+        private static string BuildResultExportFileName(bool isPort, bool currentOnly, bool asJson)
+        {
+            var type = isPort ? "端口结果" : "漏洞结果";
+            var scope = currentOnly ? "当前筛选" : "全部";
+            var extension = asJson ? "json" : "csv";
+            return $"{type}_{scope}_{DateTime.Now:yyyyMMdd_HHmmss}.{extension}";
+        }
+
+        /// <summary>
+        /// 无结果时禁用结果区导出按钮，避免点了只弹提示。
+        /// </summary>
+        private void UpdateResultExportButtonsState()
+        {
+            if (PortExportButton != null)
+                PortExportButton.IsEnabled = (_allPortScanResults?.Count ?? 0) > 0;
+            if (VulnExportButton != null)
+                VulnExportButton.IsEnabled = (_allVulnResults?.Count ?? 0) > 0;
         }
 
         /// <summary>
@@ -3557,6 +3982,12 @@ namespace NetSecurityScanner.Views
                         break;
                     case "json":
                         ExportByTargetJson();
+                        break;
+                    case "docx":
+                        // 修复死按钮：格式对话框里提供了 DOCX 选项，但 switch 此前没有对应
+                        // case，点击后无任何响应。与 ExportWithFormatSelection 的 docx 分支
+                        // 一致，复用 DOCX 导出（导出全部结果）。
+                        ExportDocxButton_Click(this, new RoutedEventArgs());
                         break;
                 }
             }
@@ -3825,14 +4256,19 @@ namespace NetSecurityScanner.Views
             sb.AppendLine("</head>");
             sb.AppendLine("<body>");
             sb.AppendLine("<div class=\"container\">");
-            sb.AppendLine($"<h1>🔧 {_reportTitle}</h1>");
+            // 安全修复：此前所有数据（含报告标题、目标 IP、服务版本、漏洞描述等）
+            // 未经 HTML 转义直接拼入报告。目标返回的 Banner / 漏洞库描述若含
+            // <script> 等 HTML 字符会注入报告页面（存储型 XSS 面）。统一走
+            // ScanReportExporter.HtmlEscape（与 Core 版 HTML 报告同一约定）。
+            string Esc(string s) => NetSecurityScanner.Core.Services.ScanReportExporter.HtmlEscape(s);
+            sb.AppendLine($"<h1>🔧 {Esc(_reportTitle)}</h1>");
             sb.AppendLine($"<p>生成时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}</p>");
             if (!string.IsNullOrEmpty(_reportCompany))
-                sb.AppendLine($"<p>公司: {_reportCompany}</p>");
+                sb.AppendLine($"<p>公司: {Esc(_reportCompany)}</p>");
             if (!string.IsNullOrEmpty(_reportAuthor))
-                sb.AppendLine($"<p>扫描人员: {_reportAuthor}</p>");
+                sb.AppendLine($"<p>扫描人员: {Esc(_reportAuthor)}</p>");
             if (!string.IsNullOrEmpty(_reportDescription))
-                sb.AppendLine($"<p>备注: {_reportDescription}</p>");
+                sb.AppendLine($"<p>备注: {Esc(_reportDescription)}</p>");
 
             sb.AppendLine("<div class=\"summary\">");
             sb.AppendLine($"<div class=\"summary-item\"><div class=\"number\">{_totalScannedTargets}</div><div class=\"label\">扫描目标数</div></div>");
@@ -3847,7 +4283,7 @@ namespace NetSecurityScanner.Views
                 foreach (var r in _allPortScanResults)
                 {
                     var statusColor = r.Status == "开放" ? "color:#27AE60;font-weight:bold;" : "color:#E74C3C;";
-                    sb.AppendLine($"<tr><td>{r.TargetIp}</td><td>{r.PortNumber}</td><td style=\"{statusColor}\">{r.Status}</td><td>{r.Service}</td><td>{r.ServiceVersion}</td><td>{r.ResponseTime}</td></tr>");
+                    sb.AppendLine($"<tr><td>{Esc(r.TargetIp)}</td><td>{r.PortNumber}</td><td style=\"{statusColor}\">{Esc(r.Status)}</td><td>{Esc(r.Service)}</td><td>{Esc(r.ServiceVersion)}</td><td>{r.ResponseTime}</td></tr>");
                 }
                 sb.AppendLine("</table>");
             }
@@ -3855,7 +4291,7 @@ namespace NetSecurityScanner.Views
             if (_allVulnResults.Count > 0)
             {
                 sb.AppendLine("<h2>⚠️ 漏洞扫描结果</h2>");
-                sb.AppendLine("<table><tr><th>序号</th><th>漏洞名称</th><th>CVE</th><th>风险等级</th><th>端口</th><th>服务</th><th>目标</th><th>描述</th></tr>");
+                sb.AppendLine("<table><tr><th>序号</th><th>漏洞名称</th><th>CVE</th><th>风险等级</th><th>端口</th><th>服务</th><th>目标</th><th>描述</th><th>修复方案</th></tr>");
                 foreach (var v in _allVulnResults)
                 {
                     string levelClass = v.RiskLevel switch
@@ -3865,7 +4301,8 @@ namespace NetSecurityScanner.Views
                         "低危" or "信息" => "low",
                         _ => ""
                     };
-                    sb.AppendLine($"<tr><td>{v.Id}</td><td>{v.Name}</td><td>{v.CveId}</td><td class=\"{levelClass}\">{v.RiskLevel}</td><td>{v.Port}</td><td>{v.Service}</td><td>{v.Target}</td><td>{v.Description}</td></tr>");
+                    var solution = (v.Solution ?? "").Replace("\n", "<br/>");
+                    sb.AppendLine($"<tr><td>{v.Id}</td><td>{Esc(v.Name)}</td><td>{Esc(v.CveId)}</td><td class=\"{levelClass}\">{Esc(v.RiskLevel)}</td><td>{v.Port}</td><td>{Esc(v.Service)}</td><td>{Esc(v.Target)}</td><td>{Esc(v.Description)}</td><td>{solution}</td></tr>");
                 }
                 sb.AppendLine("</table>");
             }
@@ -3876,30 +4313,14 @@ namespace NetSecurityScanner.Views
 
         private string GenerateCsvReport()
         {
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine("报告类型,目标IP,端口,状态,服务,版本,风险等级,CVE,描述");
-
-            foreach (var r in _allPortScanResults)
-            {
-                sb.AppendLine($"端口扫描,{r.TargetIp},{r.PortNumber},{r.Status},{EscapeCsv(r.Service)},{EscapeCsv(r.ServiceVersion)},,,");
-            }
-
-            foreach (var v in _allVulnResults)
-            {
-                sb.AppendLine($"漏洞扫描,{v.Target},{v.Port},,{EscapeCsv(v.Service)},{v.RiskLevel},{EscapeCsv(v.CveId)},{EscapeCsv(v.Description)}");
-            }
-
-            return sb.ToString();
+            // 与结果区「按表导出」共用 Core 中的同一份格式实现，避免两套 CSV 代码漂移
+            return ExpertResultExportFormatter.BuildCsv(_allPortScanResults, _allVulnResults);
         }
 
         private string EscapeCsv(string value)
         {
-            if (string.IsNullOrEmpty(value)) return "";
-            if (value.Contains(",") || value.Contains("\"") || value.Contains("\n"))
-            {
-                return $"\"{value.Replace("\"", "\"\"")}\"";
-            }
-            return value;
+            // 按目标导出等其它路径继续复用同一转义规则
+            return ExpertResultExportFormatter.EscapeCsvField(value);
         }
 
         /// <summary>
@@ -3975,6 +4396,10 @@ namespace NetSecurityScanner.Views
                 // 同步刷新数据可视化 Tab 中的图表，避免显示陈旧数据
                 try { RefreshCharts(); } catch { /* 图表未初始化时安全忽略 */ }
 
+                // 清空后复位筛选条件，避免残留的筛选描述与新数据语义不符
+                ResetPortFilters();
+                ResetVulnFilters();
+
                 AppendLog($"已清空所有扫描结果（清除了 {portCount} 个端口 + {vulnCount} 个漏洞）");
             }
             catch (Exception ex)
@@ -3988,9 +4413,8 @@ namespace NetSecurityScanner.Views
             if (RealTimePortResultsDataGrid == null) return;
             try
             {
-                // 重新绑定到 BulkObservableCollection，新结果将自动增量更新
-                RealTimePortResultsDataGrid.ItemsSource = _allPortScanResults;
-                RealTimePortResultsDataGrid.Items.Refresh();
+                // 清除类别谓词与关键字即可恢复全部行，ItemsSource 始终是同一个视图
+                ResetPortFilters();
                 AppendLog($"已重置端口结果筛选，当前显示全部 {_allPortScanResults.Count} 条");
             }
             catch (Exception ex)
@@ -4004,15 +4428,301 @@ namespace NetSecurityScanner.Views
             if (RealTimeVulnResultsDataGrid == null) return;
             try
             {
-                // 重新绑定到 BulkObservableCollection，新结果将自动增量更新
-                RealTimeVulnResultsDataGrid.ItemsSource = _allVulnResults;
-                RealTimeVulnResultsDataGrid.Items.Refresh();
+                // 清除类别谓词与关键字即可恢复全部行，ItemsSource 始终是同一个视图
+                ResetVulnFilters();
                 AppendLog($"已重置漏洞结果筛选，当前显示全部 {_allVulnResults.Count} 条");
             }
             catch (Exception ex)
             {
                 AppendLog($"重置漏洞筛选失败: {ex.Message}");
             }
+        }
+
+        // ===== 结果过滤：按钮类别筛选 + 关键字过滤叠加生效，只改视图谓词 =====
+
+        private void PortResultSearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyPortFilter();
+        }
+
+        private void VulnResultSearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyVulnFilter();
+        }
+
+        /// <summary>
+        /// 应用端口结果过滤：类别谓词（上下文菜单按钮设置）与关键字同时生效。
+        /// 始终只修改 _portResultsView.Filter，绝不替换 ItemsSource。
+        /// </summary>
+        private void ApplyPortFilter()
+        {
+            if (_portResultsView == null) return;
+            try
+            {
+                var keyword = PortResultSearchTextBox?.Text?.Trim() ?? "";
+                var category = _portCategoryFilter;
+                if (category == null && keyword.Length == 0)
+                {
+                    _portResultsView.Filter = null;
+                }
+                else
+                {
+                    _portResultsView.Filter = o => o is PortScanResult r
+                        && (category == null || category(o))
+                        && (keyword.Length == 0 || MatchPortKeyword(r, keyword));
+                }
+                _portResultsView.Refresh();
+                UpdatePortFilterStatus();
+                // 关键字变化不经过类别按钮的 Click，这里统一同步激活态与 Reset 可用态
+                UpdateFilterToggleButtons(isPort: true);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"端口结果过滤失败: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 应用漏洞结果过滤：类别谓词与关键字同时生效，ItemsSource 保持不变。
+        /// </summary>
+        private void ApplyVulnFilter()
+        {
+            if (_vulnResultsView == null) return;
+            try
+            {
+                var keyword = VulnResultSearchTextBox?.Text?.Trim() ?? "";
+                var category = _vulnCategoryFilter;
+                if (category == null && keyword.Length == 0)
+                {
+                    _vulnResultsView.Filter = null;
+                }
+                else
+                {
+                    _vulnResultsView.Filter = o => o is VulnerabilityResult v
+                        && (category == null || category(o))
+                        && (keyword.Length == 0 || MatchVulnKeyword(v, keyword));
+                }
+                _vulnResultsView.Refresh();
+                UpdateVulnFilterStatus();
+                // 关键字变化不经过类别按钮的 Click，这里统一同步激活态与 Reset 可用态
+                UpdateFilterToggleButtons(isPort: false);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"漏洞结果过滤失败: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 重置端口结果的全部筛选条件（类别 + 关键字）。
+        /// 「仅显示开放端口」勾选作为持久偏好：只要仍勾选，重置后自动重放该过滤，
+        /// 使它在新建扫描 / 清空结果 / 手动重置三条路径上保持一致（US-B1）。
+        /// </summary>
+        private void ResetPortFilters()
+        {
+            _portCategoryFilter = null;
+            _portFilterDescription = "全部";
+            if (PortResultSearchTextBox != null)
+                PortResultSearchTextBox.Text = ""; // TextChanged 会触发一次 ApplyPortFilter
+
+            if (ShowOpenOnlyCheckBox?.IsChecked == true)
+            {
+                _portCategoryFilter = o => o is PortScanResult r && r.Status == "开放";
+                _portFilterDescription = "仅开放端口";
+            }
+
+            ApplyPortFilter();
+            UpdateFilterToggleButtons(isPort: true);
+        }
+
+        /// <summary>
+        /// 重置漏洞结果的全部筛选条件（类别 + 关键字）
+        /// </summary>
+        private void ResetVulnFilters()
+        {
+            _vulnCategoryFilter = null;
+            _vulnFilterDescription = "全部";
+            if (VulnResultSearchTextBox != null)
+                VulnResultSearchTextBox.Text = "";
+            ApplyVulnFilter();
+            UpdateFilterToggleButtons(isPort: false);
+        }
+
+        /// <summary>
+        /// 根据 _portFilterDescription / _vulnFilterDescription 同步 ToggleButton 的 IsChecked 状态。
+        /// ToggleButton 点击会自动翻转 IsChecked（WPF 内置行为），我们在事件处理方法里设置完
+        /// category filter + ApplyXxxFilter 后，再根据 description 把 IsChecked 强制设回正确状态，
+        /// 确保视觉与实际筛选逻辑一致。Reset Button 的 IsEnabled 也在此根据筛选条件是否存在来同步。
+        /// </summary>
+        private void UpdateFilterToggleButtons(bool isPort)
+        {
+            if (isPort)
+            {
+                if (PortFilterOpenToggle == null || PortFilterHighRiskToggle == null) return;
+
+                string desc = _portFilterDescription ?? "";
+                bool openChecked = desc == "仅开放端口";
+                bool highRiskChecked = desc == "高危/严重端口（分值≥15）";
+
+                // 用 SetCurrentValue 回写激活态：不覆盖本地值/绑定，且值未变化时不会重复触发布局，
+                // 避免在 Click 里再次改动 IsChecked 引起抖动或事件回环。
+                PortFilterOpenToggle.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, openChecked);
+                PortFilterHighRiskToggle.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, highRiskChecked);
+
+                var keyword = PortResultSearchTextBox?.Text?.Trim() ?? "";
+                PortResetFilterButton?.SetCurrentValue(Button.IsEnabledProperty,
+                    _portCategoryFilter != null || keyword.Length > 0);
+            }
+            else
+            {
+                if (VulnFilterHighRiskToggle == null || VulnFilterMediumRiskToggle == null) return;
+
+                string desc = _vulnFilterDescription ?? "";
+                bool highRiskChecked = desc == "高危/严重漏洞";
+                bool mediumRiskChecked = desc == "中危漏洞";
+
+                VulnFilterHighRiskToggle.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, highRiskChecked);
+                VulnFilterMediumRiskToggle.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, mediumRiskChecked);
+
+                var keyword = VulnResultSearchTextBox?.Text?.Trim() ?? "";
+                VulnResetFilterButton?.SetCurrentValue(Button.IsEnabledProperty,
+                    _vulnCategoryFilter != null || keyword.Length > 0);
+            }
+        }
+
+        /// <summary>
+        /// 端口结果关键字匹配：纯数字按端口号精确匹配（避免 "80" 误命中 8080），
+        /// 其它输入按 IP/服务/版本/类别/风险等级/漏洞提示模糊匹配（忽略大小写）。
+        /// </summary>
+        private static bool MatchPortKeyword(PortScanResult r, string keyword)
+        {
+            if (r == null) return false;
+            if (int.TryParse(keyword, out int port))
+                return r.PortNumber == port;
+            return ContainsIgnoreCase(r.TargetIp, keyword)
+                || ContainsIgnoreCase(r.Service, keyword)
+                || ContainsIgnoreCase(r.ServiceVersion, keyword)
+                || ContainsIgnoreCase(r.ServiceCategory, keyword)
+                || ContainsIgnoreCase(r.RiskLevel, keyword)
+                || ContainsIgnoreCase(r.VulnHint, keyword);
+        }
+
+        /// <summary>
+        /// 漏洞结果关键字匹配：规则同端口结果，数字按端口精确匹配。
+        /// </summary>
+        private static bool MatchVulnKeyword(VulnerabilityResult v, string keyword)
+        {
+            if (v == null) return false;
+            if (int.TryParse(keyword, out int port))
+                return v.Port == port;
+            return ContainsIgnoreCase(v.Target, keyword)
+                || ContainsIgnoreCase(v.Name, keyword)
+                || ContainsIgnoreCase(v.CveId, keyword)
+                || ContainsIgnoreCase(v.Service, keyword)
+                || ContainsIgnoreCase(v.RiskLevel, keyword)
+                || ContainsIgnoreCase(v.Description, keyword);
+        }
+
+        private static bool ContainsIgnoreCase(string? text, string keyword)
+            => text != null && text.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0;
+
+        /// <summary>
+        /// 更新端口结果的筛选状态栏（显示 X / 共 Y 条 + 当前生效条件）
+        /// </summary>
+        private void UpdatePortFilterStatus()
+        {
+            if (PortFilterStatusTextBlock == null) return;
+            try
+            {
+                int total = _allPortScanResults?.Count ?? 0;
+                int shown = _portResultsView?.Count ?? 0;
+                var keyword = PortResultSearchTextBox?.Text?.Trim() ?? "";
+                bool filtered = _portCategoryFilter != null || keyword.Length > 0;
+
+                var parts = new List<string>();
+                if (_portCategoryFilter != null && _portFilterDescription != "全部")
+                    parts.Add(_portFilterDescription);
+                if (keyword.Length > 0)
+                    parts.Add($"关键字“{keyword}”");
+
+                PortFilterStatusTextBlock.Text = filtered
+                    ? $"显示 {shown} / 共 {total} 条（{string.Join(" + ", parts)}）"
+                    : $"显示全部 {total} 条";
+                PortFilterStatusTextBlock.Foreground = new SolidColorBrush(filtered
+                    ? Color.FromRgb(0x34, 0x98, 0xDB)
+                    : Color.FromRgb(0x7F, 0x8C, 0x8D));
+            }
+            catch { /* 窗口销毁阶段忽略 */ }
+        }
+
+        /// <summary>
+        /// 更新漏洞结果的筛选状态栏
+        /// </summary>
+        private void UpdateVulnFilterStatus()
+        {
+            if (VulnFilterStatusTextBlock == null) return;
+            try
+            {
+                int total = _allVulnResults?.Count ?? 0;
+                int shown = _vulnResultsView?.Count ?? 0;
+                var keyword = VulnResultSearchTextBox?.Text?.Trim() ?? "";
+                bool filtered = _vulnCategoryFilter != null || keyword.Length > 0;
+
+                var parts = new List<string>();
+                if (_vulnCategoryFilter != null && _vulnFilterDescription != "全部")
+                    parts.Add(_vulnFilterDescription);
+                if (keyword.Length > 0)
+                    parts.Add($"关键字“{keyword}”");
+
+                VulnFilterStatusTextBlock.Text = filtered
+                    ? $"显示 {shown} / 共 {total} 条（{string.Join(" + ", parts)}）"
+                    : $"显示全部 {total} 条";
+                VulnFilterStatusTextBlock.Foreground = new SolidColorBrush(filtered
+                    ? Color.FromRgb(0x34, 0x98, 0xDB)
+                    : Color.FromRgb(0x7F, 0x8C, 0x8D));
+            }
+            catch { /* 窗口销毁阶段忽略 */ }
+        }
+
+        /// <summary>
+        /// 合并密集的集合变更通知：扫描期间结果会持续写入，用挂起标记保证每轮只刷新一次状态栏
+        /// </summary>
+        private void ScheduleFilterStatusUpdate(bool isPort)
+        {
+            try
+            {
+                if (Dispatcher == null || Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+                    return;
+
+                if (isPort)
+                {
+                    if (_portFilterStatusPending) return;
+                    _portFilterStatusPending = true;
+                }
+                else
+                {
+                    if (_vulnFilterStatusPending) return;
+                    _vulnFilterStatusPending = true;
+                }
+
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (isPort)
+                    {
+                        _portFilterStatusPending = false;
+                        UpdatePortFilterStatus();
+                    }
+                    else
+                    {
+                        _vulnFilterStatusPending = false;
+                        UpdateVulnFilterStatus();
+                    }
+
+                    // 结果从 0 → N（或反向）时同步导出按钮可用态，避免空表可点击
+                    UpdateResultExportButtonsState();
+                }), DispatcherPriority.Background);
+            }
+            catch { /* 窗口销毁阶段忽略 */ }
         }
 
         private void CopyResultsButton_Click(object sender, RoutedEventArgs e)
@@ -4229,18 +4939,17 @@ namespace NetSecurityScanner.Views
 
         private void FilterOpenPorts_Click(object sender, RoutedEventArgs e)
         {
-            if (RealTimePortResultsDataGrid == null || _allPortScanResults == null) return;
+            if (RealTimePortResultsDataGrid == null || _portResultsView == null) return;
             try
             {
-                // Task 8.5：先在锁内取快照 + 过滤，再绑定到 UI
-                List<PortScanResult> filtered;
-                lock (_resultsLock)
-                {
-                    filtered = _allPortScanResults.Where(r => r.Status == "开放").ToList();
-                }
-                RealTimePortResultsDataGrid.ItemsSource = null;
-                RealTimePortResultsDataGrid.ItemsSource = filtered;
-                AppendLog($"已筛选开放端口，共 {filtered.Count} 个");
+                // 同步勾选「仅显示开放端口」（Checked 事件本身也会应用过滤，此处保持幂等）
+                if (ShowOpenOnlyCheckBox != null) ShowOpenOnlyCheckBox.IsChecked = true;
+                // 设置类别谓词后统一走 ApplyPortFilter：与关键字叠加，ItemsSource 保持不变
+                _portCategoryFilter = o => o is PortScanResult r && r.Status == "开放";
+                _portFilterDescription = "仅开放端口";
+                ApplyPortFilter();
+                UpdateFilterToggleButtons(isPort: true);
+                AppendLog($"已筛选开放端口，共 {_portResultsView.Count} 个（后续结果仍实时更新）");
             }
             catch (Exception ex)
             {
@@ -4250,22 +4959,60 @@ namespace NetSecurityScanner.Views
 
         private void FilterHighRiskPorts_Click(object sender, RoutedEventArgs e)
         {
-            if (RealTimePortResultsDataGrid == null || _allPortScanResults == null) return;
+            if (RealTimePortResultsDataGrid == null || _portResultsView == null) return;
             try
             {
-                // 筛选高危+严重端口（RiskScore >= 15）
-                List<PortScanResult> filtered;
-                lock (_resultsLock)
-                {
-                    filtered = _allPortScanResults.Where(r => r.RiskScore >= 15).ToList();
-                }
-                RealTimePortResultsDataGrid.ItemsSource = null;
-                RealTimePortResultsDataGrid.ItemsSource = filtered;
-                AppendLog($"已筛选高危/严重端口，共 {filtered.Count} 个");
+                // 高危及「仅开放」互斥：选中高危时取消「仅显示开放端口」勾选，避免界面自相矛盾
+                if (ShowOpenOnlyCheckBox != null) ShowOpenOnlyCheckBox.IsChecked = false;
+                // 筛选高危+严重端口（RiskScore >= 15），同样只改谓词
+                _portCategoryFilter = o => o is PortScanResult r && r.RiskScore >= 15;
+                _portFilterDescription = "高危/严重端口（分值≥15）";
+                ApplyPortFilter();
+                UpdateFilterToggleButtons(isPort: true);
+                AppendLog($"已筛选高危/严重端口，共 {_portResultsView.Count} 个（后续结果仍实时更新）");
             }
             catch (Exception ex)
             {
                 AppendLog($"高危筛选失败: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// US-B1：「仅显示开放端口」勾选 —— 直接控制结果表默认过滤。
+        /// 与上下文菜单「仅开放」共用 _portCategoryFilter 谓词；勾选即时生效，
+        /// 并作为持久偏好在新扫描/清空/手动重置后仍保持（见 ResetPortFilters）。
+        /// </summary>
+        private void ShowOpenOnlyCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            if (ShowOpenOnlyCheckBox?.IsChecked != true) return;
+            if (RealTimePortResultsDataGrid == null || _portResultsView == null) return;
+            try
+            {
+                _portCategoryFilter = o => o is PortScanResult r && r.Status == "开放";
+                _portFilterDescription = "仅开放端口";
+                ApplyPortFilter();
+                AppendLog("✓ 已启用「仅显示开放端口」，结果表仅显示开放端口");
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"启用「仅显示开放端口」失败: {ex.Message}");
+            }
+        }
+
+        private void ShowOpenOnlyCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            if (ShowOpenOnlyCheckBox?.IsChecked != false) return;
+            if (RealTimePortResultsDataGrid == null || _portResultsView == null) return;
+            try
+            {
+                _portCategoryFilter = null;
+                _portFilterDescription = "全部";
+                ApplyPortFilter();
+                AppendLog("已取消「仅显示开放端口」，结果表显示全部");
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"取消「仅显示开放端口」失败: {ex.Message}");
             }
         }
 
@@ -4378,17 +5125,15 @@ namespace NetSecurityScanner.Views
         private void FilterHighRisk_Click(object sender, RoutedEventArgs e)
         {
             // Task 8.5：null 守卫
-            if (RealTimeVulnResultsDataGrid == null || _allVulnResults == null) return;
+            if (RealTimeVulnResultsDataGrid == null || _vulnResultsView == null) return;
             try
             {
-                List<VulnerabilityResult> filtered;
-                lock (_resultsLock)
-                {
-                    filtered = _allVulnResults.Where(v => v.RiskLevel == "高危" || v.RiskLevel == "严重").ToList();
-                }
-                RealTimeVulnResultsDataGrid.ItemsSource = null;
-                RealTimeVulnResultsDataGrid.ItemsSource = filtered;
-                AppendLog($"已筛选高危漏洞，共 {filtered.Count} 个");
+                // 设置类别谓词后统一走 ApplyVulnFilter：与关键字叠加，ItemsSource 保持不变
+                _vulnCategoryFilter = o => o is VulnerabilityResult v && (v.RiskLevel == "高危" || v.RiskLevel == "严重");
+                _vulnFilterDescription = "高危/严重漏洞";
+                ApplyVulnFilter();
+                UpdateFilterToggleButtons(isPort: false);
+                AppendLog($"已筛选高危漏洞，共 {_vulnResultsView.Count} 个（后续结果仍实时更新）");
             }
             catch (Exception ex)
             {
@@ -4399,17 +5144,14 @@ namespace NetSecurityScanner.Views
         private void FilterMediumRisk_Click(object sender, RoutedEventArgs e)
         {
             // Task 8.5：null 守卫
-            if (RealTimeVulnResultsDataGrid == null || _allVulnResults == null) return;
+            if (RealTimeVulnResultsDataGrid == null || _vulnResultsView == null) return;
             try
             {
-                List<VulnerabilityResult> filtered;
-                lock (_resultsLock)
-                {
-                    filtered = _allVulnResults.Where(v => v.RiskLevel == "中危").ToList();
-                }
-                RealTimeVulnResultsDataGrid.ItemsSource = null;
-                RealTimeVulnResultsDataGrid.ItemsSource = filtered;
-                AppendLog($"已筛选中危漏洞，共 {filtered.Count} 个");
+                _vulnCategoryFilter = o => o is VulnerabilityResult v && v.RiskLevel == "中危";
+                _vulnFilterDescription = "中危漏洞";
+                ApplyVulnFilter();
+                UpdateFilterToggleButtons(isPort: false);
+                AppendLog($"已筛选中危漏洞，共 {_vulnResultsView.Count} 个（后续结果仍实时更新）");
             }
             catch (Exception ex)
             {
@@ -4484,20 +5226,19 @@ namespace NetSecurityScanner.Views
                     var vulns = await _vulnerabilityScanner.ScanVulnerabilitiesAsync(result.TargetIp,
                         new List<PortScanResult> { result }, CancellationToken.None);
                     // Task 8.5：写操作加锁，UI 操作放 lock 外避免死锁
-                    List<VulnerabilityResult> snapshot;
                     lock (_resultsLock)
                     {
                         foreach (var v in vulns)
                         {
                             _allVulnResults.Add(v);
                         }
-                        snapshot = _allVulnResults.ToList();
                     }
                     Dispatcher.Invoke(() =>
                     {
-                        RealTimeVulnResultsDataGrid.ItemsSource = snapshot;
-                        RealTimeVulnResultsDataGrid.Items.Refresh();
-                        VulnerabilitiesStat.Text = snapshot.Count.ToString();
+                        // 不替换 ItemsSource（历史缺陷：替换成快照会让后续扫描/深度扫描结果不再显示）。
+                        // 新漏洞已写入 _allVulnResults，视图收到集合通知后自动刷新。
+                        _vulnResultsView?.Refresh();
+                        if (VulnerabilitiesStat != null) VulnerabilitiesStat.Text = _allVulnResults.Count.ToString();
                     });
                     AppendLog($"深度扫描完成: 发现 {vulns.Count} 个漏洞");
                 }
@@ -4512,7 +5253,7 @@ namespace NetSecurityScanner.Views
             }
         }
 
-        private void ExportPdfButton_Click(object sender, RoutedEventArgs e)
+        private async void ExportPdfButton_Click(object sender, RoutedEventArgs e)
         {
             if (_allPortScanResults.Count == 0 && _allVulnResults.Count == 0)
             {
@@ -4529,58 +5270,85 @@ namespace NetSecurityScanner.Views
 
             if (dialog.ShowDialog() == true)
             {
-                string tempHtml = Path.Combine(Path.GetTempPath(), $"expert_report_{Guid.NewGuid():N}.html");
                 try
                 {
-                    // Generate PDF using HTML-to-PDF approach (same as MainWindow)
-                    var html = GenerateHtmlReport();
-                    File.WriteAllText(tempHtml, html, Encoding.UTF8);
+                    // 直接调用 Core 层成熟的 iTextSharp 报告引擎（封面/目录/分节/风险徽章/中文字体）。
+                    // 此前这里通过反射查找 "NetSecurityScanner.Services.ReportEngine"——该类在
+                    // 全代码库中根本不存在，反射必然失败走 catch，最终把 HTML 改名保存，
+                    // 造成「按钮承诺 PDF、实际交付 HTML」的假导出。现按目标分组构造
+                    // CompleteScanResult 后交给 HistoryReportGenerator 真正生成 PDF。
+                    var records = BuildCompleteScanRecordsFromResults();
+                    var generatedPath = await Task.Run(() => records.Count == 1
+                        ? NetSecurityScanner.Services.HistoryReportGenerator.GenerateFromHistoryRecordToPath(records[0], dialog.FileName)
+                        : NetSecurityScanner.Services.HistoryReportGenerator.GenerateFromMultipleRecordsToPath(records, dialog.FileName));
 
-                    // Use the project's ReportEngine if available, otherwise simple file save
-                    object engine = null;
-                    try
-                    {
-                        var reportEngineType = System.Reflection.Assembly.GetExecutingAssembly().GetType("NetSecurityScanner.Services.ReportEngine")
-                            ?? System.Reflection.Assembly.GetEntryAssembly()?.GetType("NetSecurityScanner.Services.ReportEngine");
-                        if (reportEngineType != null)
-                        {
-                            engine = Activator.CreateInstance(reportEngineType);
-                            dynamic dynEngine = engine;
-                            dynEngine.GeneratePdfFromHtml(tempHtml, dialog.FileName);
-                        }
-                        else
-                        {
-                            throw new InvalidOperationException("ReportEngine not available");
-                        }
-                    }
-                    catch
-                    {
-                        // Fallback: save as HTML with .pdf extension note
-                        var htmlOut = Path.ChangeExtension(dialog.FileName, ".html");
-                        if (string.IsNullOrEmpty(htmlOut)) htmlOut = dialog.FileName + ".html";
-                        File.Copy(tempHtml, htmlOut, true);
-                        MessageBox.Show("PDF引擎不可用，已导出为HTML格式。可使用浏览器打印为PDF。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
-                        return;
-                    }
-                    finally
-                    {
-                        // Dispose engine if it implements IDisposable
-                        if (engine is IDisposable disp) try { disp.Dispose(); } catch { }
-                    }
-
-                    if (File.Exists(dialog.FileName))
+                    if (File.Exists(generatedPath))
+                        MessageBox.Show($"PDF报告已保存到:\n{generatedPath}", "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    else
                         MessageBox.Show($"PDF报告已保存到:\n{dialog.FileName}", "导出成功", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"导出PDF失败: {ex.Message}\n\n建议使用「导出HTML」后在浏览器中打印为PDF。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
-                finally
-                {
-                    // 删除临时 HTML 文件，避免临时目录累积
-                    try { if (File.Exists(tempHtml)) File.Delete(tempHtml); } catch { }
+                    MessageBox.Show($"导出PDF失败: {ex.Message}\n\n可改用「导出HTML」后在浏览器中打印为PDF。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
+        }
+
+        /// <summary>
+        /// 把当前实时结果按目标分组整理为 CompleteScanResult 列表，
+        /// 供 PDF/Word 报告引擎消费（与扫描历史入库时的构造方式一致）。
+        /// </summary>
+        private List<NetSecurityScanner.Models.CompleteScanResult> BuildCompleteScanRecordsFromResults()
+        {
+            var targetIps = _allPortScanResults.Select(r => r.TargetIp)
+                .Concat(_allVulnResults.Select(v => v.Target))
+                .Where(t => !string.IsNullOrEmpty(t))
+                .Distinct()
+                .ToList();
+
+            var records = new List<NetSecurityScanner.Models.CompleteScanResult>();
+            foreach (var target in targetIps)
+            {
+                var ports = _allPortScanResults.Where(r => r.TargetIp == target).ToList();
+                var vulns = _allVulnResults.Where(v => v.Target == target).ToList();
+                var riskLevel = CalculateRiskLevel(ports.Count(r => r.Status == "开放"), vulns.Count);
+
+                records.Add(new NetSecurityScanner.Models.CompleteScanResult
+                {
+                    TargetIp = target,
+                    ScanType = "专家模式扫描",
+                    ScanTime = DateTime.Now,
+                    ScanDuration = 0,
+                    OpenPortsCount = ports.Count(r => r.Status == "开放"),
+                    VulnerabilitiesCount = vulns.Count,
+                    RiskLevel = riskLevel,
+                    PortScanResults = ports,
+                    VulnerabilityResults = vulns,
+                    RiskAssessment = new NetSecurityScanner.Models.RiskAssessmentSummary
+                    {
+                        TotalVulnerabilities = vulns.Count,
+                        RiskScore = Math.Min(100, ports.Count(r => r.Status == "开放") * 5 + vulns.Count * 10),
+                        RiskLevel = riskLevel == "高" ? "高风险" : (riskLevel == "中" ? "中风险" : "低风险"),
+                        SecurityAdvice = $"专家模式扫描完成，发现 {ports.Count(r => r.Status == "开放")} 个开放端口和 {vulns.Count} 个漏洞。建议对高危端口和漏洞进行安全加固。"
+                    }
+                });
+            }
+
+            // 兜底：结果存在但目标字段为空（异常数据）时合并为单条记录
+            if (records.Count == 0)
+            {
+                records.Add(new NetSecurityScanner.Models.CompleteScanResult
+                {
+                    TargetIp = "(多目标合并)",
+                    ScanType = "专家模式扫描",
+                    ScanTime = DateTime.Now,
+                    OpenPortsCount = _allPortScanResults.Count(r => r.Status == "开放"),
+                    VulnerabilitiesCount = _allVulnResults.Count,
+                    PortScanResults = _allPortScanResults.ToList(),
+                    VulnerabilityResults = _allVulnResults.ToList()
+                });
+            }
+            return records;
         }
 
         private void SafeSetClipboard(string text)
@@ -5066,7 +5834,7 @@ namespace NetSecurityScanner.Views
                 var exe = RustScannerClient.FindRustScannerExecutable();
                 if (exe != null)
                 {
-                    EngineStatusTextBlock.Text = "✅ Rust 引擎就绪（高性能，推荐）";
+                    EngineStatusTextBlock.Text = "✅ RustScan 引擎就绪（高性能，推荐）";
                     EngineStatusTextBlock.Foreground = new SolidColorBrush(Color.FromRgb(0x27, 0xAE, 0x60));
                     if (EnginePathTextBlock != null)
                     {
@@ -5103,6 +5871,150 @@ namespace NetSecurityScanner.Views
         /// <summary>
         /// 异步自检 Rust 引擎：启动、连接、查询状态、停止
         /// </summary>
+        #region Nmap 引导（检测 / 安装 / 命令执行）
+
+        /// <summary>刷新 nmap 引导面板。version 为 null 时只显示路径，不重复读版本。</summary>
+        private void RefreshNmapGuideStatus(string? version)
+        {
+            if (NmapGuideTextBlock == null) return;
+            if (_nmapAvailable && _nmapExecutor != null)
+            {
+                NmapGuideTextBlock.Text = string.IsNullOrEmpty(version)
+                    ? "✅ 已检测到 Nmap 引擎（点「检测Nmap」读取版本）"
+                    : $"✅ Nmap 就绪：{version}";
+                NmapGuideTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(39, 174, 96));
+                NmapPathTextBlock.Text = "路径: " + (_nmapExecutor.NmapPath ?? "(未知)");
+                if (NmapEngineRadio != null) NmapEngineRadio.IsEnabled = true;
+                if (NmapRunHintTextBlock != null)
+                    NmapRunHintTextBlock.Text = "Nmap 引擎已就绪：点击「▶ 用Nmap执行」按当前配置真实扫描，SYN/OS/脚本等高级选项可生效。";
+            }
+            else
+            {
+                NmapGuideTextBlock.Text = "⚠️ 未检测到 Nmap：仅能生成命令文本，点「安装指引」下载安装";
+                NmapGuideTextBlock.Foreground = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromRgb(192, 57, 43));
+                NmapPathTextBlock.Text = "查找范围：应用目录 tools\\nmap\\、C:\\Program Files\\Nmap、系统 PATH";
+                if (NmapEngineRadio != null) NmapEngineRadio.IsEnabled = false;
+                if (NmapRunHintTextBlock != null)
+                    NmapRunHintTextBlock.Text = "未安装 nmap 时仍可使用 RustScan/内置引擎扫描；「▶ 用Nmap执行」会弹出安装引导。";
+            }
+        }
+
+        /// <summary>检测本机 nmap：探测路径 + 调用 --version 读取版本，失败给出安装引导。</summary>
+        private async void DetectNmapButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (DetectNmapButton == null) return;
+            DetectNmapButton.IsEnabled = false;
+            AppendLog("🔍 正在检测本机 nmap...");
+            try
+            {
+                var path = NmapEngineExecutor.LocateNmap();
+                if (string.IsNullOrEmpty(path))
+                {
+                    _nmapExecutor = null;
+                    _nmapAvailable = false;
+                    RefreshNmapGuideStatus(null);
+                    AppendLog("❌ 未找到 nmap.exe（已查应用目录 / Program Files / PATH）");
+                    var result = MessageBox.Show(
+                        "未在本机检测到 nmap。\n\n安装 nmap 后可启用 Nmap 引擎，让 SYN 扫描、OS 识别、脚本扫描等高级选项真实生效。\n\n是否打开官方下载页？",
+                        "Nmap 检测", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                    if (result == MessageBoxResult.Yes)
+                        OpenNmapDownloadPage();
+                    return;
+                }
+
+                _nmapExecutor = new NmapEngineExecutor(path);
+                _nmapAvailable = true;
+                string? version = null;
+                try
+                {
+                    version = await _nmapExecutor.GetVersionAsync();
+                }
+                catch (Exception verEx)
+                {
+                    AppendLog($"⚠️ 版本读取失败（不影响使用）: {verEx.Message}");
+                }
+                RefreshNmapGuideStatus(version);
+                AppendLog($"✅ 检测到 nmap: {path}{(string.IsNullOrEmpty(version) ? "" : " | " + version)}");
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"❌ 检测 nmap 异常: {ex.Message}");
+            }
+            finally
+            {
+                DetectNmapButton.IsEnabled = true;
+            }
+        }
+
+        /// <summary>打开 nmap 官方下载页。</summary>
+        private void InstallNmapButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenNmapDownloadPage();
+            AppendLog("🌐 已打开 nmap 官方下载页: https://nmap.org/download.html");
+        }
+
+        private void OpenNmapDownloadPage()
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "https://nmap.org/download.html",
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"无法打开下载页: {ex.Message}\n\n请手动访问 https://nmap.org/download.html",
+                    "Nmap 安装指引", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        /// <summary>
+        /// 从命令预览区调用 nmap 真实执行当前配置。
+        /// 复用已有的 ExecuteNmapScanAsync（内部从 config 重建命令并解析 XML），
+        /// 未安装 nmap 时弹出安装引导而非静默回退到内置引擎。
+        /// </summary>
+        private void RunNmapEngineBtn_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isScanning || _isQueueRunning)
+            {
+                AppendLog("⚠️ 已有扫描或队列在执行，请等待完成后再用 Nmap 执行");
+                return;
+            }
+
+            // 执行前重新探测一次，覆盖"安装后未点检测"的场景
+            var path = NmapEngineExecutor.LocateNmap();
+            if (string.IsNullOrEmpty(path))
+            {
+                _nmapAvailable = false;
+                _nmapExecutor = null;
+                RefreshNmapGuideStatus(null);
+                var result = MessageBox.Show(
+                    "未检测到本机 nmap，无法执行。\n\n是否打开官方下载页安装后再试？",
+                    "Nmap 引擎不可用", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (result == MessageBoxResult.Yes) OpenNmapDownloadPage();
+                return;
+            }
+
+            _nmapExecutor = new NmapEngineExecutor(path);
+            _nmapAvailable = true;
+            RefreshNmapGuideStatus(null);
+            NmapEngineRadio.IsChecked = true;
+
+            RefreshNmapPreviewBtn_Click(sender, e);
+            // 选中 Nmap 引擎（同组互斥会自动取消 Rust，Checked 事件里已把 _useRustScanner 置 false），
+            // 再复用完整扫描入口：它统一处理输入校验、_isScanning 防重入、按钮状态、
+            // 结果落库、漏洞扫描与历史记录，比在此处手写目标/端口循环更一致、更少副作用。
+            NmapEngineRadio.IsChecked = true;
+            AppendLog("🚀 使用 Nmap 引擎执行扫描（按当前目标配置）...");
+            StartExpertScanButton_Click(sender, e);
+        }
+
+        #endregion
+
         private async void TestRustEngineButton_Click(object sender, RoutedEventArgs e)
         {
             if (TestRustEngineButton == null) return;
@@ -5213,6 +6125,252 @@ namespace NetSecurityScanner.Views
             }
         }
 
+        #region 批量扫描队列 (EXP-002)
+
+        /// <summary>
+        /// 批量扫描队列中的一条任务。
+        /// DataGrid 仅展示 Name / TargetText / Status 三列，Config 不参与绑定。
+        /// </summary>
+        public class ExpertScanQueueItem
+        {
+            public string Name { get; set; } = "";
+            public string TargetText { get; set; } = "";
+            public string Status { get; set; } = "等待中";
+            public ExpertScanConfiguration Config { get; set; }
+        }
+
+        /// <summary>
+        /// 把当前「目标配置」页的内容作为一个任务加入队列。
+        /// 使用 CollectConfig() 快照：加入后即使用户再改界面参数，也不影响已入队任务。
+        /// </summary>
+        private void QueueAddCurrentButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var targetText = TargetInputTextBox?.Text?.Trim() ?? "";
+                if (string.IsNullOrEmpty(targetText))
+                {
+                    MessageBox.Show("请先在「目标配置」页填写扫描目标，再加入队列。",
+                        "队列为空任务", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var config = CollectConfig();
+                // 任务的目标独立于配置页：用任务自己的目标文本覆盖快照中的 TargetValue，
+                // TargetType 沿用用户当前选择（Single/Range/CIDR/File/Regex 均由 ResolveTargets 解析）。
+                config.TargetValue = targetText;
+
+                var name = $"任务 {DateTime.Now:HHmmss} - {targetText}";
+                if (name.Length > 60) name = name.Substring(0, 57) + "...";
+
+                _scanQueue.Add(new ExpertScanQueueItem
+                {
+                    Name = name,
+                    TargetText = targetText.Length > 80 ? targetText.Substring(0, 77) + "..." : targetText,
+                    Config = config
+                });
+                UpdateQueueProgress();
+                AppendLog($"📥 已加入扫描队列: {name}（队列共 {_scanQueue.Count} 项）");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"加入队列失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// 把「目标配置」页已创建的目标分组（内存字典）加入队列，每个分组一个任务。
+        /// 分组为纯内存数据，窗口关闭即消失，恰好与队列的生命周期一致。
+        /// </summary>
+        private void QueueAddGroupButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_targetGroups == null || _targetGroups.Count == 0)
+                {
+                    MessageBox.Show("尚无目标分组。请先在「目标配置」页的分组管理中创建分组并分配目标。",
+                        "无分组", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                int added = 0;
+                foreach (var kv in _targetGroups)
+                {
+                    if (kv.Value == null || kv.Value.Count == 0) continue;
+                    var config = CollectConfig();
+                    config.TargetValue = string.Join("\n", kv.Value);
+
+                    _scanQueue.Add(new ExpertScanQueueItem
+                    {
+                        Name = $"分组[{kv.Key}] ({kv.Value.Count} 目标)",
+                        TargetText = kv.Value.Count > 3
+                            ? string.Join(", ", kv.Value.Take(3)) + $" ... 共 {kv.Value.Count} 个"
+                            : string.Join(", ", kv.Value),
+                        Config = config
+                    });
+                    added++;
+                }
+
+                if (added == 0)
+                {
+                    MessageBox.Show("所有分组均为空，未添加任务。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                UpdateQueueProgress();
+                AppendLog($"📥 已从目标分组加入 {added} 个队列任务（队列共 {_scanQueue.Count} 项）");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"从分组加入队列失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void QueueRemoveButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isQueueRunning)
+            {
+                AppendLog("⚠️ 队列执行中，不能移除任务");
+                return;
+            }
+            var sel = ScanQueueDataGrid?.SelectedItem as ExpertScanQueueItem;
+            if (sel == null)
+            {
+                AppendLog("请先在队列列表中选中要移除的任务");
+                return;
+            }
+            _scanQueue.Remove(sel);
+            UpdateQueueProgress();
+        }
+
+        private void QueueClearButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isQueueRunning)
+            {
+                AppendLog("⚠️ 队列执行中，不能清空。可点击「跳过当前」结束当前任务。");
+                return;
+            }
+            _scanQueue.Clear();
+            UpdateQueueProgress();
+        }
+
+        /// <summary>
+        /// 启动队列：逐项执行 ExecuteExpertScanAsync（队列模式：不清空结果、不弹任务级对话框）。
+        /// 每个任务使用独立的 CancellationTokenSource——「跳过当前」只取消当前任务，
+        /// 队列继续执行下一项；全部结束后统一恢复界面。
+        /// </summary>
+        private async void QueueStartButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_isQueueRunning) return;
+            if (_scanQueue.Count == 0)
+            {
+                MessageBox.Show("队列为空。请先添加任务。", "批量扫描队列", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (_isScanning)
+            {
+                MessageBox.Show("当前有单次扫描正在进行，请等待其完成后再启动队列。",
+                    "批量扫描队列", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            _isQueueRunning = true;
+            QueueStartButton.IsEnabled = false;
+            QueueAddCurrentButton.IsEnabled = false;
+            QueueAddGroupButton.IsEnabled = false;
+            QueueClearButton.IsEnabled = false;
+            QueueRemoveButton.IsEnabled = false;
+            QueueSkipButton.IsEnabled = true;
+            StartExpertScanButton.IsEnabled = false; // 单次扫描入口一并禁用（点击侧另有 _isQueueRunning 防线）
+
+            int done = 0, skipped = 0, failed = 0;
+            var total = _scanQueue.Count;
+
+            try
+            {
+                for (int i = 0; i < _scanQueue.Count; i++)
+                {
+                    var item = _scanQueue[i];
+                    item.Status = "扫描中";
+                    UpdateQueueProgress(i + 1, total, item.Name);
+                    AppendLog($"🚀 [队列 {i + 1}/{total}] 开始: {item.Name}");
+
+                    _queueCts = new CancellationTokenSource();
+                    try
+                    {
+                        await Task.Run(() => ExecuteExpertScanAsync(
+                            item.Config, _queueCts.Token, isQueueMode: true));
+
+                        if (_queueCts.IsCancellationRequested)
+                        {
+                            item.Status = "已跳过";
+                            skipped++;
+                            AppendLog($"⏭️ [队列 {i + 1}/{total}] 已跳过: {item.Name}");
+                        }
+                        else
+                        {
+                            item.Status = "已完成";
+                            done++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        item.Status = "失败";
+                        failed++;
+                        AppendLog($"❌ [队列 {i + 1}/{total}] 任务失败: {item.Name} - {ex.Message}");
+                    }
+                }
+
+                AppendLog($"🏁 队列执行完毕：完成 {done} / 跳过 {skipped} / 失败 {failed}，共 {total} 项");
+                UpdateQueueProgress();
+                MessageBox.Show(
+                    $"批量扫描队列执行完毕！\n\n完成 {done} 项 / 跳过 {skipped} 项 / 失败 {failed} 项\n共 {total} 项任务",
+                    "队列完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            finally
+            {
+                _isQueueRunning = false;
+                _queueCts?.Dispose();
+                _queueCts = null;
+                QueueStartButton.IsEnabled = true;
+                QueueAddCurrentButton.IsEnabled = true;
+                QueueAddGroupButton.IsEnabled = true;
+                QueueClearButton.IsEnabled = true;
+                QueueRemoveButton.IsEnabled = true;
+                QueueSkipButton.IsEnabled = false;
+                StartExpertScanButton.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// 跳过当前正在执行的任务：取消当前任务的 CTS（队列继续下一项），而非取消整个队列。
+        /// </summary>
+        private void QueueSkipButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_isQueueRunning)
+            {
+                AppendLog("队列未在执行中");
+                return;
+            }
+            try { _queueCts?.Cancel(); } catch { }
+            AppendLog("⏭️ 已请求跳过当前队列任务...");
+        }
+
+        /// <summary>刷新队列进度条文本（空闲态 / 执行态两个重载路径）。</summary>
+        private void UpdateQueueProgress()
+        {
+            QueueProgressTextBlock.Text = _isQueueRunning
+                ? "队列执行中..."
+                : $"队列空闲 - 共 {_scanQueue.Count} 项待执行";
+        }
+
+        private void UpdateQueueProgress(int current, int total, string currentName)
+        {
+            QueueProgressTextBlock.Text = $"队列进度: {current}/{total} - 当前: {currentName}";
+        }
+
+        #endregion
+
         private void ExpertTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ExpertTabControl == null) return;
@@ -5220,11 +6378,15 @@ namespace NetSecurityScanner.Views
             {
                 _ = RefreshScheduledTasksAsync();
             }
-            else if (ExpertTabControl.SelectedIndex == 7) // Tab 8: 扫描历史 (0-indexed)
+            else if (ExpertTabControl.SelectedIndex == 7) // Tab 8: 扫描队列 (0-indexed, EXP-002)
+            {
+                // 队列列表常驻内存，无需懒加载刷新
+            }
+            else if (ExpertTabControl.SelectedIndex == 8) // Tab 9: 扫描历史 (0-indexed)
             {
                 _ = LoadScanHistoryAsync();
             }
-            else if (ExpertTabControl.SelectedIndex == 8) // Tab 9: 数据可视化 (0-indexed)
+            else if (ExpertTabControl.SelectedIndex == 9) // Tab 10: 数据可视化 (0-indexed)
             {
                 RefreshCharts();
             }
@@ -5960,10 +7122,10 @@ namespace NetSecurityScanner.Views
             try
             {
                 // 强制切到数据可视化 Tab，避免在其他 Tab 截图到无关内容
-                if (ExpertTabControl?.SelectedIndex != 8)
+                if (ExpertTabControl?.SelectedIndex != 9)
                 {
                     AppendLog("ℹ️ 已自动切换到「数据可视化」Tab");
-                    ExpertTabControl.SelectedIndex = 8;
+                    ExpertTabControl.SelectedIndex = 9;
                     // 切 Tab 后立刻强制布局，避免 ActualWidth/Height 仍为 0
                     ExpertTabControl.UpdateLayout();
                     Dispatcher.Invoke(() => { }, DispatcherPriority.Loaded);
@@ -7015,6 +8177,9 @@ namespace NetSecurityScanner.Views
 
                 var titlePara = doc.InsertParagraph(_reportTitle);
                 titlePara.FontSize(22).Bold();
+                // 显式指定中文字体：DOCX 默认依赖 Word 客户端字体回退，
+                // 指定「微软雅黑」保证标题与表格中文跨环境渲染一致
+                titlePara.Font("微软雅黑");
                 titlePara.Alignment = Xceed.Document.NET.Alignment.center;
 
                 var timePara = doc.InsertParagraph($"生成时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
@@ -7065,6 +8230,10 @@ namespace NetSecurityScanner.Views
                         portTable.Rows[i + 1].Cells[3].Paragraphs[0].Append(r.Service ?? "");
                         portTable.Rows[i + 1].Cells[4].Paragraphs[0].Append(r.ServiceVersion ?? "");
                     }
+
+                    // 关键：Xceed DocX 的 AddTable 只创建表对象，必须 InsertTable 才会写入文档。
+                    // 此前缺失该调用，导出的 DOCX 只有标题与文字、完全没有表格内容。
+                    doc.InsertTable(portTable);
                 }
 
                 if (_allVulnResults.Count > 0)
@@ -7073,12 +8242,14 @@ namespace NetSecurityScanner.Views
                     var vulnHeader = doc.InsertParagraph("漏洞扫描结果");
                     vulnHeader.FontSize(14).Bold();
 
-                    var vulnTable = doc.AddTable(_allVulnResults.Count + 1, 5);
+                    var vulnTable = doc.AddTable(_allVulnResults.Count + 1, 7);
                     vulnTable.Rows[0].Cells[0].Paragraphs[0].Append("漏洞名称").Bold();
                     vulnTable.Rows[0].Cells[1].Paragraphs[0].Append("CVE").Bold();
                     vulnTable.Rows[0].Cells[2].Paragraphs[0].Append("风险等级").Bold();
                     vulnTable.Rows[0].Cells[3].Paragraphs[0].Append("端口").Bold();
                     vulnTable.Rows[0].Cells[4].Paragraphs[0].Append("描述").Bold();
+                    vulnTable.Rows[0].Cells[5].Paragraphs[0].Append("修复方案").Bold();
+                    vulnTable.Rows[0].Cells[6].Paragraphs[0].Append("参考链接").Bold();
 
                     for (int i = 0; i < _allVulnResults.Count; i++)
                     {
@@ -7088,7 +8259,11 @@ namespace NetSecurityScanner.Views
                         vulnTable.Rows[i + 1].Cells[2].Paragraphs[0].Append(v.RiskLevel ?? "");
                         vulnTable.Rows[i + 1].Cells[3].Paragraphs[0].Append(v.Port.ToString());
                         vulnTable.Rows[i + 1].Cells[4].Paragraphs[0].Append(v.Description ?? "");
+                        vulnTable.Rows[i + 1].Cells[5].Paragraphs[0].Append(v.Solution ?? "");
+                        vulnTable.Rows[i + 1].Cells[6].Paragraphs[0].Append(v.References ?? "");
                     }
+
+                    doc.InsertTable(vulnTable);
                 }
 
                 doc.Save();

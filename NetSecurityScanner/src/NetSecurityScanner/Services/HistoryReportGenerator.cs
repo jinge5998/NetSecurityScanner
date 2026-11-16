@@ -2781,8 +2781,20 @@ namespace NetSecurityScanner.Services
         {
             if (string.IsNullOrWhiteSpace(riskLevel)) return DefaultRiskColor;
 
-            if (RiskColors.TryGetValue(riskLevel.Trim(), out var scheme))
+            var level = riskLevel.Trim();
+            if (RiskColors.TryGetValue(level, out var scheme))
                 return scheme;
+
+            // 模糊匹配：键为「严重/高/中/低」，数据多为「高危/中危/低危」——
+            // 精确匹配失败会落入灰色 DefaultRiskColor 显示"未分类"
+            var normalized = level.EndsWith("危") ? level.Substring(0, level.Length - 1) : level;
+            if (normalized != level && RiskColors.TryGetValue(normalized, out scheme))
+                return scheme;
+
+            if (IsCritical(level)) return RiskColors["严重"];
+            if (IsHigh(level)) return RiskColors["高"];
+            if (IsMedium(level)) return RiskColors["中"];
+            if (IsLow(level)) return RiskColors["低"];
 
             return DefaultRiskColor;
         }

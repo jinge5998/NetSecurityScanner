@@ -566,7 +566,7 @@
                                 <StackPanel Orientation="Horizontal"
                                             Margin="0,0,0,5">
                                     <RadioButton Name="RustEngineRadio"
-                                                 Content="Rust引擎（推荐，高速）"
+                                                 Content="RustScan引擎（推荐，高速）"
                                                  GroupName="ScanEngine"
                                                  IsChecked="True"
                                                  Margin="0,0,20,0"
@@ -576,9 +576,16 @@
                                                  GroupName="ScanEngine"
                                                  Margin="0,0,0,0"
                                                  Checked="ScanEngineRadio_Checked"/>
+                                    <RadioButton Name="NmapEngineRadio"
+                                                 Content="Nmap引擎（需本机安装nmap）"
+                                                 GroupName="ScanEngine"
+                                                 Margin="20,0,0,0"
+                                                 IsEnabled="False"
+                                                 ToolTip="当检测到本机 nmap.exe 时启用；支持 SYN/OS/脚本等高级选项实际落地"
+                                                 Checked="ScanEngineRadio_Checked"/>
                                 </StackPanel>
                                 <TextBlock Name="EngineStatusTextBlock"
-                                           Text="Rust引擎就绪"
+                                           Text="RustScan引擎就绪"
                                            FontSize="11"
                                            Foreground="#27AE60"
                                            Margin="0,5,0,0"/>
@@ -620,6 +627,51 @@
                                             Margin="6,0,0,0"
                                             ToolTip="复制 Rust 引擎完整路径到剪贴板"/>
                                 </StackPanel>
+
+                                <!-- Nmap 引导区（检测/安装/版本）——复用已有的 NmapEngineExecutor 探测能力 -->
+                                <Border Background="#FEF9E7"
+                                        BorderBrush="#F7DC6F"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="8"
+                                        Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Name="DetectNmapButton"
+                                                    Content="🔍 检测Nmap"
+                                                    Width="100"
+                                                    Height="26"
+                                                    Background="#F39C12"
+                                                    Foreground="White"
+                                                    BorderThickness="0"
+                                                    Click="DetectNmapButton_Click"
+                                                    ToolTip="在本机常见路径与 PATH 中查找 nmap.exe，并读取版本号"/>
+                                            <Button Name="InstallNmapButton"
+                                                    Content="📥 安装指引"
+                                                    Width="100"
+                                                    Height="26"
+                                                    Background="#95A5A6"
+                                                    Foreground="White"
+                                                    BorderThickness="0"
+                                                    Click="InstallNmapButton_Click"
+                                                    Margin="6,0,0,0"
+                                                    ToolTip="打开 nmap 官方下载页（https://nmap.org/download.html）"/>
+                                            <TextBlock Name="NmapGuideTextBlock"
+                                                       Text="Nmap 引擎：未检测"
+                                                       FontSize="11"
+                                                       Foreground="#7D6608"
+                                                       VerticalAlignment="Center"
+                                                       Margin="10,0,0,0"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                        <TextBlock Name="NmapPathTextBlock"
+                                                   Text=""
+                                                   FontSize="10"
+                                                   Foreground="#7F8C8D"
+                                                   Margin="0,4,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -925,6 +977,19 @@
                                            FontSize="14"
                                            Foreground="#2C3E50"
                                            Margin="0,0,0,10"/>
+                                <!-- 能力边界说明：源端口/MTU/分片/错误校验和属链路层操作，
+                                     需要原始套接字，内置 C# 引擎与 Rust 引擎均不支持，仅用于生成 Nmap 命令 -->
+                                <Border Background="#FEF9E7"
+                                        BorderBrush="#F7DC6F"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="8"
+                                        Margin="0,0,0,8">
+                                    <TextBlock Text="ℹ️ 本组「源端口 / MTU / 数据包分片 / 错误校验和」为链路层操作，需要原始套接字权限，程序内置引擎（C#/Rust）不支持，勾选后仅影响下方生成的 Nmap 命令文本，供复制到已安装 nmap 的终端执行；「随机化目标顺序」「Stealth模式」对本程序扫描真实生效。"
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="#7D6608"/>
+                                </Border>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -997,6 +1062,18 @@
                                            FontSize="14"
                                            Foreground="#2C3E50"
                                            Margin="0,0,0,10"/>
+                                <!-- 能力边界说明：诱饵/Idle僵尸/源路由同样需要原始套接字，内置引擎不支持 -->
+                                <Border Background="#FEF9E7"
+                                        BorderBrush="#F7DC6F"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="8"
+                                        Margin="0,0,0,8">
+                                    <TextBlock Text="ℹ️ 本组「诱饵扫描 / Idle僵尸扫描 / 源路由」为链路层隐蔽技术，需要原始套接字权限，程序内置引擎（C#/Rust）不支持，勾选后仅影响生成的 Nmap 命令文本，供复制到已安装 nmap 的终端执行；「仅显示开放端口」对本程序结果表真实生效。"
+                                               TextWrapping="Wrap"
+                                               FontSize="11"
+                                               Foreground="#7D6608"/>
+                                </Border>
                                 <StackPanel Orientation="Horizontal"
                                             Margin="0,0,0,5">
                                     <CheckBox Name="DecoyScanCheckBox"
@@ -1015,8 +1092,10 @@
                                            Foreground="#7F8C8D"
                                            Margin="0,0,0,10"/>
                                 <CheckBox Name="ShowOpenOnlyCheckBox"
-                                          Content="仅显示开放端口 (--open)"
-                                          Margin="0,0,0,10"/>
+                                          Content="仅显示开放端口 (本次迭代已接线：勾选即过滤结果表)"
+                                          Margin="0,0,0,10"
+                                          Checked="ShowOpenOnlyCheckBox_Checked"
+                                          Unchecked="ShowOpenOnlyCheckBox_Unchecked"/>
                                 <StackPanel Orientation="Horizontal"
                                             Margin="0,0,0,5">
                                     <CheckBox Name="IdleScanCheckBox"
@@ -1053,7 +1132,9 @@
                                     <Label Content="日志级别："
                                            VerticalAlignment="Center"
                                            Width="80"/>
+                                    <!-- Verbosity 当前仅参与 Nmap 命令生成（-v/-vv），本程序扫描日志固定详细输出 -->
                                     <ComboBox Name="VerbosityComboBox"
+                                              ToolTip="当前仅影响生成的 Nmap 命令（-v/-vv）；程序自身的扫描日志始终详细输出"
                                               Width="150"
                                               Height="28"
                                               SelectedIndex="1">
@@ -1292,6 +1373,189 @@
                                            FontSize="14"
                                            Foreground="#2C3E50"
                                            Margin="0,0,0,10"/>
+                                <!-- 结果快速过滤：关键字 + 快速类别按钮 + Reset 叠加生效，仅修改视图谓词，ItemsSource 保持不变 -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="🔍 过滤"
+                                               Grid.Column="0"
+                                               VerticalAlignment="Center"
+                                               Foreground="#7F8C8D"
+                                               Margin="0,0,6,0"/>
+                                    <TextBox Name="PortResultSearchTextBox"
+                                             Grid.Column="1"
+                                             Width="220"
+                                             Height="26"
+                                             Padding="4,2"
+                                             VerticalContentAlignment="Center"
+                                             ToolTip="输入 IP / 端口号 / 服务 / 版本 / 风险等级进行过滤，留空显示全部"
+                                             TextChanged="PortResultSearchTextBox_TextChanged"/>
+                                    <!-- 类别筛选按钮：ToggleButton 带激活态高亮（绿色=仅开放，橙色=高危），IsChecked 由 CS 根据 _portFilterDescription 控制 -->
+                                    <ToggleButton x:Name="PortFilterOpenToggle"
+                                                  Grid.Column="2"
+                                                  Content="仅开放"
+                                                  Height="24"
+                                                  Padding="6,0"
+                                                  Margin="6,0,2,0"
+                                                  FontSize="12"
+                                                  BorderThickness="1"
+                                                  Click="FilterOpenPorts_Click"
+                                                  ToolTip="只显示开放端口">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton">
+                                                <Setter Property="Foreground"
+                                                        Value="#27AE60"/>
+                                                <Setter Property="BorderBrush"
+                                                        Value="#27AE60"/>
+                                                <Setter Property="Background"
+                                                        Value="Transparent"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ToggleButton">
+                                                            <Border x:Name="Bd"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                                    CornerRadius="3"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"
+                                                                                  Margin="{TemplateBinding Padding}"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <!-- 悬停态先定义、激活态后定义：两者同时成立时保留强调色填充，避免白字压在浅色底上看不清 -->
+                                                                <Trigger Property="IsMouseOver"
+                                                                         Value="True">
+                                                                    <Setter TargetName="Bd"
+                                                                            Property="Background"
+                                                                            Value="#D5F5E3"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsChecked"
+                                                                         Value="True">
+                                                                    <Setter TargetName="Bd"
+                                                                            Property="Background"
+                                                                            Value="#27AE60"/>
+                                                                    <Setter Property="Foreground"
+                                                                            Value="White"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <ToggleButton x:Name="PortFilterHighRiskToggle"
+                                                  Grid.Column="3"
+                                                  Content="高危"
+                                                  Height="24"
+                                                  Padding="6,0"
+                                                  Margin="2,0,2,0"
+                                                  FontSize="12"
+                                                  BorderThickness="1"
+                                                  Click="FilterHighRiskPorts_Click"
+                                                  ToolTip="只显示高危/严重端口（RiskScore≥15）">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton">
+                                                <Setter Property="Foreground"
+                                                        Value="#E67E22"/>
+                                                <Setter Property="BorderBrush"
+                                                        Value="#E67E22"/>
+                                                <Setter Property="Background"
+                                                        Value="Transparent"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ToggleButton">
+                                                            <Border x:Name="Bd"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                                    CornerRadius="3"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"
+                                                                                  Margin="{TemplateBinding Padding}"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver"
+                                                                         Value="True">
+                                                                    <Setter TargetName="Bd"
+                                                                            Property="Background"
+                                                                            Value="#FDEBD0"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsChecked"
+                                                                         Value="True">
+                                                                    <Setter TargetName="Bd"
+                                                                            Property="Background"
+                                                                            Value="#E67E22"/>
+                                                                    <Setter Property="Foreground"
+                                                                            Value="White"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <Button x:Name="PortResetFilterButton"
+                                            Grid.Column="4"
+                                            Content="🔄"
+                                            Width="30"
+                                            Height="24"
+                                            Margin="4,0,2,0"
+                                            FontSize="12"
+                                            Foreground="#7F8C8D"
+                                            BorderThickness="1"
+                                            BorderBrush="#BDC3C7"
+                                            Background="Transparent"
+                                            Click="ResetPortFilterButton_Click"
+                                            ToolTip="清除全部筛选条件（关键字 + 类别）"/>
+                                    <TextBlock Name="PortFilterStatusTextBlock"
+                                               Grid.Column="5"
+                                               Text="显示全部 0 条"
+                                               VerticalAlignment="Center"
+                                               Margin="10,0,0,0"
+                                               Foreground="#7F8C8D"/>
+                                    <!-- 结果区导出入口：当前筛选/全部 × CSV/JSON，格式实现与「导出CSV/导出JSON」共用 -->
+                                    <Button x:Name="PortExportButton"
+                                            Grid.Column="6"
+                                            Content="📤 导出"
+                                            Height="24"
+                                            Padding="8,0"
+                                            Margin="8,0,0,0"
+                                            FontSize="12"
+                                            Foreground="White"
+                                            Background="#3498DB"
+                                            BorderThickness="0"
+                                            Click="PortExportButton_Click"
+                                            ToolTip="导出端口扫描结果（当前筛选或全部，CSV/JSON）">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="导出当前筛选（CSV）"
+                                                          Tag="csv:current"
+                                                          Click="ExportPortResultsMenu_Click"/>
+                                                <MenuItem Header="导出当前筛选（JSON）"
+                                                          Tag="json:current"
+                                                          Click="ExportPortResultsMenu_Click"/>
+                                                <Separator/>
+                                                <MenuItem Header="导出全部（CSV）"
+                                                          Tag="csv:all"
+                                                          Click="ExportPortResultsMenu_Click"/>
+                                                <MenuItem Header="导出全部（JSON）"
+                                                          Tag="json:all"
+                                                          Click="ExportPortResultsMenu_Click"/>
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                    </Button>
+                                </Grid>
                                 <DataGrid Name="RealTimePortResultsDataGrid"
                                           AutoGenerateColumns="False"
                                           CanUserAddRows="False"
@@ -1517,6 +1781,189 @@
                                                 BorderThickness="0"
                                                 Click="ReportSettingButton_Click"/>
                                     </StackPanel>
+                                </Grid>
+                                <!-- 漏洞结果快速过滤：关键字 + 快速类别按钮 + Reset 叠加生效，仅修改视图谓词，ItemsSource 保持不变 -->
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="🔍 过滤"
+                                               Grid.Column="0"
+                                               VerticalAlignment="Center"
+                                               Foreground="#7F8C8D"
+                                               Margin="0,0,6,0"/>
+                                    <TextBox Name="VulnResultSearchTextBox"
+                                             Grid.Column="1"
+                                             Width="220"
+                                             Height="26"
+                                             Padding="4,2"
+                                             VerticalContentAlignment="Center"
+                                             ToolTip="输入 目标 / 端口 / 漏洞名称 / CVE / 服务 / 风险等级进行过滤，留空显示全部"
+                                             TextChanged="VulnResultSearchTextBox_TextChanged"/>
+                                    <!-- 漏洞类别筛选：ToggleButton 带激活态高亮（红色=高危，黄色=中危），IsChecked 由 CS 根据 _vulnFilterDescription 控制 -->
+                                    <ToggleButton x:Name="VulnFilterHighRiskToggle"
+                                                  Grid.Column="2"
+                                                  Content="高危"
+                                                  Height="24"
+                                                  Padding="6,0"
+                                                  Margin="6,0,2,0"
+                                                  FontSize="12"
+                                                  BorderThickness="1"
+                                                  Click="FilterHighRisk_Click"
+                                                  ToolTip="只显示高危/严重漏洞">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton">
+                                                <Setter Property="Foreground"
+                                                        Value="#E74C3C"/>
+                                                <Setter Property="BorderBrush"
+                                                        Value="#E74C3C"/>
+                                                <Setter Property="Background"
+                                                        Value="Transparent"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ToggleButton">
+                                                            <Border x:Name="Bd"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                                    CornerRadius="3"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"
+                                                                                  Margin="{TemplateBinding Padding}"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <!-- 悬停态先定义、激活态后定义：两者同时成立时保留强调色填充，避免白字压在浅色底上看不清 -->
+                                                                <Trigger Property="IsMouseOver"
+                                                                         Value="True">
+                                                                    <Setter TargetName="Bd"
+                                                                            Property="Background"
+                                                                            Value="#FADBD8"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsChecked"
+                                                                         Value="True">
+                                                                    <Setter TargetName="Bd"
+                                                                            Property="Background"
+                                                                            Value="#E74C3C"/>
+                                                                    <Setter Property="Foreground"
+                                                                            Value="White"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <ToggleButton x:Name="VulnFilterMediumRiskToggle"
+                                                  Grid.Column="3"
+                                                  Content="中危"
+                                                  Height="24"
+                                                  Padding="6,0"
+                                                  Margin="2,0,2,0"
+                                                  FontSize="12"
+                                                  BorderThickness="1"
+                                                  Click="FilterMediumRisk_Click"
+                                                  ToolTip="只显示中危漏洞">
+                                        <ToggleButton.Style>
+                                            <Style TargetType="ToggleButton">
+                                                <Setter Property="Foreground"
+                                                        Value="#F39C12"/>
+                                                <Setter Property="BorderBrush"
+                                                        Value="#F39C12"/>
+                                                <Setter Property="Background"
+                                                        Value="Transparent"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ToggleButton">
+                                                            <Border x:Name="Bd"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                                    CornerRadius="3"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"
+                                                                                  Margin="{TemplateBinding Padding}"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver"
+                                                                         Value="True">
+                                                                    <Setter TargetName="Bd"
+                                                                            Property="Background"
+                                                                            Value="#FEF9E7"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsChecked"
+                                                                         Value="True">
+                                                                    <Setter TargetName="Bd"
+                                                                            Property="Background"
+                                                                            Value="#F39C12"/>
+                                                                    <Setter Property="Foreground"
+                                                                            Value="White"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ToggleButton.Style>
+                                    </ToggleButton>
+                                    <Button x:Name="VulnResetFilterButton"
+                                            Grid.Column="4"
+                                            Content="🔄"
+                                            Width="30"
+                                            Height="24"
+                                            Margin="4,0,2,0"
+                                            FontSize="12"
+                                            Foreground="#7F8C8D"
+                                            BorderThickness="1"
+                                            BorderBrush="#BDC3C7"
+                                            Background="Transparent"
+                                            Click="ResetVulnFilterButton_Click"
+                                            ToolTip="清除全部筛选条件（关键字 + 类别）"/>
+                                    <TextBlock Name="VulnFilterStatusTextBlock"
+                                               Grid.Column="5"
+                                               Text="显示全部 0 条"
+                                               VerticalAlignment="Center"
+                                               Margin="10,0,0,0"
+                                               Foreground="#7F8C8D"/>
+                                    <!-- 结果区导出入口：当前筛选/全部 × CSV/JSON，格式实现与「导出CSV/导出JSON」共用 -->
+                                    <Button x:Name="VulnExportButton"
+                                            Grid.Column="6"
+                                            Content="📤 导出"
+                                            Height="24"
+                                            Padding="8,0"
+                                            Margin="8,0,0,0"
+                                            FontSize="12"
+                                            Foreground="White"
+                                            Background="#3498DB"
+                                            BorderThickness="0"
+                                            Click="VulnExportButton_Click"
+                                            ToolTip="导出漏洞扫描结果（当前筛选或全部，CSV/JSON）">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="导出当前筛选（CSV）"
+                                                          Tag="csv:current"
+                                                          Click="ExportVulnResultsMenu_Click"/>
+                                                <MenuItem Header="导出当前筛选（JSON）"
+                                                          Tag="json:current"
+                                                          Click="ExportVulnResultsMenu_Click"/>
+                                                <Separator/>
+                                                <MenuItem Header="导出全部（CSV）"
+                                                          Tag="csv:all"
+                                                          Click="ExportVulnResultsMenu_Click"/>
+                                                <MenuItem Header="导出全部（JSON）"
+                                                          Tag="json:all"
+                                                          Click="ExportVulnResultsMenu_Click"/>
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                    </Button>
                                 </Grid>
                                 <DataGrid Name="RealTimeVulnResultsDataGrid"
                                           AutoGenerateColumns="False"
@@ -1908,7 +2355,21 @@
                                             Margin="0,0,8,0"
                                             Click="CopyNmapPreviewBtn_Click"
                                             Cursor="Hand"/>
+                                    <Button Name="RunNmapEngineBtn"
+                                            Content="▶ 用Nmap执行"
+                                            Width="120"
+                                            Height="32"
+                                            Margin="0,0,8,0"
+                                            Click="RunNmapEngineBtn_Click"
+                                            Cursor="Hand"
+                                            ToolTip="使用当前配置调用本机 nmap.exe 真实扫描（未安装时会弹出安装引导）"/>
                                 </StackPanel>
+                                <TextBlock Name="NmapRunHintTextBlock"
+                                           Text="提示：Nmap 引擎可让 SYN / OS 识别 / 脚本扫描等高级选项真实生效；未安装 nmap 时请点「检测Nmap」或「安装指引」。"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,8"/>
                                 <TextBox Name="NmapCommandPreviewTextBox"
                                          FontFamily="Consolas"
                                          IsReadOnly="True"
@@ -2158,7 +2619,120 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
-            <!-- Tab 8: 扫描历史 -->
+            <!-- Tab 8: 扫描队列 (EXP-002 批量扫描) -->
+            <TabItem Header="🚀 扫描队列">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="15">
+                        <!-- 操作区 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Margin="0,0,0,10"
+                                Background="White">
+                            <StackPanel Margin="15">
+                                <TextBlock Text="批量扫描队列"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           Foreground="#2C3E50"
+                                           Margin="0,0,0,6"/>
+                                <TextBlock Text="把多个扫描任务排队依次执行。每个任务在加入时快照当前「目标配置」页的全部参数（目标/端口/性能/高级选项），后续修改界面不影响已入队任务。"
+                                           TextWrapping="Wrap"
+                                           FontSize="11"
+                                           Foreground="#7F8C8D"
+                                           Margin="0,0,0,10"/>
+                                <WrapPanel Margin="0,0,0,5">
+                                    <Button Name="QueueAddCurrentButton"
+                                            Content="➕ 将当前目标配置加入队列"
+                                            Width="200"
+                                            Height="32"
+                                            Margin="0,0,8,5"
+                                            Click="QueueAddCurrentButton_Click"/>
+                                    <Button Name="QueueAddGroupButton"
+                                            Content="➕ 从目标分组添加"
+                                            Width="150"
+                                            Height="32"
+                                            Margin="0,0,8,5"
+                                            Click="QueueAddGroupButton_Click"/>
+                                    <Button Name="QueueStartButton"
+                                            Content="▶️ 执行队列"
+                                            Width="110"
+                                            Height="32"
+                                            Margin="0,0,8,5"
+                                            Background="#27AE60"
+                                            Foreground="White"
+                                            Click="QueueStartButton_Click"/>
+                                    <Button Name="QueueSkipButton"
+                                            Content="⏭️ 跳过当前"
+                                            Width="110"
+                                            Height="32"
+                                            Margin="0,0,8,5"
+                                            IsEnabled="False"
+                                            Click="QueueSkipButton_Click"/>
+                                    <Button Name="QueueRemoveButton"
+                                            Content="➖ 移除选中"
+                                            Width="110"
+                                            Height="32"
+                                            Margin="0,0,8,5"
+                                            Click="QueueRemoveButton_Click"/>
+                                    <Button Name="QueueClearButton"
+                                            Content="🗑️ 清空队列"
+                                            Width="110"
+                                            Height="32"
+                                            Margin="0,0,8,5"
+                                            Click="QueueClearButton_Click"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 队列进度 -->
+                        <Border Background="#EBF5FB"
+                                BorderBrush="#AED6F1"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12"
+                                Margin="0,0,0,10">
+                            <TextBlock Name="QueueProgressTextBlock"
+                                       Text="队列空闲 - 共 0 项待执行"
+                                       FontWeight="Bold"
+                                       Foreground="#1F618D"/>
+                        </Border>
+
+                        <!-- 队列列表 -->
+                        <Border BorderBrush="#BDC3C7"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Background="White">
+                            <DataGrid Name="ScanQueueDataGrid"
+                                      AutoGenerateColumns="False"
+                                      CanUserAddRows="False"
+                                      CanUserDeleteRows="False"
+                                      SelectionMode="Single"
+                                      HeadersVisibility="Column"
+                                      Background="White"
+                                      RowHeight="30">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="任务名称"
+                                                        Binding="{Binding Name}"
+                                                        Width="240"/>
+                                    <DataGridTextColumn Header="目标"
+                                                        Binding="{Binding TargetText}"
+                                                        Width="*"/>
+                                    <DataGridTextColumn Header="状态"
+                                                        Binding="{Binding Status}"
+                                                        Width="90"/>
+                                </DataGrid.Columns>
+                                <DataGrid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="➖ 移除该任务"
+                                                  Click="QueueRemoveButton_Click"/>
+                                    </ContextMenu>
+                                </DataGrid.ContextMenu>
+                            </DataGrid>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <!-- Tab 9: 扫描历史 -->
             <TabItem Header="📊 扫描历史">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="15">

@@ -105,15 +105,25 @@ namespace NetSecurityScanner.Core.Services
         public async Task<CameraScanResult> ScanAsync(
             string ipAddress,
             CancellationToken cancellationToken = default,
-            IProgress<string>? progress = null)
+            IProgress<string>? progress = null,
+            CameraScanOptions? options = null,
+            IProgress<int>? percentProgress = null)
         {
             if (string.IsNullOrWhiteSpace(ipAddress))
                 throw new ArgumentException("IP地址不能为空", nameof(ipAddress));
 
+            options ??= new CameraScanOptions();
+
             var target = new CameraScanTarget { IpAddress = ipAddress };
             var result = new CameraScanResult { Target = target };
 
+            percentProgress?.Report(0);
             progress?.Report($"[*] 开始扫描 {ipAddress} ...");
+            if (!string.IsNullOrEmpty(options.ForcedVendor))
+            {
+                progress?.Report($"[*] 手动指定品牌: {options.ForcedVendor}（跳过指纹品牌识别）");
+            }
+            progress?.Report(options.EnablePoCDetection ? "[*] 扫描模式: 完整" : "[*] 扫描模式: 快速");
 
             target.IsReachable = await PingAsync(ipAddress, cancellationToken);
             if (!target.IsReachable)
@@ -123,38 +133,70 @@ namespace NetSecurityScanner.Core.Services
 
             progress?.Report("[*] 阶段1/7: 端口扫描...");
             await PortScanAsync(target, cancellationToken);
+            percentProgress?.Report(25);
             if (!target.OpenPorts.Any())
             {
                 progress?.Report("[!] 未发现开放端口，扫描终止");
+                percentProgress?.Report(100);
                 return result;
             }
             progress?.Report($"[+] 发现 {target.OpenPorts.Count} 个开放端口: {string.Join(", ", target.OpenPorts)}");
 
             progress?.Report("[*] 阶段2/7: ONVIF 发现探测...");
             await OnvifDiscoveryAsync(target, result.Findings, cancellationToken, progress);
+            percentProgress?.Report(35);
+
+            // 手动指定品牌优先：跳过指纹库品牌匹配，但仍采集 HTTP banner/Server 头
+            if (!string.IsNullOrEmpty(options.ForcedVendor))
+            {
+                target.DetectedVendor = options.ForcedVendor;
+            }
 
             progress?.Report("[*] 阶段3/7: HTTP 指纹识别...");
-            await HttpFingerprintAsync(target, cancellationToken);
+            await HttpFingerprintAsync(target, cancellationToken, skipVendorDetection: !string.IsNullOrEmpty(options.ForcedVendor));
+            percentProgress?.Report(50);
             progress?.Report($"[+] 识别设备品牌: {(string.IsNullOrEmpty(target.DetectedVendor) ? "未知" : target.DetectedVendor)}");
 
             progress?.Report("[*] 阶段4/7: 固件信息探测...");
             await FirmwareProbeAsync(target, cancellationToken);
+            percentProgress?.Report(60);
 
-            progress?.Report("[*] 阶段5/7: 漏洞 PoC 检测...");
-            await VulnDetectionAsync(target, result.Findings, cancellationToken, progress);
-            progress?.Report($"[+] 发现 {result.Findings.Count} 个漏洞");
+            if (options.EnablePoCDetection)
+            {
+                progress?.Report("[*] 阶段5/7: 漏洞 PoC 检测...");
+                await VulnDetectionAsync(target, result.Findings, cancellationToken, progress);
+                progress?.Report($"[+] 发现 {result.Findings.Count} 个漏洞");
+            }
+            else
+            {
+                progress?.Report("[*] 阶段5/7: 漏洞 PoC 检测...（快速模式已跳过）");
+            }
+            percentProgress?.Report(80);
 
             progress?.Report("[*] 阶段6/7: RTSP 认证检测...");
             await RtspAuthCheckAsync(target, result.Findings, cancellationToken, progress);
+            percentProgress?.Report(90);
 
-            progress?.Report("[*] 阶段7/7: 弱口令检测...");
-            if (target.OpenPorts.Contains(80) || target.OpenPorts.Contains(8000) || target.OpenPorts.Contains(37777) || target.OpenPorts.Contains(443))
+            if (options.EnableWeakPasswordScan)
             {
-                await WeakPasswordScanAsync(target, result.Findings, cancellationToken, progress);
+                progress?.Report("[*] 阶段7/7: 弱口令检测...");
+                if (target.OpenPorts.Contains(80) || target.OpenPorts.Contains(8000) || target.OpenPorts.Contains(37777) || target.OpenPorts.Contains(443))
+                {
+                    await WeakPasswordScanAsync(target, result.Findings, cancellationToken, progress);
+                }
+                else
+                {
+                    progress?.Report("  → 无 Web/SDK 管理端口开放，跳过弱口令检测");
+                }
+            }
+            else
+            {
+                progress?.Report("[*] 阶段7/7: 弱口令检测...（未启用，如需检测请勾选弱口令选项）");
             }
 
             ApplyPortBasedFindings(target, result.Findings);
 
+            percentProgress?.Report(100);
             progress?.Report($"[✓] 扫描完成！风险等级: {result.OverallRiskLevel}, 风险评分: {result.RiskScore}/100");
             return result;
         }
@@ -334,7 +376,7 @@ namespace NetSecurityScanner.Core.Services
             }
         }
 
-        private async Task HttpFingerprintAsync(CameraScanTarget target, CancellationToken ct)
+        private async Task HttpFingerprintAsync(CameraScanTarget target, CancellationToken ct, bool skipVendorDetection = false)
         {
             var httpPorts = target.OpenPorts.Where(p => p is 80 or 443 or 81 or 8080 or 8443 or 8000 or 8200).ToList();
             if (!httpPorts.Any()) return;
@@ -363,41 +405,49 @@ namespace NetSecurityScanner.Core.Services
                         target.HttpBanner = await resp.Content.ReadAsStringAsync(ct);
                     }
 
-                    foreach (var fp in _fingerprints)
+                    // 手动指定品牌时跳过指纹库品牌匹配（仍保留上方 Server头/Banner 采集）
+                    if (!skipVendorDetection)
                     {
-                        var hay = $"{target.HttpServerHeader} {target.HttpBanner}";
-                        if (fp.HttpPatterns.Any(p => hay.Contains(p, StringComparison.OrdinalIgnoreCase))
-                            || fp.HttpServer.Any(s => target.HttpServerHeader.Contains(s, StringComparison.OrdinalIgnoreCase)))
+                        foreach (var fp in _fingerprints)
                         {
-                            target.DetectedVendor = fp.Vendor;
-                            _logger.LogInformation("Fingerprint matched: {Vendor}", fp.Vendor);
-                            return;
+                            var hay = $"{target.HttpServerHeader} {target.HttpBanner}";
+                            if (fp.HttpPatterns.Any(p => hay.Contains(p, StringComparison.OrdinalIgnoreCase))
+                                || fp.HttpServer.Any(s => target.HttpServerHeader.Contains(s, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                target.DetectedVendor = fp.Vendor;
+                                _logger.LogInformation("Fingerprint matched: {Vendor}", fp.Vendor);
+                                return;
+                            }
                         }
                     }
 
                     if (!string.IsNullOrEmpty(target.DetectedVendor)) return;
 
-                    var lowerBanner = target.HttpBanner.ToLowerInvariant();
-                    if (lowerBanner.Contains("hikvision") || lowerBanner.Contains("hik-vision") || target.HttpServerHeader.Contains("App-webs"))
-                        target.DetectedVendor = "Hikvision";
-                    else if (lowerBanner.Contains("dahua") || lowerBanner.Contains("lechange") || lowerBanner.Contains("smartpss"))
-                        target.DetectedVendor = "Dahua";
-                    else if (lowerBanner.Contains("axis"))
-                        target.DetectedVendor = "Axis";
-                    else if (lowerBanner.Contains("uniview") || lowerBanner.Contains("宇视"))
-                        target.DetectedVendor = "Uniview";
-                    else if (lowerBanner.Contains("tp-link"))
-                        target.DetectedVendor = "TP-Link";
-                    else if (lowerBanner.Contains("ezviz") || lowerBanner.Contains("萤石"))
-                        target.DetectedVendor = "EZVIZ";
-                    else if (lowerBanner.Contains("xiongmai") || lowerBanner.Contains("xmtech"))
-                        target.DetectedVendor = "Xiongmai";
-                    else if (lowerBanner.Contains("vivotek"))
-                        target.DetectedVendor = "Vivotek";
-                    else if (lowerBanner.Contains("bosch"))
-                        target.DetectedVendor = "Bosch";
-                    else if (lowerBanner.Contains("hanwha") || lowerBanner.Contains("wisenet"))
-                        target.DetectedVendor = "Hanwha";
+                    // 手动指定品牌时同样跳过关键词回退匹配
+                    if (!skipVendorDetection)
+                    {
+                        var lowerBanner = target.HttpBanner.ToLowerInvariant();
+                        if (lowerBanner.Contains("hikvision") || lowerBanner.Contains("hik-vision") || target.HttpServerHeader.Contains("App-webs"))
+                            target.DetectedVendor = "Hikvision";
+                        else if (lowerBanner.Contains("dahua") || lowerBanner.Contains("lechange") || lowerBanner.Contains("smartpss"))
+                            target.DetectedVendor = "Dahua";
+                        else if (lowerBanner.Contains("axis"))
+                            target.DetectedVendor = "Axis";
+                        else if (lowerBanner.Contains("uniview") || lowerBanner.Contains("宇视"))
+                            target.DetectedVendor = "Uniview";
+                        else if (lowerBanner.Contains("tp-link"))
+                            target.DetectedVendor = "TP-Link";
+                        else if (lowerBanner.Contains("ezviz") || lowerBanner.Contains("萤石"))
+                            target.DetectedVendor = "EZVIZ";
+                        else if (lowerBanner.Contains("xiongmai") || lowerBanner.Contains("xmtech"))
+                            target.DetectedVendor = "Xiongmai";
+                        else if (lowerBanner.Contains("vivotek"))
+                            target.DetectedVendor = "Vivotek";
+                        else if (lowerBanner.Contains("bosch"))
+                            target.DetectedVendor = "Bosch";
+                        else if (lowerBanner.Contains("hanwha") || lowerBanner.Contains("wisenet"))
+                            target.DetectedVendor = "Hanwha";
+                    }
 
                     if (!string.IsNullOrEmpty(target.DetectedVendor)) return;
                 }

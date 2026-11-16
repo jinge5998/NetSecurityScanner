@@ -1,4 +1,6 @@
-//! IPC 通信协议定义 v1.0.2.1
+//! IPC 通信协议定义
+//!
+//! 客户端与服务端通过换行分隔的 JSON 报文通信，响应类型见 [`IpcResponse`]。
 
 use crate::scanner::{PortScanResult, ScanProgress};
 use serde::{Deserialize, Serialize};
@@ -63,9 +65,12 @@ pub enum IpcResponse {
 }
 
 /// 创建默认扫描请求
+///
+/// 说明：当前请求均由客户端构造并下发，本函数保留供测试与未来复用。
+#[allow(dead_code)]
 pub fn create_scan_request(targets: Vec<String>, ports: Vec<u16>, protocol: String) -> IpcMessage {
     IpcMessage {
-        request_id: uuid::Uuid::new_v4().to_string(),
+        request_id: generate_request_id(),
         message_type: "scan".to_string(),
         targets,
         ports,
@@ -85,23 +90,13 @@ pub fn create_scan_request(targets: Vec<String>, ports: Vec<u16>, protocol: Stri
     }
 }
 
-// 简化 UUID 生成 (避免额外依赖)
-mod uuid {
+// 简化请求 ID 生成 (避免额外依赖)
+#[allow(dead_code)]
+fn generate_request_id() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-
-    pub struct Uuid;
-
-    impl Uuid {
-        pub fn new_v4() -> Self {
-            Self
-        }
-
-        pub fn to_string(&self) -> String {
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos();
-            format!("{:016x}", now)
-        }
-    }
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{:016x}", nanos)
 }

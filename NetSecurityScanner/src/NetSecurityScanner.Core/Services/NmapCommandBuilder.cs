@@ -228,8 +228,12 @@ namespace NetSecurityScanner.Core.Services
             // RandomizeCheckBox 与 RandomTargetOrderCheckBox 语义重叠，任一勾选即随机化目标顺序
             if (config.Randomize || config.RandomTargetOrder)
                 parts.Add("--randomize-hosts");
-            if (config.RandomPortOrder)
-                parts.Add("--randomize-ports");
+            // 修复：--randomize-ports 是 nmap 不存在的参数（实测 nmap 7.993:
+            // "unrecognized option `--randomize-ports'"），会导致整次扫描失败返回 0 条。
+            // nmap 端口顺序默认就是随机的；-r 才是"按升序顺序扫描"。
+            // 因此勾选"随机端口顺序"时无需输出任何参数（保持默认随机），
+            // 未勾选时也不强行加 -r（避免改变既有行为），仅在需要明确顺序时由用户通过自定义命令实现。
+            // 此处彻底移除该非法参数。
         }
 
         private static void AddEvasionFlags(ExpertScanConfiguration config, List<string> parts, int? ttl)

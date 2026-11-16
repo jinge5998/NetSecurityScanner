@@ -72,3 +72,39 @@ jobs:
           dotnet list src/NetSecurityScanner.Core/NetSecurityScanner.Core.csproj --vulnerable
           dotnet list src/NetSecurityScanner.Desktop/NetSecurityScanner.Desktop.csproj --vulnerable
           dotnet list src/NetSecurityScanner.Core.Tests/NetSecurityScanner.Core.Tests.csproj --vulnerable
+
+  rust-engine:
+    name: Rust 扫描引擎（格式 / Clippy / 测试 / 构建）
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: NetSecurityScanner/src/rust-scanner-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: NetSecurityScanner/src/rust-scanner-service
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Clippy (deny warnings)
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run unit tests
+        run: cargo test
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Verify version output
+        run: |
+          .\target\release\rust-scanner-service.exe --version

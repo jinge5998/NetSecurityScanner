@@ -5,6 +5,7 @@ using System.Reflection;
 using FluentAssertions;
 using NetSecurityScanner.Core.Models;
 using NetSecurityScanner.Core.Services;
+using NetSecurityScanner.Models;
 using Xunit;
 
 namespace NetSecurityScanner.Tests
@@ -40,6 +41,8 @@ namespace NetSecurityScanner.Tests
             nameof(ExpertScanConfiguration.UdpTimeout),
             nameof(ExpertScanConfiguration.RetryCount),
             nameof(ExpertScanConfiguration.ServiceDetection),
+            nameof(ExpertScanConfiguration.ServiceIntensity),
+            nameof(ExpertScanConfiguration.ServiceDetectTimeout),
             nameof(ExpertScanConfiguration.PingProbe),
             nameof(ExpertScanConfiguration.HostDiscovery),
 
@@ -82,7 +85,6 @@ namespace NetSecurityScanner.Tests
             // 可实现但尚未接线到引擎的（属真实待修项）
             nameof(ExpertScanConfiguration.SynScan),          // 需原始套接字 + 管理员权限
             nameof(ExpertScanConfiguration.OsDetection),      // 需 TCP/IP 协议栈指纹
-            nameof(ExpertScanConfiguration.ServiceIntensity), // 引擎侧可做探测深度分级
 
             // [nmap-only] 原理上无法由内置 TCP 连接扫描实现
             nameof(ExpertScanConfiguration.Mtu),
@@ -99,12 +101,16 @@ namespace NetSecurityScanner.Tests
             nameof(ExpertScanConfiguration.SourcePortMin),
             nameof(ExpertScanConfiguration.SourcePortMax),
 
-            // 输出格式：自动保存仅有一条 JSON 分支，三个勾选框互不影响保存行为
+            // 输出格式：仅生成 nmap 的 -oJ/-oG 命令。
+            // （US-03 起专家模式自动保存已按这三个勾选写 JSON/HTML/CSV，
+            //   但由于该行为在 WPF 端、不在本 Core 契约可见范围，此处仍归命令生成类。）
             nameof(ExpertScanConfiguration.OutputJson),
             nameof(ExpertScanConfiguration.OutputHtml),
             nameof(ExpertScanConfiguration.OutputCsv),
 
-            // 结果表过滤由独立的右键菜单完成，该配置项不参与任何过滤
+            // 结果表过滤：US-B1 起由「仅显示开放端口」勾选框在 WPF 层真正过滤结果表。
+            // 但该行为在 UI 层、不改变 Core 引擎参数，故此处仍归「仅命令生成」类——
+            // 即对 Core 引擎而言它仍不参与任何扫描参数（契约只担保 Core 侧语义）。
             nameof(ExpertScanConfiguration.ShowOpenOnly),
 
             // 日志级别只作用于 nmap 命令的 -q/-v/-vv
@@ -124,9 +130,8 @@ namespace NetSecurityScanner.Tests
         /// </summary>
         private static readonly HashSet<string> NotUsedAnywhere = new()
         {
-            // 界面提供 500-10000ms 滑块可调节，但没有任何扫描逻辑或命令生成读取该值，
-            // ScanProfileConfig 中亦无字段可承载 → 拖动滑块不产生任何效果。
-            nameof(ExpertScanConfiguration.ServiceDetectTimeout),
+            // 历史死配置已随 US-01/US-04 接线而清空。
+            // 若未来新增配置字段且确认在扫描/命令两侧都无用，应加在此处并写明原因。
         };
 
         private static IEnumerable<PropertyInfo> AllConfigProperties =>
@@ -173,6 +178,8 @@ namespace NetSecurityScanner.Tests
         [InlineData(nameof(ExpertScanConfiguration.TcpTimeout), 500, 3000)]
         [InlineData(nameof(ExpertScanConfiguration.UdpTimeout), 1000, 5000)]
         [InlineData(nameof(ExpertScanConfiguration.RetryCount), 1, 4)]
+        [InlineData(nameof(ExpertScanConfiguration.ServiceIntensity), 0, 8)]
+        [InlineData(nameof(ExpertScanConfiguration.ServiceDetectTimeout), 0, 5000)]
         public void ScanProfileConfigFields_ShouldActuallyReachEngine(string property, int lowValue, int highValue)
         {
             var baseline = ScanConfigMapper.ToScanProfileConfig(new ExpertScanConfiguration());
@@ -249,6 +256,53 @@ namespace NetSecurityScanner.Tests
         }
 
         [Fact]
+        public void ServiceDetectionConfig_FromIntensity_ShouldMapProbeTriesByBand()
+        {
+            // US-04 核心映射：强度按 1-3/4-6/7-9 分档为 1/2/3 次 banner 探测。
+            var band1 = ServiceDetectionConfig.FromIntensity(true, 3, 600);
+            var band2 = ServiceDetectionConfig.FromIntensity(true, 6, 600);
+            var band3 = ServiceDetectionConfig.FromIntensity(true, 9, 600);
+
+            band1.Tries.Should().Be(1);
+            band2.Tries.Should().Be(2);
+            band3.Tries.Should().Be(3);
+        }
+
+        [Fact]
+        public void ServiceDetectionConfig_FromIntensity_ShouldScaleTimeoutByIntensity()
+        {
+            // 固定退出若强度提高，单次探测超时应随强度线性放宽：
+            // timeout = round(base * (1 + intensity * 0.055))
+            var baseMs = 600;
+            ServiceDetectionConfig.FromIntensity(true, 1, baseMs).DetectTimeoutMs
+                .Should().Be((int)Math.Round(baseMs * 1.055));
+            ServiceDetectionConfig.FromIntensity(true, 9, baseMs).DetectTimeoutMs
+                .Should().Be((int)Math.Round(baseMs * 1.495));
+
+            // 滑块归零或未提供有效超时时，退回默认 600ms 作为缩放基数
+            ServiceDetectionConfig.FromIntensity(true, 0, baseMs).DetectTimeoutMs.Should().Be(baseMs);
+            ServiceDetectionConfig.FromIntensity(true, 9, 0).DetectTimeoutMs
+                .Should().Be((int)Math.Round(600 * 1.495));
+        }
+
+        [Fact]
+        public void ServiceDetectionConfig_FromIntensity_ShouldClampOutOfRangeInput()
+        {
+            // 强度超出 0-9 一律钳制到 [0,9]；负强度按未启用处理（tries=0）
+            ServiceDetectionConfig.FromIntensity(true, 20, 600).Tries.Should().Be(3);
+            ServiceDetectionConfig.FromIntensity(true, 12, 600).DetectTimeoutMs
+                .Should().Be((int)Math.Round(600 * 1.495));
+            ServiceDetectionConfig.FromIntensity(true, -1, 600).Tries.Should().Be(0);
+        }
+
+        [Fact]
+        public void ServiceDetectionConfig_FromIntensity_Disabled_ShouldProduceZeroTries()
+        {
+            // 服务检测未勾选 → 即使强度很高也下发 tries=0（引擎按旧逻辑单次探测兜底）
+            ServiceDetectionConfig.FromIntensity(false, 9, 600).Tries.Should().Be(0);
+        }
+
+        [Fact]
         public void ExcludePorts_ShouldChangeResolvedPortSet()
         {
             var baseline = ExpertScanPlanner.ResolvePorts(new ExpertScanConfiguration
@@ -301,7 +355,6 @@ namespace NetSecurityScanner.Tests
             {
                 (nameof(ExpertScanConfiguration.SynScan), true),
                 (nameof(ExpertScanConfiguration.OsDetection), true),
-                (nameof(ExpertScanConfiguration.ServiceIntensity), 5),
                 (nameof(ExpertScanConfiguration.Mtu), "64"),
                 (nameof(ExpertScanConfiguration.FragmentPackets), true),
                 (nameof(ExpertScanConfiguration.BadChecksum), true),
@@ -380,21 +433,20 @@ namespace NetSecurityScanner.Tests
         #region 死配置必须被记录在案
 
         [Fact]
-        public void ServiceDetectTimeout_ShouldAffectNothing()
+        public void ServiceDetectTimeout_ShouldReachEngine()
         {
-            // 本测试是「已知缺陷」的显式记录：该字段目前对扫描与命令生成均无影响。
-            // 修复后应把字段移出 NotUsedAnywhere 分类，本测试会随之失败以提醒删除。
+            // US-01 起该字段已接线：直接被 ScanProfileConfig.ServiceDetectTimeoutMs 承载，
+            // 并被 ServiceDetectionConfig.FromIntensity 用于计算 C# 引擎的 banner 探测超时。
+            // 因此不同取值必须产生不同的引擎配置。
             var min = new ExpertScanConfiguration { ServiceDetectTimeout = 500 };
             var max = new ExpertScanConfiguration { ServiceDetectTimeout = 10000 };
 
             ScanConfigMapper.ToScanProfileConfig(min).Should()
-                .BeEquivalentTo(ScanConfigMapper.ToScanProfileConfig(max));
+                .NotBeEquivalentTo(ScanConfigMapper.ToScanProfileConfig(max));
 
+            // 映射管线：界面值 -> ScanProfileConfig -> ServiceDetectionConfig（引擎消费点）
             NmapCommandBuilder.Build(min, ttl: 64, timestamp: "t").Should()
                 .Be(NmapCommandBuilder.Build(max, ttl: 64, timestamp: "t"));
-
-            ExpertScanPlanner.ResolvePorts(min).Should().BeEquivalentTo(ExpertScanPlanner.ResolvePorts(max));
-            ExpertScanPlanner.ResolveTargets(min).Should().BeEquivalentTo(ExpertScanPlanner.ResolveTargets(max));
         }
 
         #endregion

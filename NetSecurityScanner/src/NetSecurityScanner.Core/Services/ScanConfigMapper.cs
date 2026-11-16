@@ -10,12 +10,13 @@ namespace NetSecurityScanner.Core.Services
     /// 抽取后，「界面配置究竟有哪些字段能真正下发到扫描引擎」成为一个可断言的契约
     /// （见 ExpertScanConfigEffectivenessContractTests）。
     ///
-    /// ⚠️ 关键事实：<see cref="ScanProfileConfig"/> 只有 9 个字段，
+    /// ⚠️ 关键事实：<see cref="ScanProfileConfig"/> 共 11 个字段，
     /// 而 <see cref="ExpertScanConfiguration"/> 有 40 余个。
     /// 二者的差集就是「界面可配置、但对真实扫描无任何影响」的那批选项——
-    /// 包括 SYN 半开、操作系统识别、服务检测强度、MTU、分片、诱饵、僵尸扫描、源路由等。
+    /// 包括 SYN 半开、MTU、分片、诱饵、僵尸扫描、源路由、源端口等
+    /// （这些是链路层操作，需要原始套接字，纯 TCP 连接扫描原理上无法实现）。
     /// 这类选项只会被 NmapCommandBuilder 翻译成命令字符串供用户复制到终端执行，
-    /// 程序自身的 Rust / C# 引擎并不消费它们。
+    /// 程序自身的 Rust / C# 引擎并不消费它们；界面高级选项页已对相应分组标注此边界。
     /// </summary>
     public static class ScanConfigMapper
     {
@@ -39,6 +40,10 @@ namespace NetSecurityScanner.Core.Services
 
                 RetryCount = config.RetryCount,
                 EnableServiceDetection = config.ServiceDetection,
+
+                // US-04：服务检测强度（探测深度分级）与 US-01：服务识别超时，均可下发到引擎。
+                ServiceIntensity = Math.Clamp(config.ServiceIntensity, 0, 9),
+                ServiceDetectTimeoutMs = config.ServiceDetectTimeout > 0 ? config.ServiceDetectTimeout : 0,
 
                 // 两个开关必须同时为真才做存活探测：
                 // PingProbe 是性能调优页的「扫描前 Ping 探测」，

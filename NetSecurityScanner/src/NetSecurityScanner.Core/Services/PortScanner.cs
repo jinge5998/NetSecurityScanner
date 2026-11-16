@@ -107,7 +107,7 @@ namespace NetSecurityScanner.Services
                                 // 再次检查取消令牌
                                 cancellationToken.ThrowIfCancellationRequested();
 
-                                result = await ScanTcpPortAsync(targetIp, portCopy, timeout, cancellationToken);
+                                result = await ScanTcpPortAsync(targetIp, portCopy, timeout, cancellationToken, scanPolicy?.ServiceDetectionConfig);
                                 return result;
                             }
                             catch (OperationCanceledException)
@@ -446,7 +446,10 @@ namespace NetSecurityScanner.Services
         /// <param name="timeout">超时时间（毫秒）</param>
         /// <param name="cancellationToken">取消令牌</param>
         /// <returns>端口扫描结果</returns>
-        public async Task<PortScanResult> ScanTcpPortAsync(string targetIp, int port, int timeout, CancellationToken cancellationToken = default)
+        public async Task<PortScanResult> ScanTcpPortAsync(
+            string targetIp, int port, int timeout,
+            CancellationToken cancellationToken = default,
+            Models.ServiceDetectionConfig serviceDetection = null)
         {
             try
             {
@@ -481,7 +484,7 @@ namespace NetSecurityScanner.Services
                                 // 尝试识别服务版本
                                 try
                                 {
-                                    portResult.ServiceVersion = await IdentifyServiceVersionAsync(targetIp, port, portResult.Service, ServiceVersionTimeout, cancellationToken);
+                                    portResult.ServiceVersion = await IdentifyServiceVersionWithPolicyAsync(targetIp, port, portResult.Service, serviceDetection, cancellationToken);
                                     // 如果拿到了 banner 信息，可信度保持"高"
                                     if (string.IsNullOrEmpty(portResult.ServiceVersion))
                                     {
@@ -501,7 +504,7 @@ namespace NetSecurityScanner.Services
                             {
                                 // 超时或取消，端口可能开放或被过滤
                                 // 启用重试：超时可能因为第一次握手包丢失，再试一次
-                                var retryResult = await RetryTcpPortAsync(targetIp, port, timeout * 2, cancellationToken);
+                                var retryResult = await RetryTcpPortAsync(targetIp, port, timeout * 2, cancellationToken, serviceDetection);
                                 if (retryResult != null) return retryResult;
                                 return CreatePortResult(port, "开放或过滤");
                             }
@@ -509,7 +512,7 @@ namespace NetSecurityScanner.Services
                             {
                                 // 连接失败，端口关闭
                                 // 启用重试：第一次失败可能是网络抖动
-                                var retryResult = await RetryTcpPortAsync(targetIp, port, timeout, cancellationToken);
+                                var retryResult = await RetryTcpPortAsync(targetIp, port, timeout, cancellationToken, serviceDetection);
                                 if (retryResult != null) return retryResult;
                                 return CreatePortResult(port, "关闭");
                             }
@@ -545,7 +548,10 @@ namespace NetSecurityScanner.Services
         /// <summary>
         /// TCP 重试：用于超时/网络抖动场景，单次重试以降低误报
         /// </summary>
-        private async Task<PortScanResult> RetryTcpPortAsync(string targetIp, int port, int timeout, CancellationToken cancellationToken)
+        private async Task<PortScanResult> RetryTcpPortAsync(
+            string targetIp, int port, int timeout,
+            CancellationToken cancellationToken,
+            Models.ServiceDetectionConfig serviceDetection = null)
         {
             try
             {
@@ -566,7 +572,7 @@ namespace NetSecurityScanner.Services
                             result.Confidence = "高"; // 重试成功，可信度高
                             try
                             {
-                                result.ServiceVersion = await IdentifyServiceVersionAsync(targetIp, port, result.Service, ServiceVersionTimeout, cancellationToken);
+                                result.ServiceVersion = await IdentifyServiceVersionWithPolicyAsync(targetIp, port, result.Service, serviceDetection, cancellationToken);
                                 if (string.IsNullOrEmpty(result.ServiceVersion)) result.Confidence = "中";
                             }
                             catch { result.Confidence = "中"; }
@@ -579,6 +585,68 @@ namespace NetSecurityScanner.Services
             {
                 return null; // 重试失败由调用方决定如何处理
             }
+        }
+
+        /// <summary>
+        /// 按专家模式探测策略执行服务（banner）版本识别。
+        ///
+        /// - serviceDetection 为 null 或未启用/尝试次数为 0 时，回退到内置默认（1 次 / ServiceVersionTimeout），
+        ///   从而对主窗口等未传入配置的调用方零回归；
+        /// - 启用时按 <see cref="ServiceDetectionConfig.Tries"/> 多次尝试、<see cref="ServiceDetectionConfig.DetectTimeoutMs"/> 作为单次超时，
+        ///   实现「服务检测强度」的探测深度分级；
+        /// - 通道被占用（banner 读取超时）时保留最近一次结果，避免空返回掩盖真实状态。
+        /// </summary>
+        private async Task<string> IdentifyServiceVersionWithPolicyAsync(
+            string targetIp, int port, string service,
+            Models.ServiceDetectionConfig serviceDetection,
+            CancellationToken cancellationToken)
+        {
+            bool useConfigured = serviceDetection != null
+                && serviceDetection.Enabled
+                && serviceDetection.Tries > 0
+                && serviceDetection.DetectTimeoutMs > 0;
+
+            int timeout = useConfigured ? serviceDetection.DetectTimeoutMs : ServiceVersionTimeout;
+            int tries = useConfigured ? serviceDetection.Tries : 1;
+
+            string last = string.Empty;
+            for (int i = 0; i < tries; i++)
+            {
+                if (cancellationToken.IsCancellationRequested) break;
+
+                string version;
+                try
+                {
+                    version = await IdentifyServiceVersionAsync(targetIp, port, service, timeout, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception)
+                {
+                    version = string.Empty;
+                }
+
+                if (!string.IsNullOrEmpty(version))
+                    return version;
+
+                if (i == tries - 1)
+                    last = version;
+
+                // 重试间短暂避让并设上限，避免高强度对同一端口形成激进探测
+                if (i < tries - 1)
+                {
+                    var backoff = Math.Min(50, timeout / 2);
+                    if (backoff > 0)
+                    {
+                        try { await Task.Delay(backoff, cancellationToken); }
+                        catch (OperationCanceledException) { break; }
+                    }
+                }
+            }
+
+            return last;
         }
 
         /// <summary>

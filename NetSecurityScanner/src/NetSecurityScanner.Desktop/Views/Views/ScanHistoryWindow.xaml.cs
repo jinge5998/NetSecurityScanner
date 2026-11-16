@@ -170,6 +170,8 @@ namespace NetSecurityScanner.Views
                 var completeResults = new List<CompleteScanResult> { completeResult };
                 string generatedFilePath = selectedFormat switch
                 {
+                    // PDF：Core 层 HistoryReportGenerator（iTextSharp 专业排版，此前未接入）
+                    ReportFormat.Pdf => await Task.Run(() => NetSecurityScanner.Services.HistoryReportGenerator.GenerateFromHistoryRecordToPath(completeResult, filePath)),
                     ReportFormat.Word => await Task.Run(() => HistoryWordReportGenerator.GenerateFromHistoryRecordToPath(completeResult, filePath)),
                     ReportFormat.Html => await GenerateHtmlReportAsync(completeResult, filePath),
                     ReportFormat.Csv => await GenerateCsvReportAsync(completeResults, filePath),
@@ -187,6 +189,7 @@ namespace NetSecurityScanner.Views
 
                     var formatName = selectedFormat switch
                     {
+                        ReportFormat.Pdf => "PDF",
                         ReportFormat.Word => "Word",
                         ReportFormat.Html => "HTML",
                         ReportFormat.Csv => "CSV",
@@ -283,7 +286,8 @@ namespace NetSecurityScanner.Views
 
             var formatItems = new[]
             {
-                new { Icon = "📝", Name = "Word文件 (.docx)", Desc = "可编辑文档格式，方便二次修改和协作（推荐）", Tag = ReportFormat.Word },
+                new { Icon = "📄", Name = "PDF文件 (.pdf)", Desc = "专业排版报告，含封面/目录/图表（推荐）", Tag = ReportFormat.Pdf },
+                new { Icon = "📝", Name = "Word文件 (.docx)", Desc = "可编辑文档格式，方便二次修改和协作", Tag = ReportFormat.Word },
                 new { Icon = "🌐", Name = "HTML文件 (.html)", Desc = "网页格式报告，可直接在浏览器中查看", Tag = ReportFormat.Html },
                 new { Icon = "📊", Name = "CSV文件 (.csv)", Desc = "数据表格格式，适合导入Excel进行数据分析", Tag = ReportFormat.Csv },
                 new { Icon = "📃", Name = "文本文件 (.txt)", Desc = "纯文本格式，体积小、兼容性好", Tag = ReportFormat.Txt }
@@ -370,6 +374,10 @@ namespace NetSecurityScanner.Views
             string defaultExt;
             switch (selectedFormat)
             {
+                case ReportFormat.Pdf:
+                    filter = "PDF文件 (*.pdf)|*.pdf";
+                    defaultExt = "pdf";
+                    break;
                 case ReportFormat.Word:
                     filter = "Word文件 (*.docx)|*.docx";
                     defaultExt = "docx";
@@ -413,6 +421,8 @@ namespace NetSecurityScanner.Views
                 try
                 {
                     var sb = new StringBuilder();
+                    // 安全修复：数据统一 HTML 转义后拼接（与 MainWindow/Expert 版报告同一约定）
+                    string Esc(string s) => System.Net.WebUtility.HtmlEncode(s ?? string.Empty);
                     sb.AppendLine("<!DOCTYPE html>");
                     sb.AppendLine("<html lang='zh-CN'><head><meta charset='UTF-8'>");
                     sb.AppendLine("<title>网络安全扫描报告</title>");
@@ -426,7 +436,7 @@ namespace NetSecurityScanner.Views
                     sb.AppendLine("</style></head><body>");
 
                     sb.AppendLine($"<div class='header'><h1>📋 网络安全扫描报告</h1>");
-                    sb.AppendLine($"<p>目标: {result.TargetIp} | 扫描时间: {result.ScanTime:yyyy-MM-dd HH:mm:ss}</p></div>");
+                    sb.AppendLine($"<p>目标: {Esc(result.TargetIp)} | 扫描时间: {result.ScanTime:yyyy-MM-dd HH:mm:ss}</p></div>");
 
                     sb.AppendLine("<div class='info'>");
                     sb.AppendLine("<h2>扫描概要</h2>");
@@ -444,7 +454,7 @@ namespace NetSecurityScanner.Views
                         sb.AppendLine("<table><tr><th>端口</th><th>服务</th><th>状态</th></tr>");
                         foreach (var p in openPorts)
                         {
-                            sb.AppendLine($"<tr><td>{p.PortNumber}</td><td>{p.Service}</td><td>{p.Status}</td></tr>");
+                            sb.AppendLine($"<tr><td>{p.PortNumber}</td><td>{Esc(p.Service)}</td><td>{Esc(p.Status)}</td></tr>");
                         }
                         sb.AppendLine("</table></div>");
                     }
@@ -456,7 +466,7 @@ namespace NetSecurityScanner.Views
                         sb.AppendLine("<table><tr><th>CVE</th><th>名称</th><th>风险等级</th><th>描述</th></tr>");
                         foreach (var v in vulns)
                         {
-                            sb.AppendLine($"<tr><td>{v.CveId}</td><td>{v.Name}</td><td>{v.RiskLevel}</td><td>{v.Description}</td></tr>");
+                            sb.AppendLine($"<tr><td>{Esc(v.CveId)}</td><td>{Esc(v.Name)}</td><td>{Esc(v.RiskLevel)}</td><td>{Esc(v.Description)}</td></tr>");
                         }
                         sb.AppendLine("</table></div>");
                     }

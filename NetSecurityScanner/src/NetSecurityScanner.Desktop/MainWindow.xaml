@@ -260,6 +260,11 @@
                           Click="LicenseManager_Click"/>
             </MenuItem>
             <MenuItem Header="帮助">
+                <!-- 检查更新：处理器 CheckForUpdates_Click 已存在（含 GitHub Release 解析、
+                     已是最新提示、跳过版本、UpdateDialog 下载安装），此前未接入菜单 -->
+                <MenuItem Header="🔄 检查更新"
+                          Click="CheckForUpdates_Click"/>
+                <Separator/>
                 <MenuItem Header="关于"
                           Click="About_Click"/>
             </MenuItem>

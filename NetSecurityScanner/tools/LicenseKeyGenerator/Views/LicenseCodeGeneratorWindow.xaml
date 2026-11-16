@@ -636,7 +636,7 @@
                    Foreground="#636e72"
                    VerticalAlignment="Center"/>
         <TextBlock Grid.Column="1"
-                   Text="NetSecurityScanner License Generator v1.0.2.2"
+                   Text="NetSecurityScanner License Generator v1.0.2.4"
                    FontSize="10"
                    Foreground="#b2bec3"/>
       </Grid>

@@ -1,49 +1,14 @@
 @echo off
 chcp 65001 >nul
-echo ========================================
-echo   Rebuild + Run v1.0.2.1
-echo ========================================
-
+title Rebuild + Run NetSecurityScanner
 cd /d "%~dp0"
 
-set PROJ=%~dp0src\NetSecurityScanner.Desktop\NetSecurityScanner.Desktop.csproj
-set OUT=%~dp0publish-v1.0.2.1
-
-echo [1/3] Cleaning old output...
-if exist "%OUT%" rmdir /s /q "%OUT%"
-
-echo [2/3] Publishing...
-echo Project: %PROJ%
-echo Output: %OUT%
-
-dotnet publish "%PROJ%" ^
-    -c Release ^
-    -r win-x64 ^
-    --self-contained true ^
-    -p:PublishSingleFile=false ^
-    -p:IncludeNativeLibrariesForSelfExtract=true ^
-    -p:AssemblyVersion=1.0.2.1 ^
-    -p:FileVersion=1.0.2.1 ^
-    -p:Version=1.0.2.1 ^
-    -o "%OUT%"
-
+rem 统一委托给 rebuild-and-run.ps1 执行，避免两套脚本版本号/参数不一致
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0rebuild-and-run.ps1"
 if errorlevel 1 (
     echo.
-    echo FAILED TO PUBLISH
+    echo [ERROR] 重新发布失败，请查看上方日志
     pause
     exit /b 1
 )
-
-echo.
-echo [3/3] Starting program...
-set EXE=%OUT%\NetSecurityScanner.Desktop.exe
-if exist "%EXE%" (
-    echo Starting: %EXE%
-    cd /d "%OUT%"
-    start "" "%EXE%"
-    echo.
-    echo Program started! Please check your desktop.
-) else (
-    echo EXE not found!
-)
-pause
+exit /b 0

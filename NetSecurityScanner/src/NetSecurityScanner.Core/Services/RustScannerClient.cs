@@ -118,20 +118,11 @@ namespace NetSecurityScanner.Services
                     RedirectStandardError = true
                 };
 
-                // Windows 中文环境下 Rust 子进程按系统 ANSI 代码页（GBK, 936）输出中文，
-                // 而 .NET 默认以 UTF-8 解码，会把 "通常每个套接字地址..." 显示成
-                // "閫氬父姣忎釜濂楁帴瀛楀湴鍧€..." 这类乱码，导致错误信息无法阅读。
-                // 显式指定 GBK 编码即可正常显示（仅在支持设置编码的运行时上生效）。
-                try
-                {
-                    var gb2312 = Encoding.GetEncoding("GB2312");
-                    startInfo.StandardOutputEncoding = gb2312;
-                    startInfo.StandardErrorEncoding = gb2312;
-                }
-                catch
-                {
-                    // 某些平台/运行时不支持设置编码，忽略即可（退化为默认 UTF-8）
-                }
+                // Rust 标准库向 stdout/stderr 写出的字节序列始终为 UTF-8（与系统代码页无关），
+                // 因此这里必须显式按 UTF-8 解码；若误用 GB2312/GBK，中文日志会变成
+                // "閫氬父姣忎釜濂楁帴瀛楁湪鍦..." 这类乱码，导致错误信息无法阅读。
+                startInfo.StandardOutputEncoding = Encoding.UTF8;
+                startInfo.StandardErrorEncoding = Encoding.UTF8;
 
                 _rustProcess = Process.Start(startInfo);
                 if (_rustProcess == null)
@@ -232,6 +223,10 @@ namespace NetSecurityScanner.Services
             var line = AnsiEscapeRegex.Replace(rawLine, "").Trim();
             if (line.Length == 0) return true;                                  // 空行
             if (line.StartsWith("at ", StringComparison.Ordinal)) return true;  // tracing 位置行 at src\...rs:NNN
+            // 放行与 RustScan 引擎相关的关键 INFO：启动横幅、端口发现起止、完成汇总。
+            // 若一并过滤，界面上将完全看不到引擎是否在工作，只能靠外部抓 stdout 才能确认，
+            // 排查"引擎有没有跑起来"这类问题时极易误判为已降级。
+            if (line.IndexOf("RustScan", StringComparison.Ordinal) >= 0) return false;
             if (line.IndexOf(" INFO ", StringComparison.Ordinal) >= 0) return true;
             if (line.IndexOf(" DEBUG ", StringComparison.Ordinal) >= 0) return true;
             if (line.IndexOf(" TRACE ", StringComparison.Ordinal) >= 0) return true;
@@ -519,8 +514,11 @@ namespace NetSecurityScanner.Services
                                         {
                                             result.Type = "result";
                                             results.Add(result);
+                                            // 此处不再逐条打印日志：全端口扫描会产出 6 万余条结果，
+                                            // 而 AppendLog 每次调用都要开关一次日志文件并投递一次 UI 调度，
+                                            // 逐条打印会造成日志文件暴涨、Dispatcher 队列积压导致界面卡顿。
+                                            // 结果本身已通过 results 返回值和 OnResultReceived 事件完整交付。
                                             OnResultReceived?.Invoke(this, result);
-                                            OnLog?.Invoke(this, $"📥 收到结果: {result.TargetIp}:{result.Port} [{result.Status}] svc={result.Service}");
                                         }
                                         else
                                         {

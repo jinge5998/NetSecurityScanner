@@ -217,7 +217,11 @@ namespace NetSecurityScanner.Services
                 // 更新设置
                 UpdateSettings = new UpdateSettings
                 {
-                    GitHubOwner = "", // 必须修改为您的 GitHub 用户名
+                    // 修复：原默认值为空字符串（注释提示"必须修改为您的 GitHub 用户名"），
+                    // 导致 settings.json 首次生成后 GitHubOwner 为空，
+                    // 启动自动检查更新会静默跳过——与 UpdateSettings 模型默认值（jinge5998）不一致。
+                    // 现统一为实际仓库所有者。
+                    GitHubOwner = "jinge5998",
                     GitHubRepo = "NetSecurityScanner",
                     CheckOnStartup = true,
                     NotifyIntervalHours = 24

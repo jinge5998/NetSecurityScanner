@@ -1,9 +1,10 @@
-//! 高性能网络安全扫描服务 v1.0.2.1
-//! 使用 Rust + Tokio 实现异步并发端口扫描
+//! 高性能网络安全扫描服务
+//! 使用 Rust + Tokio 实现异步并发端口扫描，TCP 端口发现由 RustScan 引擎承担
 
-mod scanner;
 mod ipc;
 mod protocol;
+mod rustscan_engine;
+mod scanner;
 
 use clap::Parser;
 use tracing::{info, Level};
@@ -12,7 +13,7 @@ use tracing_subscriber::FmtSubscriber;
 /// 命令行参数
 #[derive(Parser, Debug)]
 #[command(name = "rust-scanner-service")]
-#[command(about = "高性能网络安全扫描服务", long_about = None)]
+#[command(version, about = "高性能网络安全扫描服务", long_about = None)]
 struct Args {
     /// IPC 通信模式: pipe (命名管道) 或 tcp (TCP套接字)
     #[arg(short, long, default_value = "pipe")]
@@ -58,11 +59,24 @@ fn main() -> anyhow::Result<()> {
         .finish();
     tracing::subscriber::set_global_default(subscriber)?;
 
-    info!("🚀 Rust 高性能扫描服务 v1.0.2.0 启动");
-    info!("并发数: {}, TCP超时: {}ms, UDP超时: {}ms", args.concurrency, args.tcp_timeout, args.udp_timeout);
+    info!(
+        "🚀 Rust 高性能扫描服务 v{} 启动（RustScan 引擎）",
+        env!("CARGO_PKG_VERSION")
+    );
+    info!(
+        "并发数: {}, TCP超时: {}ms, UDP超时: {}ms",
+        args.concurrency, args.tcp_timeout, args.udp_timeout
+    );
 
     // 启动 IPC 服务
     tokio::runtime::Runtime::new()?.block_on(async {
-        ipc::start_ipc_server(&args.mode, &args.endpoint, args.concurrency, args.tcp_timeout, args.udp_timeout).await
+        ipc::start_ipc_server(
+            &args.mode,
+            &args.endpoint,
+            args.concurrency,
+            args.tcp_timeout,
+            args.udp_timeout,
+        )
+        .await
     })
 }

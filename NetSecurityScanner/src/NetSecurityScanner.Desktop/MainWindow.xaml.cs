@@ -1085,12 +1085,17 @@ namespace NetSecurityScanner
                 if (!string.IsNullOrEmpty(directoryPath) && !Directory.Exists(directoryPath))
                     Directory.CreateDirectory(directoryPath);
 
-                Log($"正在生成{selectedFormat switch { ReportFormat.Word => "Word", ReportFormat.Html => "HTML", ReportFormat.Csv => "CSV", _ => "文本" }}格式报告...");
+                Log($"正在生成{selectedFormat switch { ReportFormat.Pdf => "PDF", ReportFormat.Word => "Word", ReportFormat.Html => "HTML", ReportFormat.Csv => "CSV", _ => "文本" }}格式报告...");
                 StatusTextBlock.Text = "正在生成报告，请稍候...";
 
                 string generatedFilePath = string.Empty;
 
-                if (selectedFormat == ReportFormat.Word)
+                // PDF：Core 层 HistoryReportGenerator（iTextSharp，含封面/目录/图表/页眉页脚）。
+                // GeneratePdfReport 此前是死代码（无任何调用者），格式对话框却提示"推荐使用 PDF"——
+                // 现补齐分发，让提示成为真话。
+                if (selectedFormat == ReportFormat.Pdf)
+                    generatedFilePath = await GeneratePdfReport(completeResults, filePath);
+                else if (selectedFormat == ReportFormat.Word)
                     generatedFilePath = await GenerateWordReport(completeResults, filePath);
                 else if (selectedFormat == ReportFormat.Html)
                     generatedFilePath = await GenerateHtmlReport(completeResults, filePath);
@@ -1108,6 +1113,7 @@ namespace NetSecurityScanner
 
                     var formatName = selectedFormat switch
                     {
+                        ReportFormat.Pdf => "PDF",
                         ReportFormat.Word => "Word",
                         ReportFormat.Html => "HTML",
                         ReportFormat.Csv => "CSV",
@@ -1221,7 +1227,8 @@ namespace NetSecurityScanner
 
             var formatItems = new[]
             {
-                new { Icon = "📝", Name = "Word文件 (.docx)", Desc = "可编辑文档格式，方便二次修改和协作（推荐）", Tag = ReportFormat.Word },
+                new { Icon = "📄", Name = "PDF文件 (.pdf)", Desc = "专业排版报告，含封面/目录/图表（推荐）", Tag = ReportFormat.Pdf },
+                new { Icon = "📝", Name = "Word文件 (.docx)", Desc = "可编辑文档格式，方便二次修改和协作", Tag = ReportFormat.Word },
                 new { Icon = "🌐", Name = "HTML文件 (.html)", Desc = "网页格式报告，可直接在浏览器中查看，支持图表展示", Tag = ReportFormat.Html },
                 new { Icon = "📊", Name = "CSV文件 (.csv)", Desc = "数据表格格式，适合导入Excel进行数据分析", Tag = ReportFormat.Csv },
                 new { Icon = "📃", Name = "文本文件 (.txt)", Desc = "纯文本格式，体积小、兼容性好", Tag = ReportFormat.Txt }
@@ -1326,6 +1333,10 @@ namespace NetSecurityScanner
             string defaultExt;
             switch (selectedFormat)
             {
+                case ReportFormat.Pdf:
+                    filter = "PDF文件 (*.pdf)|*.pdf";
+                    defaultExt = "pdf";
+                    break;
                 case ReportFormat.Word:
                     filter = "Word文件 (*.docx)|*.docx";
                     defaultExt = "docx";
@@ -1346,6 +1357,7 @@ namespace NetSecurityScanner
 
             var formatName = selectedFormat switch
             {
+                ReportFormat.Pdf => "PDF格式",
                 ReportFormat.Word => "Word格式",
                 ReportFormat.Html => "HTML格式",
                 ReportFormat.Csv => "CSV格式",
@@ -2166,6 +2178,11 @@ namespace NetSecurityScanner
 
                     var riskColor = overallRisk == "严重" ? "#991b1b" : overallRisk == "高" ? "#c2410c" : overallRisk == "中" ? "#d97706" : "#059669";
 
+                    // 安全修复：此前本方法所有数据（目标 IP、服务名/版本、漏洞名称/描述/修复方案等）
+                    // 未经 HTML 转义直接拼入报告。目标返回的 Banner 或漏洞库文本若含 <script>
+                    // 等标记会注入查看者的浏览器（存储型 XSS 面）。统一转义后再拼接。
+                    string Esc(string s) => System.Net.WebUtility.HtmlEncode(s ?? string.Empty);
+
                     var sb = new System.Text.StringBuilder();
                     sb.AppendLine("<!DOCTYPE html>");
                     sb.AppendLine("<html lang='zh-CN'><head><meta charset='UTF-8'>");
@@ -2238,7 +2255,7 @@ namespace NetSecurityScanner
 
                     sb.AppendLine("<div class='cover-info'>");
                     sb.AppendLine($"<p><strong>报告编号：</strong>RPT-{DateTime.Now:yyyyMMdd}-{Guid.NewGuid():N}".Substring(0, 40) + "</p>");
-                    sb.AppendLine($"<p><strong>目标系统：</strong>{targetIp}</p>");
+                    sb.AppendLine($"<p><strong>目标系统：</strong>{Esc(targetIp)}</p>");
                     sb.AppendLine($"<p><strong>扫描时间：</strong>{DateTime.Now:yyyy-MM-dd HH:mm:ss}</p>");
                     sb.AppendLine($"<p><strong>扫描类型：</strong>{scanTypeDesc}</p>");
                     if (hasExpertMode)
@@ -2349,7 +2366,7 @@ namespace NetSecurityScanner
                         sb.AppendLine("<table><tr><th>端口号</th><th>协议</th><th>服务名称</th><th>版本</th><th>状态</th></tr>");
                         foreach (var p in openPorts.OrderBy(p => p.PortNumber))
                         {
-                            sb.AppendLine($"<tr><td>{p.PortNumber}</td><td>TCP</td><td>{p.Service ?? "-"}</td><td>{p.ServiceVersion ?? "-"}</td><td>{p.Status}</td></tr>");
+                            sb.AppendLine($"<tr><td>{p.PortNumber}</td><td>TCP</td><td>{Esc(p.Service ?? "-")}</td><td>{Esc(p.ServiceVersion ?? "-")}</td><td>{Esc(p.Status)}</td></tr>");
                         }
                         sb.AppendLine("</table>");
                     }
@@ -2366,14 +2383,17 @@ namespace NetSecurityScanner
                         {
                             var riskClass = IsCriticalLevel(v?.RiskLevel) ? "risk-critical" : IsHighLevel(v?.RiskLevel) ? "risk-high" : IsMediumLevel(v?.RiskLevel) ? "risk-medium" : "risk-low";
                             var cvss = EstimateCvssScoreForLevel(v?.RiskLevel);
-                            sb.AppendLine($"<tr><td>{idx}</td><td>{v.CveId ?? "-"}</td><td>{v.Name ?? "未知"}</td><td class='{riskClass}'>{v.RiskLevel ?? "未分类"}</td><td>{(v.Port.HasValue ? v.Port.Value.ToString() : "-")}</td><td>{v.Service ?? "-"}</td><td>{cvss:F1}</td></tr>");
+                            sb.AppendLine($"<tr><td>{idx}</td><td>{Esc(v.CveId ?? "-")}</td><td>{Esc(v.Name ?? "未知")}</td><td class='{riskClass}'>{Esc(v.RiskLevel ?? "未分类")}</td><td>{(v.Port.HasValue ? v.Port.Value.ToString() : "-")}</td><td>{Esc(v.Service ?? "-")}</td><td>{cvss:F1}</td></tr>");
                             idx++;
                         }
                         sb.AppendLine("</table>");
 
-                        sb.AppendLine("<h3>3.2 漏洞详细信息（前10个）</h3>");
+                        // 正确性修复：此前详情卡片 Take(10) 截断、标题硬编码"前10个"，
+                        // 而 3.1 概览表是全量——概览与详情数量矛盾，且超出 10 个的漏洞
+                        // 看不到修复方案。改为全量输出，标题动态生成。
+                        sb.AppendLine($"<h3>3.2 漏洞详细信息（共 {allVulns.Count} 个）</h3>");
                         int dIdx = 1;
-                        foreach (var v in allVulns.OrderByDescending(v => GetRiskPriorityFromLevel(v?.RiskLevel)).Take(10))
+                        foreach (var v in allVulns.OrderByDescending(v => GetRiskPriorityFromLevel(v?.RiskLevel)))
                         {
                             var riskLevel = string.IsNullOrWhiteSpace(v?.RiskLevel) ? "未分类" : v.RiskLevel;
                             var headerBg = IsCriticalLevel(riskLevel) ? "#991b1b" : IsHighLevel(riskLevel) ? "#c2410c" : IsMediumLevel(riskLevel) ? "#d97706" : "#059669";
@@ -2391,13 +2411,13 @@ namespace NetSecurityScanner
 
                             sb.AppendLine("<div class='vuln-card'>");
                             var cvePart = string.IsNullOrWhiteSpace(v.CveId) ? "" : $"({v.CveId})";
-                            sb.AppendLine($"<div class='card-header' style='background:{headerBg}'>[{dIdx}] {v.Name ?? "未知漏洞"} {cvePart} [{riskLevel}]</div>");
+                            sb.AppendLine($"<div class='card-header' style='background:{headerBg}'>[{dIdx}] {Esc(v.Name ?? "未知漏洞")} {Esc(cvePart)} [{Esc(riskLevel)}]</div>");
                             sb.AppendLine("<div class='card-body'>");
                             sb.AppendLine($"<p class='section-title'>【漏洞概述】</p>");
                             var desc = v.Description;
                             if (string.IsNullOrWhiteSpace(desc) || desc == "-")
                                 desc = $"该漏洞影响 {(string.IsNullOrWhiteSpace(v.Service) ? "系统" : v.Service)}服务" + (v.Port.HasValue ? $"（端口 {v.Port.Value}）" : "");
-                            sb.AppendLine($"<p>{desc}</p>");
+                            sb.AppendLine($"<p>{Esc(desc)}</p>");
 
                             sb.AppendLine($"<p class='section-title'>【CVSS评分详情】</p>");
                             sb.AppendLine("<div class='cvss-grid'>");
@@ -2413,12 +2433,12 @@ namespace NetSecurityScanner
                             sb.AppendLine($"<div class='cvss-total' style='background:{headerBg};color:white'>综合评分：{cvss:F1}/10.0 ({riskLevel})</div>");
 
                             sb.AppendLine($"<p class='section-title'>【基本信息】</p>");
-                            sb.AppendLine($"<p>CVSS评分：{cvss:F1} ({riskLevel}) | 影响端口：{(v.Port.HasValue ? $"TCP/{v.Port.Value}" : "N/A")} | 服务：{v.Service ?? "-"}</p>");
+                            sb.AppendLine($"<p>CVSS评分：{cvss:F1} ({Esc(riskLevel)}) | 影响端口：{(v.Port.HasValue ? $"TCP/{v.Port.Value}" : "N/A")} | 服务：{Esc(v.Service ?? "-")}</p>");
 
                             if (!string.IsNullOrWhiteSpace(v.DetectionMethod) && v.DetectionMethod != "-")
                             {
                                 sb.AppendLine($"<p class='section-title'>【检测方法】</p>");
-                                sb.AppendLine($"<p>{v.DetectionMethod}</p>");
+                                sb.AppendLine($"<p>{Esc(v.DetectionMethod)}</p>");
                             }
 
                             sb.AppendLine($"<p class='section-title'>【影响范围分析】</p>");
@@ -2433,12 +2453,21 @@ namespace NetSecurityScanner
                             sb.AppendLine($"<p class='section-title'>【修复方案】</p>");
                             var solution = v.Solution ?? "请参考官方安全公告获取补丁信息";
                             foreach (var line in solution.Split('\n').Where(l => !string.IsNullOrWhiteSpace(l)).Take(5))
-                                sb.AppendLine($"<p>  • {line.Trim()}</p>");
+                                sb.AppendLine($"<p>  • {Esc(line.Trim())}</p>");
 
                             if (!string.IsNullOrWhiteSpace(v.References))
                             {
                                 sb.AppendLine($"<p class='section-title'>【参考链接】</p>");
-                                sb.AppendLine($"<p class='ref-link'><a href='{v.References}' target='_blank'>{v.References}</a></p>");
+                                // href 注入防护：References 可能含引号/javascript: 协议，
+                                // 仅当为 http(s) 绝对地址时才生成 <a>，否则降级为纯文本显示。
+                                var refsTrimmed = v.References.Trim();
+                                var isSafeUrl = (refsTrimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                                              || refsTrimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                                              && !refsTrimmed.Any(c => c is '"' or '\'' or '<' or '>' or ' ');
+                                if (isSafeUrl)
+                                    sb.AppendLine($"<p class='ref-link'><a href='{Esc(refsTrimmed)}' target='_blank' rel='noopener noreferrer'>{Esc(refsTrimmed)}</a></p>");
+                                else
+                                    sb.AppendLine($"<p class='ref-link'>{Esc(refsTrimmed)}</p>");
                             }
 
                             sb.AppendLine("</div></div>");
@@ -2646,7 +2675,7 @@ namespace NetSecurityScanner
                     sb.AppendLine($"<div style='font-size:36px;font-weight:bold;color:{riskBorderColor};margin:10px 0;'>{overallRisk}风险</div>");
                     sb.AppendLine($"<div style='font-size:18px;font-weight:bold;color:#1a365d;margin:4px 0;'>安全评分：{securityScore}/100</div>");
                     sb.AppendLine($"<div style='font-size:12px;color:#64748b;margin-top:6px;'>{GetSecurityRatingDescriptionForScore(securityScore)}</div>");
-                    sb.AppendLine($"<div style='font-size:12px;color:#64748b;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;'>目标系统：{targetIp} | 漏洞总数：{allVulns.Count} | 开放端口：{openPorts.Count}</div>");
+                    sb.AppendLine($"<div style='font-size:12px;color:#64748b;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;'>目标系统：{Esc(targetIp)} | 漏洞总数：{allVulns.Count} | 开放端口：{openPorts.Count}</div>");
                     sb.AppendLine("</div>");
 
                     var portNumbers = openPorts.Select(p => p.PortNumber).ToHashSet();
@@ -2714,15 +2743,15 @@ namespace NetSecurityScanner
                     sb.AppendLine("<h3>8.3 核心结论</h3>");
                     if (highRiskCount > 0)
                     {
-                        sb.AppendLine($"<p>本次扫描针对目标系统 <strong>{targetIp}</strong> 进行了全面的网络安全评估，共发现 <strong>{allVulns.Count}</strong> 个安全漏洞（其中高危 {highRiskCount} 个、中危 {medRiskCount} 个、低危 {lowRiskCount} 个）和 {openPorts.Count} 个开放端口。发现的高危漏洞需要立即采取修复措施，建议按照本报告提供的修复优先级矩阵制定详细的修复计划。</p>");
+                        sb.AppendLine($"<p>本次扫描针对目标系统 <strong>{Esc(targetIp)}</strong> 进行了全面的网络安全评估，共发现 <strong>{allVulns.Count}</strong> 个安全漏洞（其中高危 {highRiskCount} 个、中危 {medRiskCount} 个、低危 {lowRiskCount} 个）和 {openPorts.Count} 个开放端口。发现的高危漏洞需要立即采取修复措施，建议按照本报告提供的修复优先级矩阵制定详细的修复计划。</p>");
                     }
                     else if (allVulns.Any())
                     {
-                        sb.AppendLine($"<p>本次扫描针对目标系统 <strong>{targetIp}</strong> 进行了全面的网络安全评估，共发现 <strong>{allVulns.Count}</strong> 个安全漏洞（中危 {medRiskCount} 个、低危 {lowRiskCount} 个）和 {openPorts.Count} 个开放端口。当前未发现高危漏洞，但建议对中低危漏洞进行持续关注和计划修复。</p>");
+                        sb.AppendLine($"<p>本次扫描针对目标系统 <strong>{Esc(targetIp)}</strong> 进行了全面的网络安全评估，共发现 <strong>{allVulns.Count}</strong> 个安全漏洞（中危 {medRiskCount} 个、低危 {lowRiskCount} 个）和 {openPorts.Count} 个开放端口。当前未发现高危漏洞，但建议对中低危漏洞进行持续关注和计划修复。</p>");
                     }
                     else
                     {
-                        sb.AppendLine($"<p>本次扫描针对目标系统 <strong>{targetIp}</strong> 进行了全面的网络安全评估，未发现安全漏洞。发现 {openPorts.Count} 个开放端口，建议持续监控并定期进行安全评估。</p>");
+                        sb.AppendLine($"<p>本次扫描针对目标系统 <strong>{Esc(targetIp)}</strong> 进行了全面的网络安全评估，未发现安全漏洞。发现 {openPorts.Count} 个开放端口，建议持续监控并定期进行安全评估。</p>");
                     }
 
                     sb.AppendLine("<div style='margin-top:12px;'>");
