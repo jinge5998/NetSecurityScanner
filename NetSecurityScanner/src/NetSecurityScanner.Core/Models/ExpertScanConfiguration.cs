@@ -48,8 +48,9 @@ namespace NetSecurityScanner.Core.Models
 
         /// <summary>
         /// 服务识别超时（ms）。
-        /// 已知缺陷：界面提供滑块可调节，但没有任何扫描逻辑或 Nmap 命令生成读取该值，
-        /// ScanProfileConfig 中亦无对应字段可承载，属于纯装饰性配置。
+        /// 接线情况：内置 C# 引擎经 <c>ScanProfileConfig.ServiceDetectTimeoutMs</c> 生效；
+        /// nmap 引擎无独立的服务识别超时参数，由 <c>NmapCommandBuilder</c> 折算为
+        /// <c>--max-rtt-timeout</c> 的下界参与生成。
         /// </summary>
         public int ServiceDetectTimeout { get; set; } = 2000;
 

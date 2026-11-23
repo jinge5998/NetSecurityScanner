@@ -165,36 +165,45 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
     let mut client_alive = true;
     let mut progress_count: u64 = 0;
     let mut result_count: u64 = 0;
-    let mut last_heartbeat = std::time::Instant::now();
 
     info!("[{}] 进入 select! 循环, 等待扫描结果...", request_id);
 
     // 实时接收并发送进度和结果
     // 修复: 使用非 biased 模式, 并在 scan_done 且 channel 空时通过超时退出
+    //
+    // 心跳修复 (v1.0.21): 旧实现把「每 10 秒发送心跳」写成 select! 循环顶部的串行检查。
+    // tokio::select! 在没有分支就绪时会阻塞等待，长扫描静默期（progress 间隔可达 25 秒）
+    // 循环一直停在 select! 内部，顶部的检查永远执行不到；且 progress 分支发送成功后
+    // 又会重置 last_heartbeat，进一步吞掉触发窗口。实测 200 秒长扫描引擎 0 心跳，
+    // C# 端 15 秒心跳阈值必然把正常扫描误判为「服务无响应」并终止连接。
+    // 修复后把心跳改为 select! 自身的定时分支，与数据读写并发共存：
+    // 每 10 秒无条件唤醒一次发送心跳，进度/结果到达时也会照常处理。
+    let mut heartbeat_interval = tokio::time::interval(std::time::Duration::from_secs(10));
+    heartbeat_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    // interval 第一个 tick 会立即完成，先消费掉避免刚进循环就多发一次心跳
+    heartbeat_interval.tick().await;
+
     while client_alive {
-        // 心跳: 每 10 秒发送一次, 防止 C# 端心跳超时
-        if last_heartbeat.elapsed() > std::time::Duration::from_secs(10) {
-            let heartbeat = IpcResponse::Heartbeat {
-                timestamp: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs() as i64,
-                status: "scanning".to_string(),
-            };
-            if let Ok(json) = serde_json::to_string(&heartbeat) {
-                if stream.write_all(json.as_bytes()).await.is_err()
-                    || stream.write_all(b"\n").await.is_err()
-                    || stream.flush().await.is_err()
-                {
-                    warn!("[{}] 发送心跳失败 (客户端可能已断开)", request_id);
-                    client_alive = false;
-                    break;
+        tokio::select! {
+            // 心跳定时分支：每 10 秒向客户端发送心跳，防止 C# 端心跳超时误判
+            _ = heartbeat_interval.tick() => {
+                let heartbeat = IpcResponse::Heartbeat {
+                    timestamp: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs() as i64,
+                    status: "scanning".to_string(),
+                };
+                if let Ok(json) = serde_json::to_string(&heartbeat) {
+                    if stream.write_all(json.as_bytes()).await.is_err()
+                        || stream.write_all(b"\n").await.is_err()
+                        || stream.flush().await.is_err()
+                    {
+                        warn!("[{}] 发送心跳失败 (客户端可能已断开)", request_id);
+                        client_alive = false;
+                    }
                 }
             }
-            last_heartbeat = std::time::Instant::now();
-        }
-
-        tokio::select! {
             // 扫描任务完成
             res = &mut scan_task, if !scan_done => {
                 match res {
@@ -233,8 +242,6 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
                         {
                             warn!("[{}] 发送 progress 失败 (客户端可能已断开)", request_id);
                             client_alive = false;
-                        } else {
-                            last_heartbeat = std::time::Instant::now();
                         }
                     }
                     None => {
@@ -262,8 +269,6 @@ async fn run_scan_loop<W: AsyncWriteExt + Unpin>(
                         {
                             warn!("[{}] 发送 result 失败 (客户端可能已断开)", request_id);
                             client_alive = false;
-                        } else {
-                            last_heartbeat = std::time::Instant::now();
                         }
                     }
                     None => {

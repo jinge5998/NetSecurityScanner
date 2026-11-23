@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -4297,16 +4298,38 @@ namespace NetSecurityScanner
         {
             try
             {
-                if (_portScanResults == null && _vulnerabilityResults == null)
+                var portList = _portScanResults?.Where(p => p.Status == "开放" || p.Status == "开放或过滤").ToList() ?? new List<PortScanResult>();
+                var vulnList = _vulnerabilityResults?.ToList() ?? new List<VulnerabilityResult>();
+
+                // 主窗口没有扫描数据时（典型场景：用户只在「专家模式」窗口里扫描，结果不写回主窗口集合），
+                // 回退到最近一次扫描历史。原实现只判 null，而两个集合在构造函数里已被初始化为空集合，
+                // 守卫永不触发，导致空数据直接生成 0 条攻击路径，窗口打开后一片空白。
+                if (portList.Count == 0 && vulnList.Count == 0)
+                {
+                    var history = LoadLatestScanHistoryForAttackPath();
+                    if (history != null)
+                    {
+                        portList = history.Value.Ports;
+                        vulnList = history.Value.Vulns;
+                    }
+                }
+
+                if (portList.Count == 0 && vulnList.Count == 0)
                 {
                     MessageBox.Show("请先执行端口扫描或漏洞扫描，然后再进行攻击路径分析。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
 
-                var portList = _portScanResults?.Where(p => p.Status == "开放" || p.Status == "开放或过滤").ToList() ?? new List<PortScanResult>();
-                var vulnList = _vulnerabilityResults?.ToList() ?? new List<VulnerabilityResult>();
-
                 var attackPaths = _riskAssessmentService.GenerateAttackPathsForAnalysis(vulnList, portList);
+
+                if (attackPaths == null || attackPaths.Count == 0)
+                {
+                    MessageBox.Show(
+                        $"已加载 {portList.Count} 个开放端口、{vulnList.Count} 条漏洞，但未生成攻击路径。\n" +
+                        "攻击路径基于 Web(80/443/8080/8443)、远程(22/23/3389)、数据库(3306/5432/1433/27017/6379)、文件服务(21/135/139/445) 端口生成，请确认扫描结果包含上述端口。",
+                        "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
 
                 var attackPathWindow = new Views.AttackPathAnalysisWindow(attackPaths);
                 attackPathWindow.Owner = this;
@@ -4316,6 +4339,53 @@ namespace NetSecurityScanner
             {
                 MessageBox.Show($"打开攻击路径分析窗口失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        /// <summary>
+        /// 回退数据源：读取 Documents\NetSecurityScanner\ScanHistory 下最近一次
+        /// 含开放端口或漏洞的扫描记录（专家模式的扫描结果也保存在这里）。
+        /// </summary>
+        private (List<PortScanResult> Ports, List<VulnerabilityResult> Vulns)? LoadLatestScanHistoryForAttackPath()
+        {
+            try
+            {
+                var dir = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    "NetSecurityScanner", "ScanHistory");
+                if (!Directory.Exists(dir))
+                    return null;
+
+                var files = new DirectoryInfo(dir).GetFiles("*.json").OrderByDescending(f => f.LastWriteTime);
+                foreach (var file in files)
+                {
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(File.ReadAllText(file.FullName));
+                        var root = doc.RootElement;
+
+                        var ports = new List<PortScanResult>();
+                        var vulns = new List<VulnerabilityResult>();
+
+                        if (root.TryGetProperty("PortScanResults", out var p) && p.ValueKind == JsonValueKind.Array)
+                            ports = JsonSerializer.Deserialize<List<PortScanResult>>(p.GetRawText()) ?? new List<PortScanResult>();
+                        if (root.TryGetProperty("VulnerabilityResults", out var v) && v.ValueKind == JsonValueKind.Array)
+                            vulns = JsonSerializer.Deserialize<List<VulnerabilityResult>>(v.GetRawText()) ?? new List<VulnerabilityResult>();
+
+                        var openPorts = ports.Where(x => x.Status == "开放" || x.Status == "开放或过滤").ToList();
+                        if (openPorts.Count > 0 || vulns.Count > 0)
+                            return (openPorts, vulns);
+                    }
+                    catch
+                    {
+                        // 单个历史文件损坏/结构不符时跳过，继续找下一份
+                    }
+                }
+            }
+            catch
+            {
+                // 历史目录不可读时按无数据处理，由调用方给出提示
+            }
+            return null;
         }
 
         private void AttackLogQuery_Click(object sender, RoutedEventArgs e)

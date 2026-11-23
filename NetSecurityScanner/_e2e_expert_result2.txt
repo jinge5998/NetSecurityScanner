@@ -1,0 +1,199 @@
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PortScanner.cs(37,49): warning CS8767: “Task<List<PortScanResult>> PortScanner.ScanTcpPortsAsync(string targetIp, List<int> ports, IProgress<int> progress = null, CancellationToken cancellationToken = default(CancellationToken), ScanPolicy scanPolicy = null)”的参数“progress”类型中引用类型的为 Null 性与隐式实现的成员“Task<List<PortScanResult>> IPortScanner.ScanTcpPortsAsync(string targetIp, List<int> ports, IProgress<int>? progress = null, CancellationToken cancellationToken = default(CancellationToken), ScanPolicy? scanPolicy = null)”不匹配(可能是由于为 Null 性特性)。 [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PortScanner.cs(37,49): warning CS8767: “Task<List<PortScanResult>> PortScanner.ScanTcpPortsAsync(string targetIp, List<int> ports, IProgress<int> progress = null, CancellationToken cancellationToken = default(CancellationToken), ScanPolicy scanPolicy = null)”的参数“scanPolicy”类型中引用类型的为 Null 性与隐式实现的成员“Task<List<PortScanResult>> IPortScanner.ScanTcpPortsAsync(string targetIp, List<int> ports, IProgress<int>? progress = null, CancellationToken cancellationToken = default(CancellationToken), ScanPolicy? scanPolicy = null)”不匹配(可能是由于为 Null 性特性)。 [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PortScanner.cs(201,49): warning CS8767: “Task<List<PortScanResult>> PortScanner.ScanUdpPortsAsync(string targetIp, List<int> ports, IProgress<int> progress = null, CancellationToken cancellationToken = default(CancellationToken), ScanPolicy scanPolicy = null)”的参数“progress”类型中引用类型的为 Null 性与隐式实现的成员“Task<List<PortScanResult>> IPortScanner.ScanUdpPortsAsync(string targetIp, List<int> ports, IProgress<int>? progress = null, CancellationToken cancellationToken = default(CancellationToken), ScanPolicy? scanPolicy = null)”不匹配(可能是由于为 Null 性特性)。 [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PortScanner.cs(201,49): warning CS8767: “Task<List<PortScanResult>> PortScanner.ScanUdpPortsAsync(string targetIp, List<int> ports, IProgress<int> progress = null, CancellationToken cancellationToken = default(CancellationToken), ScanPolicy scanPolicy = null)”的参数“scanPolicy”类型中引用类型的为 Null 性与隐式实现的成员“Task<List<PortScanResult>> IPortScanner.ScanUdpPortsAsync(string targetIp, List<int> ports, IProgress<int>? progress = null, CancellationToken cancellationToken = default(CancellationToken), ScanPolicy? scanPolicy = null)”不匹配(可能是由于为 Null 性特性)。 [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\WebPathTracerService.cs(2005,54): warning SYSLIB0027: “PublicKey.Key”已过时:“PublicKey.Key is obsolete. Use the appropriate method to get the public key, such as GetRSAPublicKey.” [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+CSC : warning SCS9999: This package is legacy and is no longer maintained. [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Models\PluginExceptions.cs(34,18): warning RCS1194: Implement exception constructors [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Models\PluginExceptions.cs(51,18): warning RCS1194: Implement exception constructors [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Models\PluginExceptions.cs(8,18): warning RCS1194: Implement exception constructors [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Models\PluginExceptions.cs(20,18): warning RCS1194: Implement exception constructors [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Utils\SafeNetworkOperation.cs(354,18): warning RCS1194: Implement exception constructors [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\RustScannerClient.cs(19,18): warning RCS1194: Implement exception constructors [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\WebPathTracerService.cs(451,17): warning SCS0004: Certificate Validation has been disabled [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Utils\CryptoHelper.cs(38,35): warning SCS0011: CBC mode is weak [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Utils\CryptoHelper.cs(57,35): warning SCS0011: CBC mode is weak [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\CncertSyncService.cs(126,17): warning SCS0004: Certificate Validation has been disabled [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\BatchScanManager.cs(130,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Utils\ScanPerformanceMonitor.cs(223,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Utils\ScanPerformanceMonitor.cs(266,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Plugins\DefaultPlugins\WebVulnPlugin.cs(126,21): warning SCS0004: Certificate Validation has been disabled [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Utils\SafeNetworkOperation.cs(252,26): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(84,21): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(84,60): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(84,102): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(90,21): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(90,58): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(90,95): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(96,35): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(102,37): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(108,38): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(114,37): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(120,36): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(126,35): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\AIRiskAssessmentService.cs(135,41): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\EnhancedVerificationService.cs(505,39): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Core\PortScannerService.cs(1057,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ExpertScanPlanner.cs(106,48): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\NmapCommandBuilder.cs(300,39): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1238,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1255,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1270,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1272,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1291,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1274,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1276,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1308,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1326,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1343,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ExpertScanPlanner.cs(290,54): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1361,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1379,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1397,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1451,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1434,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1416,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1469,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1487,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Detection\VulnerabilityDetectionService.cs(1524,20): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\NetworkTopologyService.cs(184,17): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\LocalVulnerabilityLibrary.cs(713,56): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PluginOrchestrator.cs(232,25): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PluginOrchestrator.cs(244,28): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PluginOrchestrator.cs(271,25): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PluginMarketService.cs(436,17): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PluginMarketService.cs(438,29): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PluginOrchestrator.cs(290,28): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PluginMarketService.cs(438,50): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PortScanner.cs(150,33): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PortScanner.cs(304,33): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\PortScanner.cs(750,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\HistoryReportGenerator.cs(1986,86): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\VulnerabilityScanner.cs(52,17): warning SCS0004: Certificate Validation has been disabled [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScheduledTaskService.cs(641,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ProfessionalPdfReportGenerator.cs(1358,86): warning RCS1155: Use StringComparison when comparing strings [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(326,26): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(328,32): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(329,37): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(277,27): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(280,58): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(280,89): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(281,23): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(282,26): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(283,22): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(284,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(294,35): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(294,55): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(295,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(295,58): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(297,30): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\ScanAnalyticsService.cs(300,24): warning SCS0005: Weak random generator [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\VulnerabilityScanner.cs(1520,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\VulnerabilityScanner.cs(1696,17): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\VulnerabilityScanner.cs(1701,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\VulnerabilityScanner.cs(1742,17): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\VulnerabilityScanner.cs(1747,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\VulnerabilityScanner.cs(1793,17): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\VulnerabilityScanner.cs(1798,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\VulnerabilityScanner.cs(1846,21): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\Services\VulnerabilityScanner.cs(1852,13): warning RCS1075: Avoid empty catch clause that catches System.Exception [D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj]
+=== 1. 执行器可用性与版本 ===
+IsAvailable=True
+NmapPath=D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\tools\nmap\nmap.exe
+Version=Nmap version 7.993 ( https://nmap.org )
+LocateNmap()(当前工作目录无关)=D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\nmap.exe
+
+=== 2. 精确端口扫描 (21,23,80,443,3389) ===
+耗时=6.5s 结果条数=5
+  21    关闭     svc=ftp                    ver=         conf=中
+  23    关闭     svc=telnet                 ver=         conf=中
+  80    关闭     svc=http                   ver=         conf=中
+  443   关闭     svc=https                  ver=         conf=中
+  3389  开放     svc=Microsoft Terminal Services ver=         conf=高
+
+=== 3. 大端口集扫描 (1-200，验证端口区间压缩) ===
+耗时=6.4s 结果条数=2 开放=1
+  135   开放     svc=Microsoft Windows RPC  ver=        
+
+=== 4. 漏洞扫描链路（nmap 结果 → VulnerabilityScanner）===
+[VulnerabilityScanner] 开始漏洞扫描: 127.0.0.1, 开放端口数: 1
+[VulnerabilityScanner] 开放端口: 3389 [Microsoft Terminal Services] 开放
+[VulnerabilityScanner] 漏洞数据库已加载: 3 条
+[VulnerabilityScanner] 通用漏洞检测完成: 5 个
+[VulnerabilityScanner] 扫描端口: 3389 [Microsoft Terminal Services]
+[VulnerabilityScanner] 匹配漏洞: port=3389 service=Microsoft Terminal Services
+[VulnerabilityScanner] 内置数据库匹配: 3 条规则
+[VulnerabilityScanner] 检查漏洞: CVE-2021-44228 ports=[80,443,8080,8443] service=log4j,log4j2,java portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2017-0144 ports=[445,139] service=smb,microsoft-ds portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2019-0708 ports=[3389] service=rdp,ms-wbt-server portMatch=True serviceMatch=False matched=False
+[VulnerabilityScanner] 端口 3389 漏洞数: 1
+耗时=4.2s 漏洞条数=6
+  [中]                  port=135   开放端口 135
+  [中]                  port=445   开放端口 445
+  [中]                  port=3389  开放端口 3389
+  [中] CVE-2019-0708    port=3389  RDP服务检测
+  [低]                  port=      目标不可达
+  [低]                  port=      检测到Windows操作系统
+
+=== 4.5 错误路径验证（非法 NSE 脚本应抛出可读异常）===
+捕获异常类型=InvalidOperationException
+异常信息=nmap 执行失败（退出码 1）: You have specified some options that require raw socket access. | These options will not be honored for TCP Connect scan. | NSE: failed to initialize the script engine:
+
+=== 5.5 内置 C# 引擎（对应专家模式「内置C#引擎」单选）===
+耗时=1.6s 结果条数=1 开放=1
+  3389  开放     svc=RDP
+
+=== 6. RustScan 引擎（按 ExpertModeWindow 真实调用顺序）===
+  [Rust] [Rust stdout]   2026-11-18T05:16:16.204350Z  INFO  ?? Rust 高性能扫描服务 v1.0.20 启动（RustScan 引擎）
+  [Rust] ?? Rust扫描服务已启动 (PID: 36692)
+  [Rust]    并发数: 1000, TCP超时: 200ms, UDP超时: 500ms
+StartServiceAsync=True IsConnected=False
+  [Rust] ? 已连接到Rust扫描服务 (TCP, 第1次尝试)
+  [Rust] 发送扫描请求: 1 目标, 5 端口
+  [Rust] ? 请求已发送并 flush 到管道
+  [Rust] [Rust stdout]   2026-11-18T05:16:19.285227Z  INFO  [RustScan] target=127.0.0.1 开始发现 5 个 TCP 端口 (batch_size=50, timeout=200ms, tries=2)
+  [Rust] [Rust stdout]   2026-11-18T05:16:19.711755Z  INFO  RustScan 引擎完成: target=127.0.0.1, 扫描端口=5, 开放=1
+  [Rust] [Rust stdout]   2026-11-18T05:16:19.820156Z  INFO  [RustScan] target=127.0.0.1 TCP 发现完成: 开放 1 个端口
+  [Rust] ? 扫描完成: 5 结果, 1 开放端口
+耗时=0.6s 原始结果数=5
+  21    raw=[关闭] isOpen=False svc=                     ver=
+  23    raw=[关闭] isOpen=False svc=                     ver=
+  80    raw=[关闭] isOpen=False svc=                     ver=
+  443   raw=[关闭] isOpen=False svc=                     ver=
+  3389  raw=[开放] isOpen=True svc=rdp                  ver=
+  [Rust] 发送扫描请求: 1 目标, 4 端口
+  [Rust] ? 请求已发送并 flush 到管道
+  [Rust] ?? 读取异常: Unable to read data from the transport connection: 你的主机中的软件中止了一个已建立的连接。.
+  [Rust] ?? 连接已断开且无结果，关闭旧连接并重连后重发请求（第 2 次）
+  [Rust] ? 已连接到Rust扫描服务 (TCP, 第1次尝试)
+  [Rust] 发送扫描请求: 1 目标, 4 端口
+  [Rust] ? 请求已发送并 flush 到管道
+  [Rust] ? 扫描完成: 4 结果, 0 开放端口
+UDP 阶段耗时=0.6s 结果数=4 IsConnected=True
+  [UDP] 53    raw=[关闭] svc=
+  [UDP] 123   raw=[关闭] svc=
+  [UDP] 161   raw=[关闭] svc=
+  [UDP] 500   raw=[过滤] svc=
+  [Rust] ?? Rust扫描服务已停止 (PID: 36692)
+
+=== 6.5 专家模式超时接线验证（本次修复项）===
+默认滑块命令: nmap -sT -sU -sV --version-intensity 1 -PE -PP -n --top-ports 1000 -T4 --max-rtt-timeout 500ms --min-rtt-timeout 100ms --data-length 32 --ttl 64 -oJ "scan_t.json" -q --stats-every 5s 127.0.0.1
+调大滑块命令: nmap -sT -sU -sV --version-intensity 1 -PE -PP -n --top-ports 1000 -T4 --max-rtt-timeout 5000ms --min-rtt-timeout 1000ms --data-length 32 --ttl 64 -oJ "scan_t.json" -q --stats-every 5s 127.0.0.1
+命令层接线生效(UdpTimeout/ServiceDetectTimeout 进入 nmap 参数): True
+调大超时不应收紧 host-timeout(避免假阴性): True
+
+--- 真实扫描对比：500/udp（IKE 探针 bind 重试场景）---
+默认滑块: 耗时=28.5s 结果=2
+调大滑块: 耗时=29.4s 结果=2
+调大超时无假阴性(结果数不减少): True
+
+=== 7. 判定 ===
+精确端口扫描命中开放端口: True
+大端口集扫描命中开放端口: True
+服务识别有效(非空 Service): True
+漏洞扫描产出结果: True
+内置 C# 引擎命中开放端口: True
+RustScan 引擎命中开放端口: True
+RustScan 引擎 UDP 复用同一连接: True
+专家模式超时接线生效: True
+专家模式调大超时无假阴性: True

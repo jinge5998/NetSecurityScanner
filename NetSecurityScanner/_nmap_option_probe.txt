@@ -1,0 +1,81 @@
+
+===== 1. 分片 -f + 恒定 --data-length 32（Builder 恒定注入） =====
+CMD: nmap -sT -f --data-length 32 -n -p 445 -T4 --ttl 64 127.0.0.1
+EXITCODE=0  耗时=0.3s
+stderr 非空行数=3
+  E| Warning: Packet fragmentation selected on a host other than Linux, OpenBSD, FreeBSD, or NetBSD.  This may or may not work.
+  E| You have specified some options that require raw socket access.
+  E| These options will not be honored for TCP Connect scan.
+端口结果行数=1
+  P| 445/tcp open  microsoft-ds
+
+===== 2. 分片 -f 但无 --data-length（对照） =====
+CMD: nmap -sT -f -n -p 445 -T4 --ttl 64 127.0.0.1
+EXITCODE=0  耗时=0.3s
+stderr 非空行数=3
+  E| Warning: Packet fragmentation selected on a host other than Linux, OpenBSD, FreeBSD, or NetBSD.  This may or may not work.
+  E| You have specified some options that require raw socket access.
+  E| These options will not be honored for TCP Connect scan.
+端口结果行数=1
+  P| 445/tcp open  microsoft-ds
+
+===== 3. SYN 扫描 -sS（非管理员） =====
+CMD: nmap -sS -sV --data-length 32 -n -p 445 -T4 --ttl 64 127.0.0.1
+EXITCODE=0  耗时=8.6s
+stderr 非空行数=0
+端口结果行数=1
+  P| 445/tcp open  microsoft-ds Microsoft Windows 7 - 10 microsoft-ds (workgroup: WorkGroup)
+
+===== 4. OS 识别 -O --osscan-guess + -sT =====
+CMD: nmap -sT -sV -O --osscan-guess --data-length 32 -n -p 445 -T4 --ttl 64 127.0.0.1
+EXITCODE=0  耗时=11.7s
+stderr 非空行数=2
+  E| You have specified some options that require raw socket access.
+  E| These options will not be honored for TCP Connect scan.
+端口结果行数=1
+  P| 445/tcp open  microsoft-ds Microsoft Windows 7 - 10 microsoft-ds (workgroup: WorkGroup)
+  W| Warning: OSScan results may be unreliable because we could not find at least 1 open and 1 closed port
+
+===== 5. --mtu 16 与 -f 同时（互斥） =====
+CMD: nmap -sT -f --mtu 16 --data-length 32 -n -p 445 -T4 --ttl 64 127.0.0.1
+EXITCODE=0  耗时=0.3s
+stderr 非空行数=3
+  E| Warning: Packet fragmentation selected on a host other than Linux, OpenBSD, FreeBSD, or NetBSD.  This may or may not work.
+  E| You have specified some options that require raw socket access.
+  E| These options will not be honored for TCP Connect scan.
+端口结果行数=1
+  P| 445/tcp open  microsoft-ds
+
+===== 6. 诱饵 -D + --data-length =====
+CMD: nmap -sT -D RND:5 --data-length 32 -n -p 445 -T4 --ttl 64 127.0.0.1
+EXITCODE=0  耗时=0.3s
+stderr 非空行数=2
+  E| You have specified some options that require raw socket access.
+  E| These options will not be honored for TCP Connect scan.
+端口结果行数=1
+  P| 445/tcp open  microsoft-ds
+
+===== 7. 畸形校验和 --badsum + -sT =====
+CMD: nmap -sT --badsum --data-length 32 -n -p 445 -T4 --ttl 64 127.0.0.1
+EXITCODE=0  耗时=0.3s
+stderr 非空行数=2
+  E| You have specified some options that require raw socket access.
+  E| These options will not be honored for TCP Connect scan.
+端口结果行数=1
+  P| 445/tcp open  microsoft-ds
+
+===== 8. --ip-options L + -sT =====
+CMD: nmap -sT --ip-options L --data-length 32 -n -p 445 -T4 --ttl 64 127.0.0.1
+EXITCODE=0  耗时=0.3s
+stderr 非空行数=2
+  E| You have specified some options that require raw socket access.
+  E| These options will not be honored for TCP Connect scan.
+端口结果行数=1
+  P| 445/tcp open  microsoft-ds
+
+===== 9. 纯 UDP 扫描 -sU（无 payload 文件时的表现） =====
+CMD: nmap -sU -n -p 161 -T4 127.0.0.1
+EXITCODE=0  耗时=2.4s
+stderr 非空行数=0
+端口结果行数=1
+  P| 161/udp closed snmp

@@ -1,0 +1,54 @@
+=== 路径存在性 ===
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\nmap-master                    True
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\nmap-master\configure.ac       True
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\nmap-master\CHANGELOG          True
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\nmap-master\scripts            True
+D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\nmap-master\nselib             True
+
+=== nmap-master 版本 ===
+
+=== CHANGELOG 前 5 行 ===
+  #Nmap Changelog ($Id$); -*-text-*-
+  
+  o [NSE][GH#3307] ASN.1 sequence encoding in the iec61850mms library was broken.
+    [RyugaXhypeR]
+  
+
+=== scripts / nselib 计数对比 ===
+  master scripts(*.nse): 619   local: 619
+  master nselib(files):  186   local: 186
+
+=== 本地缺失的脚本（master 有、local 无） ===
+  无缺失
+
+=== 内容不一致的脚本（同名但哈希不同） ===
+  不一致 6 个
+    broadcast-ping.nse
+    http-title.nse
+    nbd-info.nse
+    rsa-vuln-roca.nse
+    ssh-hostkey.nse
+    ssl-enum-ciphers.nse
+
+=== master 是否含 nmap-payloads ===
+  找到 0 个
+
+=== 本地 tools\nmap 顶层文件 ===
+  libcrypto-3.dll                  4798904 bytes
+  libssh2.dll                       224184 bytes
+  libssl-3.dll                     1150904 bytes
+  nmap_performance.reg                 192 bytes
+  nmap-7.993-setup (1).exe        37920816 bytes
+  nmap-7.993.tar.bz2               2969781 bytes
+  nmap-mac-prefixes                1375622 bytes
+  nmap-os-db                       5368132 bytes
+  nmap-protocols                      6963 bytes
+  nmap-rpc                           44030 bytes
+  nmap-service-probes              2580332 bytes
+  nmap-services                     998268 bytes
+  nmap.exe                         2882488 bytes
+  nmap.xsl                           31936 bytes
+  nse_main.lua                       50498 bytes
+  ZENMAP_README                       2173 bytes
+  Zenmap.lnk                          1509 bytes
+  zlibwapi.dll                      111544 bytes

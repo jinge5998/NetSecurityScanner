@@ -1,0 +1,19 @@
+Starting Nmap 7.993 ( https://nmap.org ) at 2026-11-22 19:07 +0800
+Nmap scan report for localhost (127.0.0.1)
+Host is up (0.00076s latency).
+
+PORT     STATE  SERVICE       VERSION
+135/tcp  open   msrpc         Microsoft Windows RPC
+139/tcp  closed netbios-ssn
+445/tcp  open   microsoft-ds  Microsoft Windows 7 - 10 microsoft-ds (workgroup: WorkGroup)
+3389/tcp open   ms-wbt-server Microsoft Terminal Services
+|_tls-ticketbleed: ERROR: Script execution failed (use -d to debug)
+Service Info: Host: MS-VXNZPXKNMCIT; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+|_smb-vuln-ms10-054: false
+|_samba-vuln-cve-2012-1182: No accounts left to try
+|_smb-vuln-ms10-061: No accounts left to try
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 45.47 seconds

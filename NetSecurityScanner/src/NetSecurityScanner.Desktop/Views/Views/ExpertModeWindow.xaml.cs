@@ -115,6 +115,9 @@ namespace NetSecurityScanner.Views
         private int _totalScannedTargets;
         private int _totalOpenPorts;
         private bool _useRustScanner = true; // default to Rust
+        // 扫描工作线程不能直接读取 NmapEngineRadio（WPF 控件有线程亲和性，跨线程读取会抛
+        // InvalidOperationException），因此在 UI 线程把引擎选择快照到该字段供后台使用。
+        private volatile bool _useNmapEngine;
         private NmapEngineExecutor? _nmapExecutor; // 懒初始化：检测本机 nmap.exe
         private bool _nmapAvailable; // nmap 是否可用（影响 Nmap 引擎单选按钮）
         private RustScannerClient? _rustClient;
@@ -412,6 +415,7 @@ namespace NetSecurityScanner.Views
             if (NmapEngineRadio?.IsChecked == true)
             {
                 _useRustScanner = false;
+                _useNmapEngine = true;
                 if (_nmapAvailable && _nmapExecutor != null)
                 {
                     EngineStatusTextBlock.Text = "🌐 Nmap 引擎就绪（高级扫描选项将实际生效）";
@@ -427,6 +431,7 @@ namespace NetSecurityScanner.Views
             }
             else
             {
+                _useNmapEngine = false;
                 _useRustScanner = RustEngineRadio?.IsChecked == true;
                 if (_useRustScanner)
                 {
@@ -1009,6 +1014,50 @@ namespace NetSecurityScanner.Views
 
             _currentConfig = config;
 
+            // 规避选项可能导致必然漏报：错误校验和 / 分片 / 诱饵会让探测包被目标直接丢弃，
+            // 实测 nmap 会判定 "0 hosts up"，端口结果为 0，进而跳过漏洞扫描，
+            // 用户看到的就是「扫不到漏洞」。开扫前明确提示，避免误判为引擎失效。
+            var riskyEvasion = new List<string>();
+            if (config.BadChecksum) riskyEvasion.Add("错误校验和（--badsum）");
+            if (config.FragmentPackets) riskyEvasion.Add("分片扫描（-f / --mtu）");
+            if (config.DecoyScan) riskyEvasion.Add("诱饵扫描（-D）");
+            // MTU 是独立于「分片」复选框的文本框（防火墙规避模板会写入 24）。
+            // 实测 --mtu 24 在 Windows 上使全部 SYN 探测无响应（nmap 报
+            // "Packet fragmentation ... may or may not work"，3 个本机开放端口全 filtered），
+            // 必须纳入同一警告，否则套用规避模板后 Nmap 引擎必然"扫不到"。
+            if (!string.IsNullOrWhiteSpace(config.Mtu) && config.Mtu != "1500" &&
+                int.TryParse(config.Mtu, out var mtuVal) && mtuVal >= 8 && mtuVal <= 1500)
+                riskyEvasion.Add($"MTU 分片（--mtu {config.Mtu}，Windows 下会导致探测无响应）");
+
+            if (riskyEvasion.Count > 0)
+            {
+                var evasionWarn = MessageBox.Show(
+                    "检测到已启用以下规避选项：\n\n  · " + string.Join("\n  · ", riskyEvasion) +
+                    "\n\n这些选项会使探测包被目标丢弃，实测会导致 0 个开放端口，" +
+                    "从而跳过漏洞扫描（表现为“扫不到漏洞”）。\n\n" +
+                    "是否自动关闭这些选项后继续扫描？\n" +
+                    "选择「否」按当前配置继续，选择「取消」放弃本次扫描。",
+                    "规避选项可能导致漏报",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Warning);
+
+                if (evasionWarn == MessageBoxResult.Cancel)
+                    return;
+
+                if (evasionWarn == MessageBoxResult.Yes)
+                {
+                    if (BadChecksumCheckBox != null) BadChecksumCheckBox.IsChecked = false;
+                    if (FragmentPacketsCheckBox != null) FragmentPacketsCheckBox.IsChecked = false;
+                    if (DecoyScanCheckBox != null) DecoyScanCheckBox.IsChecked = false;
+                    if (MtuTextBox != null) MtuTextBox.Text = "1500"; // MTU 分片同样必须复位
+
+                    // 重新采集配置，保证本次扫描使用关闭规避选项后的参数
+                    config = CollectConfig();
+                    _currentConfig = config;
+                    AppendLog("⚠️ 已自动关闭错误校验和/分片/诱饵/MTU 等规避选项，避免漏报");
+                }
+            }
+
             // Task 8.7：正则目标预校验。若目标类型是"Regex"，先验证正则表达式是否合法，
             // 避免把异常推迟到 ResolveTargets() 内被吞掉、退化为字面量匹配
             if (config.TargetType == "Regex")
@@ -1096,6 +1145,10 @@ namespace NetSecurityScanner.Views
             StartExpertScanButton.IsEnabled = false;
             StartExpertScanButton.Content = "⏳ 扫描中...";
             CancelExpertButton.IsEnabled = true;
+
+            // 引擎选择必须在 UI 线程快照：ExecuteExpertScanAsync 运行在 Task.Run 后台线程，
+            // 在那里读取 NmapEngineRadio.IsChecked 会抛「调用线程无法访问此对象」。
+            _useNmapEngine = NmapEngineRadio?.IsChecked == true;
 
             // 扫描进行中：禁用其他控制类按钮，防止状态错乱
             SetControlsEnabledWhileScanning(false);
@@ -1258,6 +1311,16 @@ namespace NetSecurityScanner.Views
                 AppendLog($"扫描模式: TCP={config.TcpScan}, UDP={config.UdpScan}, 服务检测={config.ServiceDetection}");
                 AppendLog($"端口范围: {ports.Count} 个端口 (并发: TCP={config.TcpConcurrency}, UDP={config.UdpConcurrency})");
 
+                // RustScan 的 batch_size 直接等于并发数：内置扫描器常用的低并发（如 50）会把
+                // 大端口范围拆成上千个小批次，单次扫描耗时数小时。Rust 路径单独放宽到
+                // 1000~2000 并发、单端口超时不超过 1500ms（RustScan 默认 4500 / 1500）。
+                var rustConcurrency = Math.Clamp(config.TcpConcurrency > 0 ? config.TcpConcurrency : 1000, 1000, 2000);
+                var rustTimeoutMs = Math.Clamp(config.TcpTimeout > 0 ? config.TcpTimeout : 1500, 200, 1500);
+
+                // 引擎选择已由 UI 线程（开始按钮点击 / 队列启动）快照到 _useNmapEngine；
+                // 后台线程读取 NmapEngineRadio.IsChecked 会抛
+                // “调用线程无法访问此对象”的跨线程异常，导致 Nmap 引擎直接失败。
+
                 // 预启动 Rust 服务（跨目标复用，避免每次启动/停止的开销）
                 if (_useRustScanner)
                 {
@@ -1291,8 +1354,8 @@ namespace NetSecurityScanner.Views
                             _currentRustExe = exe;
                             var started = await _rustClient.StartServiceAsync(
                                 exe,
-                                config.TcpConcurrency > 0 ? config.TcpConcurrency : 1000,
-                                config.TcpTimeout > 0 ? config.TcpTimeout : 200,
+                                rustConcurrency,
+                                rustTimeoutMs,
                                 config.UdpTimeout > 0 ? config.UdpTimeout : 500);
                             if (started)
                             {
@@ -1393,7 +1456,7 @@ namespace NetSecurityScanner.Views
                         {
                             allResults = await ExecuteRustScanAsync(target, ports, config, cancellationToken);
                         }
-                        else if (NmapEngineRadio?.IsChecked == true && _nmapAvailable && _nmapExecutor != null)
+                        else if (_useNmapEngine && _nmapAvailable && _nmapExecutor != null)
                         {
                             // Nmap 引擎：实际调用本机 nmap.exe（真正执行，而非仅生成命令字符串）。
                             // 把界面选定的端口列表注入配置副本，使 NmapCommandBuilder 生成 -p <ports>，
@@ -1418,6 +1481,10 @@ namespace NetSecurityScanner.Views
                             allResults = await ExecuteNativeScanAsync(target, ports, config, progress, cancellationToken);
                         }
 
+                        // Rust / Nmap 引擎只回传端口状态与服务信息，不包含风险画像，
+                        // 导致「实时结果」表的 类别/风险/分值/漏洞提示 列为空；统一在此补齐。
+                        ApplyRiskEnrichment(allResults);
+
                         var openCount = allResults.Count(r => r.Status == "开放");
                         AppendLog($"  目标 {target} 扫描完成: {openCount}/{allResults.Count} 个端口开放");
 
@@ -1433,8 +1500,11 @@ namespace NetSecurityScanner.Views
                         // 一次调用即只触发一次通知，无需再分批。
                         var capturedOpenCount = openPorts.Count;
                         var resultsSnapshot = allResults; // 捕获到本地，便于 lambda 闭包
-                        Dispatcher.BeginInvoke(new Action(() =>
+                        // 用 Application.Current.Dispatcher + Normal 优先级：Background 优先级在
+                        // 扫描期间可能被渲染/输入队列长期压制，导致结果迟迟不上屏（实测表格恒为空）。
+                        Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                         {
+                            AppendLog($"  🧪 实时端口结果回调: {resultsSnapshot.Count} 条");
                             try
                             {
                                 _allPortScanResults.AddRange(resultsSnapshot);
@@ -1449,7 +1519,7 @@ namespace NetSecurityScanner.Views
                             if (OpenPortsStat != null) OpenPortsStat.Text = _totalOpenPorts.ToString();
                             if (ExpertScanProgressBar != null) ExpertScanProgressBar.Value = (double)_totalScannedTargets / targets.Count * 100;
                             if (ExpertScanProgressText != null) ExpertScanProgressText.Text = $"扫描中: {_totalScannedTargets}/{targets.Count} 目标";
-                        }), DispatcherPriority.Background);
+                        }), DispatcherPriority.Normal);
 
                         // 漏洞扫描 - 发现开放端口即进行基础漏洞匹配（不强制要求开启 ScriptScan 或 ServiceDetection）
                         // 修复：RSUT 协议扫描时，即使未勾选服务检测/NSE脚本，也应执行基础漏洞库匹配
@@ -1458,12 +1528,16 @@ namespace NetSecurityScanner.Views
                         {
                             AppendLog($"  开始漏洞扫描: {target} ({openPorts.Count} 个开放端口)...");
                             var vulnResults = await _vulnerabilityScanner.ScanVulnerabilitiesAsync(target, openPorts, cancellationToken);
+                            // 同一端口可能被「端口指纹库 / 漏洞库 / 内置检测」重复命中（如 Telnet 出现 3 条），
+                            // 入库与展示前先按 端口+问题类型 去重，优先保留已验证、风险更高的条目。
+                            vulnResults = DedupeVulnerabilities(vulnResults);
 
                             // 使用 BeginInvoke + AddRange（Reset 通知）批量更新，仅触发一次 CollectionChanged
                             targetVulnResults.AddRange(vulnResults);
                             var vulnSnapshot = vulnResults;
-                            Dispatcher.BeginInvoke(new Action(() =>
+                            Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                             {
+                                AppendLog($"  🧪 实时漏洞结果回调: {vulnSnapshot.Count} 条");
                                 try
                                 {
                                     _allVulnResults.AddRange(vulnSnapshot);
@@ -1473,7 +1547,7 @@ namespace NetSecurityScanner.Views
                                 {
                                     AppendLog($"  ⚠️ 写入实时漏洞结果失败: {addEx.Message}");
                                 }
-                            }), DispatcherPriority.Background);
+                            }), DispatcherPriority.Normal);
 
                             AppendLog($"  漏洞扫描完成: 发现 {vulnResults.Count} 个漏洞");
                         }
@@ -1517,11 +1591,18 @@ namespace NetSecurityScanner.Views
                                 }
                             }
 
+                            int weakAdded = 0;
                             if (weakPassResults.Any())
                             {
-                                targetVulnResults.AddRange(weakPassResults);
-                                var weakSnapshot = weakPassResults;
-                                Dispatcher.BeginInvoke(new Action(() =>
+                                // 插件结果与漏洞库结果可能重复（如 FTP 明文 / Telnet 检测），
+                                // 合并去重后只把新增条目写入实时表，避免同一问题出现多条。
+                                var mergedVulns = DedupeVulnerabilities(targetVulnResults.Concat(weakPassResults).ToList());
+                                var weakSnapshot = mergedVulns.Where(v => weakPassResults.Contains(v)).ToList();
+                                targetVulnResults = mergedVulns;
+                                weakAdded = weakSnapshot.Count;
+                                // 与端口/漏洞结果一致，使用 Normal 优先级回写：
+                                // Background 优先级在扫描期间会被长期压制，导致插件结果迟迟不显示。
+                                Application.Current.Dispatcher.BeginInvoke(new Action(() =>
                                 {
                                     try
                                     {
@@ -1532,10 +1613,10 @@ namespace NetSecurityScanner.Views
                                     {
                                         AppendLog($"  ⚠️ 写入弱口令结果失败: {addEx.Message}");
                                     }
-                                }), DispatcherPriority.Background);
+                                }), DispatcherPriority.Normal);
                             }
 
-                            AppendLog($"  弱口令检测完成: 发现 {weakPassResults.Count} 个弱口令/未授权访问漏洞");
+                            AppendLog($"  弱口令检测完成: 发现 {weakPassResults.Count} 个弱口令/未授权访问漏洞（与漏洞库去重后新增 {weakAdded} 条）");
                         }
 
                         // 计算本目标耗时（注意：不是累计时间，是本目标开始到现在的真实耗时）
@@ -1676,6 +1757,12 @@ namespace NetSecurityScanner.Views
         {
             var allResults = new List<PortScanResult>();
 
+            // RustScan 的 batch_size 直接等于并发数：界面里的低并发是给内置 C# 扫描器调的，
+            // 直接下发会把大端口范围拆成上千个小批次（65535 端口可达数小时）。
+            // 这里把 Rust 路径单独放宽到 1000~2000 并发、单端口超时 ≤1500ms（RustScan 默认 4500/1500）。
+            var rustConcurrency = Math.Clamp(config.TcpConcurrency > 0 ? config.TcpConcurrency : 1000, 1000, 2000);
+            var rustTimeoutMs = Math.Clamp(config.TcpTimeout > 0 ? config.TcpTimeout : 1500, 200, 1500);
+
             // 本次扫描已确认 Rust 引擎不可用：直接走内置扫描器，避免逐目标重复启动进程（每次启动耗时且必然失败）
             if (_rustEngineFailedThisScan)
             {
@@ -1718,8 +1805,8 @@ namespace NetSecurityScanner.Views
 
                     var started = await _rustClient.StartServiceAsync(
                         exe,
-                        config.TcpConcurrency > 0 ? config.TcpConcurrency : 1000,
-                        config.TcpTimeout > 0 ? config.TcpTimeout : 200,
+                        rustConcurrency,
+                        rustTimeoutMs,
                         config.UdpTimeout > 0 ? config.UdpTimeout : 500);
                     if (!started)
                     {
@@ -1770,6 +1857,13 @@ namespace NetSecurityScanner.Views
                 // 却只在契约测试中被调用，生产路径从未使用。现改为统一走 Mapper，
                 // 以后新增可下发字段只需改 Mapper 一处，不会再出现两侧漂移。
                 var profileConfig = ScanConfigMapper.ToScanProfileConfig(config);
+
+                // Rust 引擎的吞吐由 batch_size（=TcpConcurrency）决定：界面里的低并发是给内置
+                // C# 扫描器调的，直接下发会让 RustScan 退化成大量小批次（65535 端口可达数小时）。
+                // 这里只覆盖 Rust 路径的 TCP 参数，UDP 并发/超时保持界面配置不变。
+                profileConfig.TcpConcurrency = rustConcurrency;
+                profileConfig.TimeoutMs = rustTimeoutMs;
+                AppendLog($"  [Rust] 引擎参数: batch={rustConcurrency}, timeout={rustTimeoutMs}ms");
 
                 // Rust 引擎把 "both" 解释为「先 UDP 后 TCP」，且 UDP 阶段在整段扫描结束前
                 // 不回传任何 progress/result。端口范围大 + 目的主机不回 UDP 探测时，该阶段会持续
@@ -1896,6 +1990,45 @@ namespace NetSecurityScanner.Views
         }
 
         /// <summary>
+        /// 为端口结果补齐风险画像（类别 / 风险等级 / 分值 / 漏洞提示 / 风险描述 / 响应 / 版本）。
+        ///
+        /// 内置 C# 扫描器在 PortScanner.CreatePortResult 中已填充这些字段，但 Rust 与 Nmap
+        /// 引擎只回传端口状态、服务名与版本，导致「实时结果」表相关列为空。这里统一兜底：
+        /// 只填空值，不覆盖引擎已给出的信息。
+        /// </summary>
+        private static void ApplyRiskEnrichment(List<PortScanResult> results)
+        {
+            if (results == null)
+                return;
+
+            foreach (var r in results)
+            {
+                if (r == null)
+                    continue;
+
+                if (string.IsNullOrWhiteSpace(r.RiskLevel))
+                    r.RiskLevel = PortRiskScorer.GetRiskLevelName(PortRiskScorer.GetRiskLevel(r.PortNumber));
+                if (r.RiskScore <= 0)
+                    r.RiskScore = PortRiskScorer.GetRiskScore(r.PortNumber);
+                if (string.IsNullOrWhiteSpace(r.ServiceCategory))
+                    r.ServiceCategory = PortRiskScorer.GetCategoryName(PortRiskScorer.GetCategory(r.PortNumber));
+                if (string.IsNullOrWhiteSpace(r.RiskDescription))
+                    r.RiskDescription = PortRiskScorer.GetDescription(r.PortNumber);
+                if (string.IsNullOrWhiteSpace(r.VulnHint))
+                {
+                    r.VulnHint = PortRiskScorer.GetVulnHint(r.PortNumber);
+                    if (string.IsNullOrWhiteSpace(r.VulnHint) && r.Status == "开放")
+                        r.VulnHint = "未匹配到已知端口漏洞（建议右键深度扫描）";
+                }
+
+                if (string.IsNullOrWhiteSpace(r.ResponseTime))
+                    r.ResponseTime = "-";
+                if (string.IsNullOrWhiteSpace(r.ServiceVersion))
+                    r.ServiceVersion = "-";
+            }
+        }
+
+        /// <summary>
         /// 用 Nmap 引擎实际扫描目标端口（真正调用本机 nmap.exe）。
         ///
         /// 此前 nmap 只用于「命令预览」与「导出命令文件」，本方法让它真正执行：
@@ -1921,7 +2054,23 @@ namespace NetSecurityScanner.Views
             copy.PortMode = "Custom";
             copy.CustomPorts = string.Join(",", ports.Take(1024));
 
-            return await _nmapExecutor.ScanAsync(target, ports, copy, null, cancellationToken).ConfigureAwait(false);
+            // 把 nmap 引擎进度实时回写到扫描日志：此前 onProgress 未接，扫描全程只有一行
+            // "使用 Nmap 引擎扫描 ..."。对开启了反扫描的目标，nmap 要等满 host-timeout
+            // （最低 5 分钟）才返回，界面数分钟零反馈，用户无法区分"正在扫描"与"卡死"。
+            // 节流：至少间隔 2 秒且百分比变化 >=1% 才写一条，避免刷屏。
+            var lastProgressTime = DateTime.MinValue;
+            var lastProgressPercent = -1.0;
+            Action<double, string> onProgress = (percent, text) =>
+            {
+                var now = DateTime.Now;
+                if ((now - lastProgressTime).TotalSeconds < 2 || percent - lastProgressPercent < 1)
+                    return;
+                lastProgressTime = now;
+                lastProgressPercent = percent;
+                AppendLog($"    ⏳ Nmap 进度 {percent:F0}%  {text}");
+            };
+
+            return await _nmapExecutor.ScanAsync(target, ports, copy, null, cancellationToken, onProgress).ConfigureAwait(false);
         }
 
         private async Task<List<PortScanResult>> ExecuteNativeScanAsync(string target, List<int> ports, ExpertScanConfiguration config, IProgress<int> progress, CancellationToken cancellationToken)
@@ -2164,9 +2313,62 @@ namespace NetSecurityScanner.Views
         }
 
         /// <summary>
-        /// 综合计算单目标风险等级
-        /// 风险权重：每个开放端口 = 5 分，每个漏洞 = 10 分，超过 50 分 = 高，20-50 = 中，< 20 = 低
+        /// 漏洞结果去重：同一「端口 + 问题类型」只保留一条。
+        /// 优先保留已验证（或版本比对）的条目，其次保留风险等级更高的条目，
+        /// 避免端口指纹库、漏洞库、弱口令插件对同一问题重复上报。
         /// </summary>
+        private static List<VulnerabilityResult> DedupeVulnerabilities(List<VulnerabilityResult> items)
+        {
+            if (items == null || items.Count <= 1)
+                return items ?? new List<VulnerabilityResult>();
+
+            return items
+                .GroupBy(v => (v.Port, Family: GetVulnerabilityFamily(v)))
+                .Select(g => g
+                    .OrderByDescending(IsVerifiedVulnerability)
+                    .ThenByDescending(VulnerabilityRiskRank)
+                    .First())
+                .ToList();
+        }
+
+        private static bool IsVerifiedVulnerability(VulnerabilityResult v)
+        {
+            // 「服务指纹推测（未验证）」条目优先级最低；其余（已验证 / 版本比对 / 插件实测）均视为已验证
+            string method = v.DetectionMethod ?? "";
+            return !method.Contains("推测");
+        }
+
+        private static int VulnerabilityRiskRank(VulnerabilityResult v)
+        {
+            string level = v.RiskLevel ?? "";
+            if (level.StartsWith("严重")) return 4;
+            if (level.StartsWith("高")) return 3;
+            if (level.StartsWith("中")) return 2;
+            if (level.StartsWith("低")) return 1;
+            return 0;
+        }
+
+        /// <summary>
+        /// 归类同一问题类型：CVE 按 CVE 编号归类；其余按名称关键词归类。
+        /// </summary>
+        private static string GetVulnerabilityFamily(VulnerabilityResult v)
+        {
+            // 仅真正的 CVE 编号用于归类；CONFIG-* 这类规则 ID 仍需按名称关键词归类，
+            // 否则「Telnet明文远程管理(CONFIG-TELNET-PLAINTEXT)」无法与「Telnet 明文服务暴露」合并。
+            if (!string.IsNullOrWhiteSpace(v.CveId)
+                && v.CveId.StartsWith("CVE-", StringComparison.OrdinalIgnoreCase))
+                return "cve:" + v.CveId;
+
+            string name = v.Name ?? "";
+            if (name.Contains("Telnet")) return "telnet";
+            if (name.Contains("FTP")) return "ftp";
+            if (name.Contains("安全头")) return "headers";
+            if (name.Contains("HTTP明文") || name.Contains("明文Web")) return "http-plain";
+            if (name.Contains("证书")) return "tls-cert";
+            if (name.Contains("TLS") || name.Contains("SSL")) return "tls-proto";
+            return name;
+        }
+
         private string CalculateRiskLevel(int openPortCount, int vulnerabilityCount)
         {
             int score = openPortCount * 5 + vulnerabilityCount * 10;
@@ -6275,6 +6477,8 @@ namespace NetSecurityScanner.Views
             }
 
             _isQueueRunning = true;
+            // 队列项在后台线程执行 ExecuteExpertScanAsync，引擎选择必须在这里（UI 线程）快照。
+            _useNmapEngine = NmapEngineRadio?.IsChecked == true;
             QueueStartButton.IsEnabled = false;
             QueueAddCurrentButton.IsEnabled = false;
             QueueAddGroupButton.IsEnabled = false;

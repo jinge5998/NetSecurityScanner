@@ -1,0 +1,130 @@
+=== 1. 执行器可用性与版本 ===
+IsAvailable=True
+NmapPath=D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\publish-v1.0.3.13\tools\nmap\nmap.exe
+Version=Nmap version 7.993 ( https://nmap.org )
+LocateNmap()(当前工作目录无关)=D:\360安全浏览器下载\软件开发备份\网络安全漏洞扫描\NetSecurityScanner\nmap.exe
+
+=== 2. 精确端口扫描 (21,23,80,443,3389) ===
+耗时=6.5s 结果条数=5
+  21    关闭     svc=ftp                    ver=         conf=中
+  23    关闭     svc=telnet                 ver=         conf=中
+  80    关闭     svc=http                   ver=         conf=中
+  443   关闭     svc=https                  ver=         conf=中
+  3389  开放     svc=Microsoft Terminal Services ver=         conf=高
+
+=== 3. 大端口集扫描 (1-200，验证端口区间压缩) ===
+耗时=6.5s 结果条数=2 开放=1
+  135   开放     svc=Microsoft Windows RPC  ver=        
+
+=== 4. 漏洞扫描链路（nmap 结果 → VulnerabilityScanner）===
+[VulnerabilityScanner] 开始漏洞扫描: 127.0.0.1, 开放端口数: 1
+[VulnerabilityScanner] 开放端口: 3389 [Microsoft Terminal Services] 开放
+[VulnerabilityScanner] 漏洞数据库已加载: 46 条
+[VulnerabilityScanner] 通用漏洞检测完成: 5 个
+[VulnerabilityScanner] 扫描端口: 3389 [Microsoft Terminal Services]
+[VulnerabilityScanner] 匹配漏洞: port=3389 service=Microsoft Terminal Services
+[VulnerabilityScanner] 内置数据库匹配: 46 条规则
+[VulnerabilityScanner] 检查漏洞: CVE-2023-44487 ports=[80,443,8080,8443] service=http,https portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-38545 ports=[1080] service=socks5 portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-20198 ports=[80,443] service=http,https,cisco,ios-xe portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-4911 ports=[] service= portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-38408 ports=[22] service=ssh portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-22515 ports=[80,443,8090] service=http,https,confluence portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-32629 ports=[] service= portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-36884 ports=[] service= portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-29357 ports=[80,443] service=http,https,sharepoint portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-34362 ports=[80,443] service=http,https,moveit portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-28252 ports=[] service= portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-21716 ports=[] service= portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-23397 ports=[] service= portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-20873 ports=[8080,8443] service=http,https,spring portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-20860 ports=[8080,8443] service=http,https,spring portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2023-20861 ports=[8080,8443] service=http,https,spring portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2022-42889 ports=[] service= portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2022-22965 ports=[80,443,8080,8443] service=http,https,spring portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2021-44228 ports=[] service=log4j portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2021-45046 ports=[] service=log4j portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2021-45105 ports=[] service=log4j portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2021-4104 ports=[] service=log4j portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2020-1472 ports=[445] service=smb,netlogon portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2020-0688 ports=[80,443] service=http,https,exchange portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2019-19781 ports=[80,443] service=http,https,citrix,netscaler portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2019-11510 ports=[80,443] service=http,https,pulse,pulse-secure portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2018-13379 ports=[443,10443] service=https,fortissl portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2018-11776 ports=[80,443,8080] service=http,https,struts portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2017-5638 ports=[80,443,8080] service=http,https,struts portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2017-0144 ports=[445] service=smb,microsoft-ds portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2017-7494 ports=[445] service=smb,samba portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CONFIG-TELNET-PLAINTEXT ports=[23] service=telnet portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CONFIG-FTP-PLAINTEXT ports=[21] service=ftp portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CONFIG-HTTP-PLAINTEXT ports=[80] service=http portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CONFIG-RDP-EXPOSED ports=[3389] service=rdp,ms-wbt-server portMatch=True serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CONFIG-SMB-EXPOSED ports=[445,139] service=smb,microsoft-ds,netbios-ssn portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2024-3400 ports=[443] service=https,pan-os,globalprotect portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2024-3094 ports=[22] service=ssh portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2024-6387 ports=[22] service=ssh portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2024-4577 ports=[80,443,8080] service=http,https,php portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2024-21762 ports=[443,10443] service=https,fortinet,ssl-vpn portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2024-47575 ports=[541,443] service=fortinet,fortimanager,https portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2024-21413 ports=[] service=smtp,exchange,outlook portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2024-38063 ports=[] service=ipv6,tcp/ip portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2025-0108 ports=[443] service=https,pan-os portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 检查漏洞: CVE-2025-26465 ports=[22] service=ssh portMatch=False serviceMatch=False matched=False
+[VulnerabilityScanner] 端口 3389 漏洞数: 1
+耗时=4.4s 漏洞条数=6
+  [中]                  port=135   开放端口 135
+  [中]                  port=445   开放端口 445
+  [中]                  port=3389  开放端口 3389
+  [中] CVE-2019-0708    port=3389  RDP服务检测
+  [低]                  port=      目标不可达
+  [低]                  port=      检测到Windows操作系统
+
+=== 4.5 错误路径验证（非法 NSE 脚本应抛出可读异常）===
+捕获异常类型=InvalidOperationException
+异常信息=nmap 执行失败（退出码 1）: NSE: failed to initialize the script engine: | [C]: in function 'error' | QUITTING!
+
+=== 5.5 内置 C# 引擎（对应专家模式「内置C#引擎」单选）===
+耗时=1.6s 结果条数=1 开放=1
+  3389  开放     svc=RDP
+
+=== 6. RustScan 引擎（按 ExpertModeWindow 真实调用顺序）===
+  [Rust] [Rust stdout]   2026-11-18T15:16:05.871715Z  INFO  ?? Rust 高性能扫描服务 v1.0.20 启动（RustScan 引擎）
+  [Rust] ?? Rust扫描服务已启动 (PID: 26676)
+  [Rust]    并发数: 1000, TCP超时: 200ms, UDP超时: 500ms
+StartServiceAsync=True IsConnected=False
+  [Rust] ? 已连接到Rust扫描服务 (TCP, 第1次尝试)
+  [Rust] 发送扫描请求: 1 目标, 5 端口
+  [Rust] ? 请求已发送并 flush 到管道
+  [Rust] [Rust stdout]   2026-11-18T15:16:09.051099Z  INFO  [RustScan] target=127.0.0.1 开始发现 5 个 TCP 端口 (batch_size=50, timeout=200ms, tries=2)
+  [Rust] [Rust stdout]   2026-11-18T15:16:09.474507Z  INFO  RustScan 引擎完成: target=127.0.0.1, 扫描端口=5, 开放=1
+  [Rust] [Rust stdout]   2026-11-18T15:16:09.578681Z  INFO  [RustScan] target=127.0.0.1 TCP 发现完成: 开放 1 个端口
+  [Rust] ? 扫描完成: 5 结果, 1 开放端口
+耗时=0.7s 原始结果数=5
+  21    raw=[关闭] isOpen=False svc=                     ver=
+  23    raw=[关闭] isOpen=False svc=                     ver=
+  80    raw=[关闭] isOpen=False svc=                     ver=
+  443   raw=[关闭] isOpen=False svc=                     ver=
+  3389  raw=[开放] isOpen=True svc=rdp                  ver=
+  [Rust] 发送扫描请求: 1 目标, 4 端口
+  [Rust] ? 请求已发送并 flush 到管道
+  [Rust] ? 扫描完成: 4 结果, 0 开放端口
+UDP 阶段耗时=0.5s 结果数=4 IsConnected=True
+  [UDP] 53    raw=[关闭] svc=
+  [UDP] 123   raw=[关闭] svc=
+  [UDP] 161   raw=[关闭] svc=
+  [UDP] 500   raw=[过滤] svc=
+  [Rust] ?? Rust扫描服务已停止 (PID: 26676)
+
+=== 6.5 专家模式超时接线验证（本次修复项）===
+默认滑块命令: nmap -sT -sU -sV --version-intensity 1 -PE -PP -n --top-ports 1000 -T4 --max-rtt-timeout 500ms --min-rtt-timeout 100ms --data-length 32 --ttl 64 -oJ "scan_t.json" -q --stats-every 5s 127.0.0.1
+调大滑块命令: nmap -sT -sU -sV --version-intensity 1 -PE -PP -n --top-ports 1000 -T4 --max-rtt-timeout 5000ms --min-rtt-timeout 1000ms --data-length 32 --ttl 64 -oJ "scan_t.json" -q --stats-every 5s 127.0.0.1
+命令层接线生效(UdpTimeout/ServiceDetectTimeout 进入 nmap 参数): True
+调大超时不应收紧 host-timeout(避免假阴性): True
+
+--- 真实扫描对比：500/udp（IKE 探针 bind 重试场景）---
+默认滑块: 耗时=28.7s 结果=2
+调大滑块: 耗时=29.6s 结果=2
+调大超时无假阴性(结果数不减少): True
+
+=== 8. 全端口 1-65535 三引擎对比（基准=裸 nmap）===
+基准开放端口数=52: 135,445,1725,1832,1839,2179,2910,3100,3389,4709,5040,5283,5284,5285,5286,5287,5288,5289,6373,7680,9023,9530,11434,11689,13900,14013,14016,14019,14022,14023,20017,24549,25120,35701,36510,37510,38257,43200,46309,49664,49665,49666,49669,49670,49671,49704,49713,53244,54360,54489,57342,60186

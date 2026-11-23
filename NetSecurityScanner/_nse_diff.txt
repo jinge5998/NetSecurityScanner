@@ -1,0 +1,164 @@
+
+########## nselib\http.lua ##########
+master 行数=3326  local 行数=3326  差异块数=2
+仅 master 有(<=): 1 行   仅 local 有(=>): 1 行
+--- 仅 local 有（本地独有，即 master 已删除/改写）前 12 行 ---
+  L> if ( not(tostring(response.status):match("^30[01237]$")) or
+--- 仅 master 有（master 新增/改写）前 12 行 ---
+  M> if ( not(tostring(response.status):find("^30[012378]$")) or
+
+########## nselib\iec61850mms.lua ##########
+master 行数=1187  local 行数=1187  差异块数=2
+仅 master 有(<=): 1 行   仅 local 有(=>): 1 行
+--- 仅 local 有（本地独有，即 master 已删除/改写）前 12 行 ---
+  L> encodeSeq = asn1.ASN1Encoder.encodeSeq,
+--- 仅 master 有（master 新增/改写）前 12 行 ---
+  M> encodeSeq = function (...) return asn1.ASN1Encoder:encodeSeq(...) end,
+
+########## nselib\ssh2.lua ##########
+master 行数=409  local 行数=403  差异块数=52
+仅 master 有(<=): 29 行   仅 local 有(=>): 23 行
+--- 仅 local 有（本地独有，即 master 已删除/改写）前 12 行 ---
+  L> -- @param key_type key type to fetch.
+  L> fetch_host_key = function( host, port, key_type )
+  L> host_key_algorithms=key_type,
+  L> if not tostring(kex_init.server_host_key_algorithms):find( key_type, 1, true ) then
+  L> -- server does not support host key type
+  L> stdnse.debug2("Hostkey type '%s' not supported by server.", key_type )
+  L> socket:close()
+  L> local bits, algorithm
+  L> if key_type == 'ssh-dss' then
+  L> elseif key_type == 'ssh-rsa' then
+  L> elseif key_type == 'ecdsa-sha2-nistp256' then
+  L> elseif key_type == 'ecdsa-sha2-nistp384' then
+--- 仅 master 有（master 新增/改写）前 12 行 ---
+  M> local stringaux = require "stringaux"
+  M> local tableaux = require "tableaux"
+  M> -- @param host_key_algo host key algorithm to use for fetching the key.
+  M> fetch_host_key = function( host, port, host_key_algo )
+  M> host_key_algorithms=host_key_algo,
+  M> if not tableaux.contains(stringaux.strsplit(",", kex_init.server_host_key_algorithms or ""), host_key_algo) then
+  M> stdnse.debug2("Host key algorithm '%s' not supported by server.", host_key_algo)
+  M> local key_type, bits, algorithm
+  M> if host_key_algo == "ssh-dss" then
+  M> key_type = host_key_algo
+  M> elseif host_key_algo == "ssh-rsa" or host_key_algo:find("^rsa%-sha2%-%d+$") then
+  M> key_type = "ssh-rsa"
+
+########## nselib\tls.lua ##########
+master 行数=2087  local 行数=2073  差异块数=24
+仅 master 有(<=): 19 行   仅 local 有(=>): 5 行
+--- 仅 local 有（本地独有，即 master 已删除/改写）前 12 行 ---
+  L> -- Most likely set, supported by Firefox and Chrome
+  L> DEFAULT_ELLIPTIC_CURVES = {
+  L> "ffdhe2048", -- added for TLSv1.3
+  L> "X25519MLKEM768", -- Chrome offers this one
+  L> local curves = {table.unpack(DEFAULT_ELLIPTIC_CURVES)}
+--- 仅 master 有（master 新增/改写）前 12 行 ---
+  M> -- Most likely elliptic curves, supported by Firefox and Chrome, sent by tls.client_hello for TLSv1.2 or earlier
+  M> DEFAULT_TLS12_ELLIPTIC_CURVES = {
+  M> -- Same (now called supported groups), but for TLSv1.3
+  M> DEFAULT_ELLIPTIC_CURVES = {table.unpack(DEFAULT_TLS12_ELLIPTIC_CURVES)}
+  M> for _, name in ipairs({"ffdhe2048",
+  M> "X25519MLKEM768", -- Chrome offers this one
+  M> }) do
+  M> table.insert(DEFAULT_ELLIPTIC_CURVES, name)
+  M> -- TODO: Determine desire to comply with RFC 4492, section 4:
+  M> --       "The client MUST NOT include these extensions in the ClientHello
+  M> --       message if it does not propose any ECC cipher suites."
+  M> --       OTOH, OpenSSL 1.1.1 sends them always so it is probably safe.
+
+########## scripts\broadcast-ping.nse ##########
+master 行数=274  local 行数=274  差异块数=2
+仅 master 有(<=): 1 行   仅 local 有(=>): 1 行
+--- 仅 local 有（本地独有，即 master 已删除/改写）前 12 行 ---
+  L> -- @args broadcast-ping.num_probes number specifying how many ICMP probes should be sent (default 1)
+--- 仅 master 有（master 新增/改写）前 12 行 ---
+  M> -- @args broadcast-ping.num-probes number specifying how many ICMP probes should be sent (default 1)
+
+########## scripts\http-title.nse ##########
+master 行数=86  local 行数=82  差异块数=10
+仅 master 有(<=): 7 行   仅 local 有(=>): 3 行
+--- 仅 local 有（本地独有，即 master 已删除/改写）前 12 行 ---
+  L> if resp.status and tostring( resp.status ):match( "30%d" ) then
+  L> return {redirect_url = redirect_url}, ("Did not follow redirect to %s"):format( redirect_url )
+  L> display_title = string.gsub(display_title , "[\n\r\t]", "")
+--- 仅 master 有（master 新增/改写）前 12 行 ---
+  M> -- <elem key="status">200</elem>
+  M> -- <elem key="status">301</elem>
+  M> local status = resp.status
+  M> if redirect_url and status and status >= 300 and status < 400 then
+  M> return {redirect_url = redirect_url, status = status}, ("Did not follow redirect to %s"):format( redirect_url )
+  M> display_title = string.gsub(display_title, "%s+", " ")
+  M> output_tab.status = resp.status
+
+########## scripts\nbd-info.nse ##########
+master 行数=197  local 行数=197  差异块数=2
+仅 master 有(<=): 1 行   仅 local 有(=>): 1 行
+--- 仅 local 有（本地独有，即 master 已删除/改写）前 12 行 ---
+  L> -- @args nbd-info.export_names Either a single name, or a table of
+--- 仅 master 有（master 新增/改写）前 12 行 ---
+  M> -- @args nbd-info.export-names Either a single name, or a table of
+
+########## scripts\rsa-vuln-roca.nse ##########
+master 行数=178  local 行数=176  差异块数=2
+仅 master 有(<=): 2 行   仅 local 有(=>): 0 行
+--- 仅 local 有（本地独有，即 master 已删除/改写）前 12 行 ---
+--- 仅 master 有（master 新增/改写）前 12 行 ---
+  M> or ssh2.fetch_host_key( host, port, "rsa-sha2-256" )
+  M> or ssh2.fetch_host_key( host, port, "rsa-sha2-512" )
+
+########## scripts\ssh-hostkey.nse ##########
+master 行数=427  local 行数=426  差异块数=41
+仅 master 有(<=): 21 行   仅 local 有(=>): 20 行
+--- 仅 local 有（本地独有，即 master 已删除/改写）前 12 行 ---
+  L> for _,k in ipairs(keys) do
+  L> local keys = {}
+  L> local key
+  L> key = ssh1.fetch_host_key( host, port )
+  L> if key then table.insert( keys, key ) end
+  L> key = ssh2.fetch_host_key( host, port, "ssh-dss" )
+  L> if key then table.insert( keys, key ) end
+  L> key = ssh2.fetch_host_key( host, port, "ssh-rsa" )
+  L> if key then table.insert( keys, key ) end
+  L> key = ssh2.fetch_host_key( host, port, "ecdsa-sha2-nistp256" )
+  L> if key then table.insert( keys, key ) end
+  L> key = ssh2.fetch_host_key( host, port, "ecdsa-sha2-nistp384" )
+--- 仅 master 有（master 新增/改写）前 12 行 ---
+  M> for _,k in pairs(keys) do
+  M> local HOST_KEY_ALGOS = {"ssh-dss", "ssh-rsa", "rsa-sha2-256", "rsa-sha2-512",
+  M> "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384", "ecdsa-sha2-nistp521",
+  M> "ssh-ed25519", "ssh-mldsa44-ed25519"}
+  M> local function fetch_host_keys (host, port, algos)
+  M> algos = algos or HOST_KEY_ALGOS
+  M> local keys = stdnse.output_table()
+  M> local ssh1key = ssh1.fetch_host_key(host, port)
+  M> if ssh1key then
+  M> keys[ssh1key.fingerprint] = ssh1key
+  M> for _, algo in ipairs(algos) do
+  M> local key = ssh2.fetch_host_key(host, port, algo)
+
+########## scripts\ssl-enum-ciphers.nse ##########
+master 行数=1145  local 行数=1142  差异块数=19
+仅 master 有(<=): 11 行   仅 local 有(=>): 8 行
+--- 仅 local 有（本地独有，即 master 已删除/改写）前 12 行 ---
+  L> -- Claim to support common elliptic curves
+  L> -- TODO: Determine desire to comply with RFC 4492, section 4:
+  L> --       "The client MUST NOT include these extensions in the ClientHello
+  L> --       message if it does not propose any ECC cipher suites."
+  L> --       OTOH, OpenSSL 1.1.1 sends them always so it is probably safe.
+  L> ["elliptic_curves"] = tls.EXTENSION_HELPERS["elliptic_curves"](tls.DEFAULT_ELLIPTIC_CURVES),
+  L> -- Some servers require Supported Point Formats Extension
+  L> ["ec_point_formats"] = tls.EXTENSION_HELPERS["ec_point_formats"]({"uncompressed"}),
+--- 仅 master 有（master 新增/改写）前 12 行 ---
+  M> -- Claim to support common elliptic curves
+  M> -- TODO: Determine desire to comply with RFC 4492, section 4:
+  M> --       "The client MUST NOT include these extensions in the ClientHello
+  M> --       message if it does not propose any ECC cipher suites."
+  M> --       OTOH, OpenSSL 1.1.1 sends them always so it is probably safe.
+  M> local curves = tls.PROTOCOLS[protocol] < tls13proto and tls.DEFAULT_TLS12_ELLIPTIC_CURVES  -- non-TLSv1.3
+  M> or tls.DEFAULT_ELLIPTIC_CURVES
+  M> t.extensions.elliptic_curves = tls.EXTENSION_HELPERS["elliptic_curves"](curves)
+  M> -- Some servers require Supported Point Formats Extension
+  M> t.extensions.ec_point_formats = tls.EXTENSION_HELPERS["ec_point_formats"]({"uncompressed"})
+  M> 

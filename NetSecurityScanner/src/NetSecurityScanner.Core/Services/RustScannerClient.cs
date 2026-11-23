@@ -357,6 +357,24 @@ namespace NetSecurityScanner.Services
         }
 
         /// <summary>
+        /// 仅关闭当前 IPC 连接，不终止 Rust 服务进程。
+        /// 用于扫描中途连接被服务端关闭后，在同一服务进程上重建连接（重连重发）。
+        /// 与 StopService 的区别：后者会 Kill 进程，适用于服务已卡死/需重启的场景。
+        /// </summary>
+        private void ResetConnection()
+        {
+            try { _pipeClient?.Close(); } catch { }
+            try { _pipeClient?.Dispose(); } catch { }
+            _pipeClient = null;
+
+            try { _tcpClient?.Close(); } catch { }
+            try { _tcpClient?.Dispose(); } catch { }
+            _tcpClient = null;
+
+            _isConnected = false;
+        }
+
+        /// <summary>
         /// 执行端口扫描
         /// </summary>
         public async Task<List<RustPortResult>> ScanPortsAsync(
@@ -369,7 +387,8 @@ namespace NetSecurityScanner.Services
             bool detectService = false,
             bool includeClosed = false,
             CancellationToken cancellationToken = default,
-            ScanProfileConfig? profileConfig = null)
+            ScanProfileConfig? profileConfig = null,
+            bool allowRetry = true)
         {
             var results = new List<RustPortResult>();
 
@@ -430,31 +449,50 @@ namespace NetSecurityScanner.Services
                 await stream.FlushAsync(cancellationToken);
                 OnLog?.Invoke(this, "✅ 请求已发送并 flush 到管道");
 
-                // 接收响应 (带心跳监控: 15秒未收到任何消息认为卡死)
+                // 接收响应 (带心跳监控: 40秒未收到任何消息认为卡死)
                 // 使用 BinaryReader + 手动按行解析, 避免 StreamReader 内部缓冲导致 ReadLineAsync 提前返回 null
                 var lastMessageTime = DateTime.UtcNow;
-                const int heartbeatTimeoutSeconds = 15;
+                // 心跳阈值定为 40 秒：实测引擎在长扫描（如 8000 端口）中 progress 消息间隔约 25 秒，
+                // 且从不发送 heartbeat 消息。旧的 15 秒阈值必然把正常的长扫描误判为"服务无响应"。
+                // 该阈值的定位是兜底真正卡死的场景（连 progress 都不再产生），宁可多等，不可误杀。
+                const int heartbeatTimeoutSeconds = 40;
                 var pipeBuffer = new byte[64 * 1024];
                 var lineBuffer = new StringBuilder();
+                Task<int>? pendingRead = null;
 
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    // 心跳检查: 15秒未收到任何消息则触发心跳超时
-                    if (DateTime.UtcNow - lastMessageTime > TimeSpan.FromSeconds(heartbeatTimeoutSeconds))
+                    // 没有挂起的读取时发起新的阻塞读取；引擎静默期间不会有任何数据到达，
+                    // 纯阻塞 ReadAsync 直到收到字节才返回，旧实现的心跳检查排在其后，
+                    // 长扫描/卡死场景下永远执行不到，超时逻辑形同虚设。
+                    // 这里用 Task.WhenAny + 1 秒节拍把"心跳监控"搬到 ReadAsync 等待期间：
+                    // 每 1 秒醒来检查一次心跳窗口，引擎再长时间不发消息也能被准确侦测，
+                    // 且从不在同一流上并发发起第二次 ReadAsync（无数据竞争，不丢弃任务）。
+                    pendingRead ??= stream.ReadAsync(pipeBuffer, 0, pipeBuffer.Length, cancellationToken);
+
+                    var completed = await Task.WhenAny(pendingRead, Task.Delay(TimeSpan.FromSeconds(1)));
+                    if (completed != pendingRead)
                     {
-                        var idle = (DateTime.UtcNow - lastMessageTime).TotalSeconds;
-                        OnLog?.Invoke(this, $"❌ Rust扫描服务 {heartbeatTimeoutSeconds} 秒无响应，触发心跳超时 ({idle:F0}s 未收到任何消息)");
-                        _isConnected = false; // 标记连接已断开
-                        StopService();
-                        throw new RustScannerTimeoutException("Rust扫描服务 15 秒无响应，已触发心跳超时");
+                        // 1 秒节拍到期：检查心跳超时窗口
+                        if (DateTime.UtcNow - lastMessageTime > TimeSpan.FromSeconds(heartbeatTimeoutSeconds))
+                        {
+                            var idle = (DateTime.UtcNow - lastMessageTime).TotalSeconds;
+                            OnLog?.Invoke(this, $"❌ Rust扫描服务 {heartbeatTimeoutSeconds} 秒无响应，触发心跳超时 ({idle:F0}s 未收到任何消息)");
+                            // 观察挂起的读任务，避免连接关闭前未 await 完成的任务上报未观察异常
+                            if (pendingRead != null)
+                                _ = pendingRead.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+                            _isConnected = false; // 标记连接已断开
+                            StopService();
+                            throw new RustScannerTimeoutException($"Rust扫描服务 {heartbeatTimeoutSeconds} 秒无响应，已触发心跳超时");
+                        }
+                        continue;
                     }
 
-                    // 直接阻塞读取, 由 cancellationToken 控制超时 (用户取消或心跳机制通过 catch 处理)
-                    // 之前的 Task.WhenAny + 1秒轮询会丢弃未完成的 readTask, 导致数据竞争
+                    // 读取任务已结束：取出结果并继续处理
                     int n;
                     try
                     {
-                        n = await stream.ReadAsync(pipeBuffer, 0, pipeBuffer.Length, cancellationToken);
+                        n = await pendingRead!;
                     }
                     catch (OperationCanceledException) { break; }
                     catch (IOException ex)
@@ -462,6 +500,10 @@ namespace NetSecurityScanner.Services
                         OnLog?.Invoke(this, $"⚠️ 读取异常: {ex.Message}");
                         _isConnected = false; // 标记连接已断开
                         break;
+                    }
+                    finally
+                    {
+                        pendingRead = null;
                     }
 
                     if (n == 0)
@@ -571,6 +613,33 @@ namespace NetSecurityScanner.Services
             // 注意: scanCompleted=true 但 results.Count==0 是合法情况 (目标确实无开放端口)
             if (!scanCompleted)
             {
+                // 已收到部分结果：连接虽中断但扫描确有产出，直接返回，避免丢弃已扫到的端口。
+                if (results.Count > 0)
+                {
+                    OnLog?.Invoke(this, $"⚠️ 未收到完成标记，但已收到 {results.Count} 条结果，返回部分结果");
+                    return results;
+                }
+
+                // 连接被服务端中途关闭且一条结果都没有：先重连重发一次，再考虑回退。
+                // 旧版 Rust 引擎（不含 IPC 连接复用修复）每条连接只处理一个请求就关闭，
+                // 专家模式的 UDP 阶段打在 TCP 阶段结束后已关闭的连接上，必然落到这里；
+                // 重连后的新连接对旧引擎而言就是"第一个请求"，因此仍能正常完成扫描，
+                // 不再静默回退到慢速内置扫描器。
+                if (allowRetry
+                    && !cancellationToken.IsCancellationRequested
+                    && (_rustProcess == null || !_rustProcess.HasExited))
+                {
+                    OnLog?.Invoke(this, "⚠️ 连接已断开且无结果，关闭旧连接并重连后重发请求（第 2 次）");
+                    ResetConnection();
+                    if (await ConnectAsync().ConfigureAwait(false))
+                    {
+                        return await ScanPortsAsync(targets, ports, protocol, concurrency, tcpTimeoutMs,
+                            udpTimeoutMs, detectService, includeClosed, cancellationToken, profileConfig,
+                            allowRetry: false).ConfigureAwait(false);
+                    }
+                    OnLog?.Invoke(this, "⚠️ 重连失败，回退到内置 C# 扫描器");
+                }
+
                 OnLog?.Invoke(this, "⚠️ Rust 扫描未正常完成, 回退到内置 C# 扫描器");
                 return await FallbackScanAsync(targets, ports, protocol, cancellationToken, profileConfig);
             }
@@ -649,93 +718,16 @@ namespace NetSecurityScanner.Services
                 return null;
             }
 
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            cts.CancelAfter(TimeSpan.FromSeconds(3));
-
-            try
-            {
-                var request = new RustStatusRequest
-                {
-                    RequestId = Guid.NewGuid().ToString(),
-                    MessageType = "status"
-                };
-
-                var requestJson = JsonSerializer.Serialize(request, new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = new SnakeCaseNamingPolicy()
-                });
-
-                var stream = _usePipe ? (Stream)_pipeClient! : _tcpClient!.GetStream();
-                var requestBytes = Encoding.UTF8.GetBytes(requestJson + "\n");
-                await stream.WriteAsync(requestBytes, cts.Token).ConfigureAwait(false);
-                await stream.FlushAsync(cts.Token).ConfigureAwait(false);
-
-                var buffer = new byte[8 * 1024];
-                var lineBuffer = new StringBuilder();
-
-                while (!cts.Token.IsCancellationRequested)
-                {
-                    int n;
-                    try
-                    {
-                        n = await stream.ReadAsync(buffer, 0, buffer.Length, cts.Token).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        break;
-                    }
-                    catch (IOException)
-                    {
-                        break;
-                    }
-
-                    if (n == 0)
-                    {
-                        OnLog?.Invoke(this, "⚠️ Rust 服务关闭了连接");
-                        break;
-                    }
-
-                    lineBuffer.Append(Encoding.UTF8.GetString(buffer, 0, n));
-                    var lines = lineBuffer.ToString().Split('\n');
-                    for (int i = 0; i < lines.Length - 1; i++)
-                    {
-                        var line = lines[i].Trim();
-                        if (string.IsNullOrEmpty(line)) continue;
-
-                        try
-                        {
-                            using var doc = JsonDocument.Parse(line);
-                            var root = doc.RootElement;
-                            if (!root.TryGetProperty("type", out var typeProp)) continue;
-                            var type = typeProp.GetString()?.ToLowerInvariant();
-
-                            if (type == "status")
-                            {
-                                var status = JsonSerializer.Deserialize<RustStatusResponse>(line, SnakeCaseOptions);
-                                if (status != null)
-                                {
-                                    status.Type = "status";
-                                    OnLog?.Invoke(this, $"📊 Rust 服务状态: CPU {status.CpuPercent:F1}%, 内存 {status.MemoryPercent:F1}%");
-                                    return status;
-                                }
-                            }
-                        }
-                        catch (JsonException)
-                        {
-                            // 忽略解析错误
-                        }
-                    }
-
-                    lineBuffer.Clear();
-                    lineBuffer.Append(lines[lines.Length - 1]);
-                }
-            }
-            catch (Exception ex)
-            {
-                OnLog?.Invoke(this, $"⚠️ 获取 Rust 服务状态失败: {ex.Message}");
-            }
-
-            // Rust 端尚未实现 status 时，返回模拟低负载，避免误降级。
+            // 修复（深度测试发现，致命 bug）：Rust 服务端 protocol.rs 的 IpcMessage 没有
+            // status 分支，收到 {"message_type":"status"} 会因缺 targets 字段解析失败并
+            // 【直接关闭整条 TCP 连接】。旧实现用同一个 _tcpClient 发 status 探测，
+            // 探测虽返回模拟值（看似"成功"），但连接已被 Rust 关闭；随后 ScanPortsAsync
+            // 复用这条死连接写入立即失败 → "你的主机中的软件中止了一个已建立的连接"
+            // → RustScan 扫描从未真正执行，每次都静默回退到内置 C# 扫描器。
+            //
+            // 由于 Rust 端本就不支持 status，探测有害无益：直接返回模拟低负载，
+            // 绝不触碰共享 IPC 连接。待 Rust 端真正实现 status 且用独立连接后再启用探测。
+            OnLog?.Invoke(this, "📊 Rust 服务状态: 使用模拟负载（服务端未实现 status，避免探测关闭共享连接）");
             return new RustStatusResponse
             {
                 Type = "status",

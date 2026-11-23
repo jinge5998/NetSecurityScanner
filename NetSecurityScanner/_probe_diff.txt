@@ -1,0 +1,25 @@
+=== nselib 差异 ===
+  内容不同: http.lua
+  内容不同: iec61850mms.lua
+  内容不同: ssh2.lua
+  内容不同: tls.lua
+  本地缺失: 0
+  内容不同总数: 4 / 186
+
+=== nmap.xsl 差异 ===
+  master: 31936 bytes  local: 31936 bytes
+  哈希一致: True
+
+=== nse_main.lua 差异 ===
+  哈希一致: True
+
+=== 6 个内容不同的脚本，大小对比 ===
+  broadcast-ping.nse     master=  8972  local=  8972
+  http-title.nse         master=  2463  local=  2317
+  nbd-info.nse           master=  5387  local=  5387
+  rsa-vuln-roca.nse      master=  6656  local=  6528
+  ssh-hostkey.nse        master= 16030  local= 16104
+  ssl-enum-ciphers.nse   master= 40176  local= 40040
+
+=== 本地 nselib/data 子目录文件数 ===
+  master: 32   local: 32

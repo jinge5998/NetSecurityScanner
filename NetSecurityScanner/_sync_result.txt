@@ -1,0 +1,22 @@
+备份目录: C:\Users\ADMINI~1\AppData\Local\Temp\nmap-nse-backup-20261118_121416
+nselib\http.lua                  同步完成 哈希一致=True  大小=123718
+nselib\iec61850mms.lua           同步完成 哈希一致=True  大小=31047
+nselib\ssh2.lua                  同步完成 哈希一致=True  大小=14813
+nselib\tls.lua                   同步完成 哈希一致=True  大小=76382
+scripts\broadcast-ping.nse       同步完成 哈希一致=True  大小=8972
+scripts\http-title.nse           同步完成 哈希一致=True  大小=2463
+scripts\nbd-info.nse             同步完成 哈希一致=True  大小=5387
+scripts\rsa-vuln-roca.nse        同步完成 哈希一致=True  大小=6656
+scripts\ssh-hostkey.nse          同步完成 哈希一致=True  大小=16030
+scripts\ssl-enum-ciphers.nse     同步完成 哈希一致=True  大小=40176
+
+=== 同步后全量复核（应为 0 处差异） ===
+nselib 差异: 0 / 186
+scripts 差异: 0 / 619
+数据文件 nmap-services 一致=True
+数据文件 nmap-rpc 一致=True
+数据文件 nmap-os-db 一致=True
+数据文件 nmap-service-probes 一致=True
+数据文件 nmap-protocols 一致=True
+数据文件 nmap-mac-prefixes 一致=True
+数据文件 nse_main.lua 一致=True

@@ -1,0 +1,91 @@
+=== 1. 重建 scripts\script.db（解析全部 619 个脚本） ===
+执行前 script.db: 53422 bytes  10/23/2026 23:18:24
+
+===== nmap --script-updatedb =====
+CMD: nmap --script-updatedb
+EXITCODE=0
+stderr 非空行=0
+Lua/加载错误行=0
+执行后 script.db: 54041 bytes  11/18/2026 12:14:42
+
+=== 2. 逐个强制解析本次更新的 6 个脚本（--script-help 会真正加载脚本与依赖库） ===
+
+===== script-help: broadcast-ping =====
+CMD: nmap --script-help broadcast-ping
+EXITCODE=0
+stderr 非空行=0
+Lua/加载错误行=0
+  broadcast-ping 加载成功=True
+
+===== script-help: http-title =====
+CMD: nmap --script-help http-title
+EXITCODE=0
+stderr 非空行=0
+Lua/加载错误行=0
+  http-title 加载成功=True
+
+===== script-help: nbd-info =====
+CMD: nmap --script-help nbd-info
+EXITCODE=0
+stderr 非空行=0
+Lua/加载错误行=0
+  nbd-info 加载成功=True
+
+===== script-help: rsa-vuln-roca =====
+CMD: nmap --script-help rsa-vuln-roca
+EXITCODE=0
+stderr 非空行=0
+Lua/加载错误行=0
+  rsa-vuln-roca 加载成功=True
+
+===== script-help: ssh-hostkey =====
+CMD: nmap --script-help ssh-hostkey
+EXITCODE=0
+stderr 非空行=0
+Lua/加载错误行=0
+  ssh-hostkey 加载成功=True
+
+===== script-help: ssl-enum-ciphers =====
+CMD: nmap --script-help ssl-enum-ciphers
+EXITCODE=0
+stderr 非空行=0
+Lua/加载错误行=0
+  ssl-enum-ciphers 加载成功=True
+
+=== 3. 真实扫描：-sC 默认脚本集（走本次更新的 http-title 等） ===
+
+===== nmap -sT -sV -sC -p 135,445,3389 =====
+CMD: nmap -sT -sV -sC -n -p 135,445,3389 -T4 127.0.0.1
+EXITCODE=0
+stderr 非空行=0
+Lua/加载错误行=0
+  135/tcp  open  msrpc         Microsoft Windows RPC
+  445/tcp  open  microsoft-ds  Microsoft Windows 7 - 10 microsoft-ds (workgroup: WorkGroup)
+  3389/tcp open  ms-wbt-server Microsoft Terminal Services
+  |_ssl-date: TLS randomness does not represent time
+  | ssl-cert: Subject: commonName=MS-VXNZPXKNMCIT
+  | Not valid before: 2026-09-30T03:58:09
+  |_Not valid after:  2027-04-01T03:58:09
+  | smb2-time:
+  |   date: 2026-11-18T04:14:50
+  |_  start_date: N/A
+
+=== 4. 真实扫描：--script vuln 漏洞脚本集 ===
+
+===== nmap -sT -sV --script vuln -p 445 =====
+CMD: nmap -sT -sV --script vuln -n -p 445 -T4 127.0.0.1
+EXITCODE=0
+stderr 非空行=0
+Lua/加载错误行=0
+  445/tcp open  microsoft-ds Microsoft Windows 7 - 10 microsoft-ds (workgroup: WorkGroup)
+  |_smb-vuln-ms10-054: false
+  |_smb-vuln-ms10-061: No accounts left to try
+  |_samba-vuln-cve-2012-1182: No accounts left to try
+
+=== 5. 真实扫描：--script ssl-enum-ciphers / ssh-hostkey（无对应服务，验证脚本可正常执行不报错） ===
+
+===== nmap --script ssl-enum-ciphers,ssh-hostkey -p 443,22 =====
+CMD: nmap -sT -n -p 443,22 --script ssl-enum-ciphers,ssh-hostkey -T4 127.0.0.1
+EXITCODE=0
+stderr 非空行=0
+Lua/加载错误行=0

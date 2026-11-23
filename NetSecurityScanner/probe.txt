@@ -1,0 +1,7 @@
+=== nmap-master 版本 ===
+=== CHANGELOG 前 4 行 ===
+=== 计数 ===
+master scripts: 0
+local scripts:  619
+master nselib: 0
+local nselib:  186

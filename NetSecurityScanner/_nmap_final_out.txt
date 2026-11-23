@@ -1,0 +1,680 @@
+Starting Nmap 7.993 ( https://nmap.org ) at 2026-11-22 19:11 +0800
+Nmap scan report for localhost (127.0.0.1)
+Host is up (0.000049s latency).
+Not shown: 65485 closed tcp ports (conn-refused)
+PORT      STATE    SERVICE       VERSION
+135/tcp   open     msrpc         Microsoft Windows RPC
+137/tcp   filtered netbios-ns
+445/tcp   open     microsoft-ds  Microsoft Windows 7 - 10 microsoft-ds (workgroup: WorkGroup)
+1358/tcp  open     http          Node.js Express framework
+|_http-stored-xss: Couldn't find any stored XSS vulnerabilities.
+|_http-dombased-xss: Couldn't find any DOM based XSS.
+|_http-csrf: Couldn't find any CSRF vulnerabilities.
+2179/tcp  open     vmrdp?
+3100/tcp  open     opcon-xps?
+| fingerprint-strings: 
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Help, Kerberos, LANDesk-RC, LDAPBindReq, LDAPSearchReq, LPDString, NCP, RPCCheck, SIPOptions, SMBProgNeg, SSLSessionReq, TLSSessionReq, TerminalServer, TerminalServerCookie, X11Probe: 
+|     HTTP/1.1 400 Bad Request
+|     Connection: close
+|   FourOhFourRequest, RTSPRequest: 
+|     HTTP/1.1 404 Not Found
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Connection: close
+|   GetRequest, HTTPOptions: 
+|     HTTP/1.1 404 Not Found
+|     Date: Sun, 22 Nov 2026 11:11:45 GMT
+|_    Connection: close
+3389/tcp  open     ms-wbt-server Microsoft Terminal Services
+|_tls-ticketbleed: ERROR: Script execution failed (use -d to debug)
+4709/tcp  open     ssl/unknown
+| fingerprint-strings: 
+|   FourOhFourRequest, GetRequest: 
+|     HTTP/1.1 400 Bad Request
+|     Content-Encoding: 
+|     Content-Length: 93
+|     Content-Type: application/json
+|     {"api_ver":"1.4","call_status":"error","error_code":1,"error_msg":"referer lost","result":{}}
+|   GenericLines, RTSPRequest, SIPOptions: 
+|     HTTP/1.1 400 Bad Request
+|     Content-Encoding:
+|   HTTPOptions: 
+|     HTTP/1.1 200 OK
+|     Access-Control-Allow-Credentials: true
+|     Access-Control-Allow-Headers: x-pop-token
+|     Access-Control-Allow-Origin: 
+|     Content-Encoding: 
+|     Content-Length: 93
+|     Content-Type: application/json
+|_    {"api_ver":"1.4","call_status":"error","error_code":1,"error_msg":"referer lost","result":{}}
+|_tls-ticketbleed: ERROR: Script execution failed (use -d to debug)
+| ssl-dh-params: 
+|   VULNERABLE:
+|   Diffie-Hellman Key Exchange Insufficient Group Strength
+|     State: VULNERABLE
+|       Transport Layer Security (TLS) services that use Diffie-Hellman groups
+|       of insufficient strength, especially those using one of a few commonly
+|       shared groups, may be susceptible to passive eavesdropping attacks.
+|     Check results:
+|       WEAK DH GROUP 1
+|             Cipher Suite: TLS_DHE_RSA_WITH_AES_256_CBC_SHA
+|             Modulus Type: Safe prime
+|             Modulus Source: RFC2409/Oakley Group 2
+|             Modulus Length: 1024
+|             Generator Length: 8
+|             Public Key Length: 1024
+|     References:
+|_      https://weakdh.org
+5040/tcp  open     unknown
+5283/tcp  open     unknown
+5284/tcp  open     unknown
+5285/tcp  open     unknown
+5287/tcp  open     unknown
+7680/tcp  open     pando-pub?
+9527/tcp  open     unknown
+| fingerprint-strings: 
+|   GenericLines: 
+|     {"type":"error","code":400,"message":"
+|     while parsing a value at line 2 column 0"}
+|     {"type":"error","code":400,"message":"
+|     while parsing a value at line 2 column 0"}
+|   GetRequest, HTTPOptions, RTSPRequest: 
+|     {"type":"error","code":400,"message":"
+|     expected value at line 1 column 1"}
+|     {"type":"error","code":400,"message":"
+|     while parsing a value at line 2 column 0"}
+|   Help, SSLSessionReq: 
+|     {"type":"error","code":400,"message":"
+|_    expected value at line 1 column 1"}
+13900/tcp open     ssl/unknown
+|_tls-ticketbleed: ERROR: Script execution failed (use -d to debug)
+14013/tcp open     unknown
+14016/tcp open     unknown
+14019/tcp open     unknown
+14022/tcp open     unknown
+14023/tcp open     unknown
+18488/tcp open     unknown
+| fingerprint-strings: 
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Help, Kerberos, RPCCheck, SMBProgNeg, SSLSessionReq, TLSSessionReq, TerminalServerCookie, X11Probe: 
+|     HTTP/1.1 400 Bad Request
+|     Connection: close
+|   FourOhFourRequest: 
+|     HTTP/1.1 404 Not Found
+|     Access-Control-Allow-Origin: *
+|     Access-Control-Allow-Methods: GET, OPTIONS
+|     Access-Control-Max-Age: 600
+|     Cache-Control: no-store
+|     Content-Type: application/json; charset=utf-8
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Connection: close
+|     {"ok":false,"error":"Not Found"}
+|   GetRequest: 
+|     HTTP/1.1 404 Not Found
+|     Access-Control-Allow-Origin: *
+|     Access-Control-Allow-Methods: GET, OPTIONS
+|     Access-Control-Max-Age: 600
+|     Cache-Control: no-store
+|     Content-Type: application/json; charset=utf-8
+|     Date: Sun, 22 Nov 2026 11:11:45 GMT
+|     Connection: close
+|     {"ok":false,"error":"Not Found"}
+|   HTTPOptions: 
+|     HTTP/1.1 204 No Content
+|     Access-Control-Allow-Origin: *
+|     Access-Control-Allow-Methods: GET, OPTIONS
+|     Access-Control-Max-Age: 600
+|     Cache-Control: no-store
+|     Date: Sun, 22 Nov 2026 11:11:45 GMT
+|     Connection: close
+|   RTSPRequest: 
+|     HTTP/1.1 204 No Content
+|     Access-Control-Allow-Origin: *
+|     Access-Control-Allow-Methods: GET, OPTIONS
+|     Access-Control-Max-Age: 600
+|     Cache-Control: no-store
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|_    Connection: close
+19425/tcp open     unknown
+| fingerprint-strings: 
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Help, Kerberos, LDAPBindReq, LDAPSearchReq, LPDString, RPCCheck, SIPOptions, SMBProgNeg, SSLSessionReq, TLSSessionReq, TerminalServerCookie, X11Probe: 
+|     HTTP/1.1 400 Bad Request
+|     Connection: close
+|   FourOhFourRequest, HTTPOptions, RTSPRequest: 
+|     HTTP/1.1 404 Not Found
+|     Content-Type: application/json
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Connection: close
+|     {"error":"not found"}
+|   GetRequest: 
+|     HTTP/1.1 404 Not Found
+|     Content-Type: application/json
+|     Date: Sun, 22 Nov 2026 11:11:45 GMT
+|     Connection: close
+|_    {"error":"not found"}
+20011/tcp open     unknown
+| fingerprint-strings: 
+|   FourOhFourRequest, GetRequest, HTTPOptions: 
+|     HTTP/1.1 404 Not Found
+|     Content-Length: 0
+|     Keep-Alive: timeout=5, max=5
+|   GenericLines, Help, Kerberos, LDAPSearchReq, LPDString, RTSPRequest, SIPOptions, SSLSessionReq, TLSSessionReq, TerminalServerCookie: 
+|     HTTP/1.1 400 Bad Request
+|     Content-Length: 0
+|_    Keep-Alive: timeout=5, max=5
+20017/tcp open     http
+|_http-csrf: Couldn't find any CSRF vulnerabilities.
+|_http-dombased-xss: Couldn't find any DOM based XSS.
+|_http-stored-xss: Couldn't find any stored XSS vulnerabilities.
+20734/tcp open     unknown
+| fingerprint-strings: 
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Help, JavaRMI, Kerberos, LANDesk-RC, LDAPBindReq, LDAPSearchReq, LPDString, NCP, NotesRPC, RPCCheck, SIPOptions, SMBProgNeg, SSLSessionReq, TLSSessionReq, TerminalServer, TerminalServerCookie, WMSRequest, X11Probe, afp, giop, ms-sql-s, oracle-tns: 
+|     HTTP/1.1 400 Bad Request
+|_    Connection: close
+21503/tcp open     grpc
+25120/tcp open     ssl/unknown
+|_tls-ticketbleed: ERROR: Script execution failed (use -d to debug)
+28649/tcp open     unknown
+| fingerprint-strings: 
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Help, Kerberos, LPDString, RPCCheck, SMBProgNeg, SSLSessionReq, TLSSessionReq, TerminalServerCookie, X11Probe: 
+|     HTTP/1.1 400 Bad Request
+|     Connection: close
+|   FourOhFourRequest, HTTPOptions, RTSPRequest: 
+|     HTTP/1.1 401 Unauthorized
+|     Content-Type: application/json
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Connection: close
+|     {"type":"error","error":{"type":"authentication_error","message":"Invalid authentication"},"request_id":null}
+|   GetRequest: 
+|     HTTP/1.1 200 OK
+|     Content-Type: text/plain
+|     Date: Sun, 22 Nov 2026 11:11:45 GMT
+|_    Connection: close
+30406/tcp open     unknown
+| fingerprint-strings: 
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Help, Kerberos, LANDesk-RC, LDAPBindReq, LDAPSearchReq, LPDString, NCP, RPCCheck, SIPOptions, SMBProgNeg, SSLSessionReq, TLSSessionReq, TerminalServer, TerminalServerCookie, X11Probe: 
+|     HTTP/1.1 400 Bad Request
+|     Connection: close
+|   FourOhFourRequest, HTTPOptions, RTSPRequest: 
+|     HTTP/1.1 404 Not Found
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Connection: close
+|   GetRequest: 
+|     HTTP/1.1 404 Not Found
+|     Date: Sun, 22 Nov 2026 11:11:45 GMT
+|_    Connection: close
+30408/tcp open     unknown
+| fingerprint-strings: 
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Help, Kerberos, LPDString, RPCCheck, SMBProgNeg, SSLSessionReq, TLSSessionReq, TerminalServerCookie, X11Probe: 
+|     HTTP/1.1 400 Bad Request
+|     Connection: close
+|   FourOhFourRequest: 
+|     HTTP/1.1 403 Forbidden
+|     X-Request-Id: c7107457-a38d-4bb7-9490-c05f9270dfe7
+|     Content-Type: application/json; charset=utf-8
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Connection: close
+|     {"error":"forbidden"}
+|   GetRequest: 
+|     HTTP/1.1 403 Forbidden
+|     X-Request-Id: e55d6762-12ef-42a2-8a94-f129a62560fc
+|     Content-Type: application/json; charset=utf-8
+|     Date: Sun, 22 Nov 2026 11:11:45 GMT
+|     Connection: close
+|     {"error":"forbidden"}
+|   HTTPOptions: 
+|     HTTP/1.1 403 Forbidden
+|     X-Request-Id: c75b9c19-e7ce-435f-8013-bd557b82136a
+|     Content-Type: application/json; charset=utf-8
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Connection: close
+|     {"error":"forbidden"}
+|   RTSPRequest: 
+|     HTTP/1.1 403 Forbidden
+|     X-Request-Id: 6aec3f6a-b7b8-410c-8dc3-b1bf64765742
+|     Content-Type: application/json; charset=utf-8
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Connection: close
+|_    {"error":"forbidden"}
+30425/tcp open     unknown
+| fingerprint-strings: 
+|   DNSStatusRequestTCP, DNSVersionBindReqTCP, Help, Kerberos, LDAPBindReq, LDAPSearchReq, LPDString, RPCCheck, SMBProgNeg, SSLSessionReq, TLSSessionReq, TerminalServerCookie, X11Probe: 
+|     HTTP/1.1 400 Bad Request
+|     Connection: close
+|   FourOhFourRequest, GetRequest, HTTPOptions, RTSPRequest: 
+|     HTTP/1.1 404 Not Found
+|     Content-Type: text/plain
+|     Cache-Control: no-store
+|     Date: Sun, 22 Nov 2026 11:11:45 GMT
+|     Connection: close
+|_    Found
+36510/tcp open     http          Golang net/http server
+| fingerprint-strings: 
+|   FourOhFourRequest: 
+|     HTTP/1.0 400 Bad Request
+|     Content-Type: text/plain; charset=utf-8
+|     Sec-Websocket-Version: 13
+|     X-Content-Type-Options: nosniff
+|     Date: Sun, 22 Nov 2026 11:12:01 GMT
+|     Content-Length: 12
+|     Request
+|   GenericLines, Help, LPDString, RTSPRequest, SIPOptions, SSLSessionReq, Socks5: 
+|     HTTP/1.1 400 Bad Request
+|     Content-Type: text/plain; charset=utf-8
+|     Connection: close
+|     Request
+|   GetRequest, HTTPOptions: 
+|     HTTP/1.0 400 Bad Request
+|     Content-Type: text/plain; charset=utf-8
+|     Sec-Websocket-Version: 13
+|     X-Content-Type-Options: nosniff
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Content-Length: 12
+|     Request
+|   OfficeScan: 
+|     HTTP/1.1 400 Bad Request: missing required Host header
+|     Content-Type: text/plain; charset=utf-8
+|     Connection: close
+|_    Request: missing required Host header
+|_http-csrf: Couldn't find any CSRF vulnerabilities.
+|_http-stored-xss: Couldn't find any stored XSS vulnerabilities.
+|_http-dombased-xss: Couldn't find any DOM based XSS.
+37510/tcp open     http          Golang net/http server
+| fingerprint-strings: 
+|   FourOhFourRequest: 
+|     HTTP/1.0 404 Not Found
+|     Content-Type: text/plain; charset=utf-8
+|     X-Content-Type-Options: nosniff
+|     Date: Sun, 22 Nov 2026 11:12:02 GMT
+|     Content-Length: 43
+|     page not found
+|     Powered by Alibaba Cloud
+|   GenericLines, Help, LPDString, RTSPRequest, SIPOptions, SSLSessionReq, Socks5: 
+|     HTTP/1.1 400 Bad Request
+|     Content-Type: text/plain; charset=utf-8
+|     Connection: close
+|     Request
+|   GetRequest, HTTPOptions: 
+|     HTTP/1.0 404 Not Found
+|     Content-Type: text/plain; charset=utf-8
+|     X-Content-Type-Options: nosniff
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Content-Length: 43
+|     page not found
+|     Powered by Alibaba Cloud
+|   OfficeScan: 
+|     HTTP/1.1 400 Bad Request: missing required Host header
+|     Content-Type: text/plain; charset=utf-8
+|     Connection: close
+|_    Request: missing required Host header
+|_http-stored-xss: Couldn't find any stored XSS vulnerabilities.
+|_http-csrf: Couldn't find any CSRF vulnerabilities.
+|_http-dombased-xss: Couldn't find any DOM based XSS.
+38427/tcp open     http          Golang net/http server
+| fingerprint-strings: 
+|   FourOhFourRequest: 
+|     HTTP/1.0 404 Not Found
+|     Content-Type: text/plain; charset=utf-8
+|     X-Content-Type-Options: nosniff
+|     Date: Sun, 22 Nov 2026 11:12:02 GMT
+|     Content-Length: 43
+|     page not found
+|     Powered by Alibaba Cloud
+|   GenericLines, Help, LPDString, RTSPRequest, SIPOptions, SSLSessionReq, Socks5: 
+|     HTTP/1.1 400 Bad Request
+|     Content-Type: text/plain; charset=utf-8
+|     Connection: close
+|     Request
+|   GetRequest, HTTPOptions: 
+|     HTTP/1.0 404 Not Found
+|     Content-Type: text/plain; charset=utf-8
+|     X-Content-Type-Options: nosniff
+|     Date: Sun, 22 Nov 2026 11:11:46 GMT
+|     Content-Length: 43
+|     page not found
+|     Powered by Alibaba Cloud
+|   OfficeScan: 
+|     HTTP/1.1 400 Bad Request: missing required Host header
+|     Content-Type: text/plain; charset=utf-8
+|     Connection: close
+|_    Request: missing required Host header
+|_http-dombased-xss: Couldn't find any DOM based XSS.
+|_http-csrf: Couldn't find any CSRF vulnerabilities.
+|_http-stored-xss: Couldn't find any stored XSS vulnerabilities.
+45740/tcp open     unknown
+| fingerprint-strings: 
+|   GenericLines, GetRequest, HTTPOptions, NULL, RTSPRequest: 
+|     0{"id":1,"method":"Inspector.enable","params":{}}
+|     .{"id":2,"method":"Runtime.enable","params":{}}
+|     8{"id":3,"method":"LifecycleReporter.enable","params":{}}
+|     3{"id":4,"method":"TestReporter.enable","params":{}}
+|     J{"id":5,"method":"Debugger.setBreakpointsActive","params":{"active":true}}
+|_    5{"id":6,"method":"Inspector.initialized","params":{}}
+45763/tcp open     http          Node.js Express framework
+|_http-csrf: Couldn't find any CSRF vulnerabilities.
+|_http-stored-xss: Couldn't find any stored XSS vulnerabilities.
+|_http-dombased-xss: Couldn't find any DOM based XSS.
+49664/tcp open     msrpc         Microsoft Windows RPC
+49665/tcp open     msrpc         Microsoft Windows RPC
+49666/tcp open     msrpc         Microsoft Windows RPC
+49669/tcp open     msrpc         Microsoft Windows RPC
+49670/tcp open     msrpc         Microsoft Windows RPC
+49671/tcp open     msrpc         Microsoft Windows RPC
+49704/tcp open     msrpc         Microsoft Windows RPC
+49705/tcp open     msrpc         Microsoft Windows RPC
+50502/tcp open     http          aria2 downloader JSON-RPC
+|_http-dombased-xss: Couldn't find any DOM based XSS.
+|_http-stored-xss: Couldn't find any stored XSS vulnerabilities.
+|_http-csrf: Couldn't find any CSRF vulnerabilities.
+| http-slowloris-check: 
+|   VULNERABLE:
+|   Slowloris DOS attack
+|     State: LIKELY VULNERABLE
+|     IDs:  CVE:CVE-2007-6750
+|       Slowloris tries to keep many connections to the target web server open and hold
+|       them open as long as possible.  It accomplishes this by opening connections to
+|       the target web server and sending a partial request. By doing so, it starves
+|       the http server's resources causing Denial Of Service.
+|       
+|     Disclosure date: 2009-09-17
+|     References:
+|       http://ha.ckers.org/slowloris/
+|_      https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2007-6750
+53244/tcp open     unknown
+54360/tcp open     ssl/unknown
+|_tls-ticketbleed: ERROR: Script execution failed (use -d to debug)
+54489/tcp open     unknown
+| fingerprint-strings: 
+|   GenericLines, GetRequest, HTTPOptions, NULL, RTSPRequest: 
+|     0{"id":1,"method":"Inspector.enable","params":{}}
+|     .{"id":2,"method":"Runtime.enable","params":{}}
+|     .{"id":3,"method":"Console.enable","params":{}}
+|     8{"id":4,"method":"LifecycleReporter.enable","params":{}}
+|     J{"id":5,"method":"Debugger.setBreakpointsActive","params":{"active":true}}
+|_    5{"id":6,"method":"Inspector.initialized","params":{}}
+60216/tcp open     unknown
+| fingerprint-strings: 
+|   FourOhFourRequest, GetRequest, HTTPOptions: 
+|     HTTP/1.1 404 Not Found
+|     Content-Length: 0
+|     Keep-Alive: timeout=5, max=5
+|   GenericLines, Help, Kerberos, LDAPSearchReq, LPDString, RTSPRequest, SIPOptions, SSLSessionReq, TLSSessionReq, TerminalServerCookie: 
+|     HTTP/1.1 400 Bad Request
+|     Content-Length: 0
+|_    Keep-Alive: timeout=5, max=5
+9 services unrecognized despite returning data. If you know the service/version, please submit the following fingerprints at https://nmap.org/cgi-bin/submit.cgi?new-service :
+==============NEXT SERVICE FINGERPRINT (SUBMIT INDIVIDUALLY)==============
+SF-Port3100-TCP:V=7.993%I=7%D=11/22%Time=6B02CDF1%P=i686-pc-windows-window
+SF:s%r(GetRequest,52,"HTTP/1\.1\x20404\x20Not\x20Found\r\nDate:\x20Sun,\x2
+SF:022\x20Nov\x202026\x2011:11:45\x20GMT\r\nConnection:\x20close\r\n\r\n")
+SF:%r(HTTPOptions,52,"HTTP/1\.1\x20404\x20Not\x20Found\r\nDate:\x20Sun,\x2
+SF:022\x20Nov\x202026\x2011:11:45\x20GMT\r\nConnection:\x20close\r\n\r\n")
+SF:%r(RTSPRequest,52,"HTTP/1\.1\x20404\x20Not\x20Found\r\nDate:\x20Sun,\x2
+SF:022\x20Nov\x202026\x2011:11:46\x20GMT\r\nConnection:\x20close\r\n\r\n")
+SF:%r(RPCCheck,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20cl
+SF:ose\r\n\r\n")%r(DNSVersionBindReqTCP,2F,"HTTP/1\.1\x20400\x20Bad\x20Req
+SF:uest\r\nConnection:\x20close\r\n\r\n")%r(DNSStatusRequestTCP,2F,"HTTP/1
+SF:\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Help,2
+SF:F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")
+SF:%r(SSLSessionReq,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\
+SF:x20close\r\n\r\n")%r(TerminalServerCookie,2F,"HTTP/1\.1\x20400\x20Bad\x
+SF:20Request\r\nConnection:\x20close\r\n\r\n")%r(TLSSessionReq,2F,"HTTP/1\
+SF:.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Kerbero
+SF:s,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\
+SF:n")%r(SMBProgNeg,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\
+SF:x20close\r\n\r\n")%r(X11Probe,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\
+SF:nConnection:\x20close\r\n\r\n")%r(FourOhFourRequest,52,"HTTP/1\.1\x2040
+SF:4\x20Not\x20Found\r\nDate:\x20Sun,\x2022\x20Nov\x202026\x2011:11:46\x20
+SF:GMT\r\nConnection:\x20close\r\n\r\n")%r(LPDString,2F,"HTTP/1\.1\x20400\
+SF:x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(LDAPSearchReq,2F,
+SF:"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r
+SF:(LDAPBindReq,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20c
+SF:lose\r\n\r\n")%r(SIPOptions,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nC
+SF:onnection:\x20close\r\n\r\n")%r(LANDesk-RC,2F,"HTTP/1\.1\x20400\x20Bad\
+SF:x20Request\r\nConnection:\x20close\r\n\r\n")%r(TerminalServer,2F,"HTTP/
+SF:1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(NCP,2
+SF:F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n");
+==============NEXT SERVICE FINGERPRINT (SUBMIT INDIVIDUALLY)==============
+SF-Port4709-TCP:V=7.993%T=SSL%I=7%D=11/22%Time=6B02CDF8%P=i686-pc-windows-
+SF:windows%r(GenericLines,30,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConten
+SF:t-Encoding:\x20\r\n\r\n")%r(GetRequest,C1,"HTTP/1\.1\x20400\x20Bad\x20R
+SF:equest\r\nContent-Encoding:\x20\r\nContent-Length:\x2093\r\nContent-Typ
+SF:e:\x20application/json\r\n\r\n{\"api_ver\":\"1\.4\",\"call_status\":\"e
+SF:rror\",\"error_code\":1,\"error_msg\":\"referer\x20lost\",\"result\":{}
+SF:}")%r(HTTPOptions,12A,"HTTP/1\.1\x20200\x20OK\r\nAccess-Control-Allow-C
+SF:redentials:\x20true\r\nAccess-Control-Allow-Headers:\x20x-pop-token\r\n
+SF:Access-Control-Allow-Origin:\x20\r\nContent-Encoding:\x20\r\nContent-Le
+SF:ngth:\x2093\r\nContent-Type:\x20application/json\r\n\r\n{\"api_ver\":\"
+SF:1\.4\",\"call_status\":\"error\",\"error_code\":1,\"error_msg\":\"refer
+SF:er\x20lost\",\"result\":{}}")%r(RTSPRequest,30,"HTTP/1\.1\x20400\x20Bad
+SF:\x20Request\r\nContent-Encoding:\x20\r\n\r\n")%r(FourOhFourRequest,C1,"
+SF:HTTP/1\.1\x20400\x20Bad\x20Request\r\nContent-Encoding:\x20\r\nContent-
+SF:Length:\x2093\r\nContent-Type:\x20application/json\r\n\r\n{\"api_ver\":
+SF:\"1\.4\",\"call_status\":\"error\",\"error_code\":1,\"error_msg\":\"ref
+SF:erer\x20lost\",\"result\":{}}")%r(SIPOptions,30,"HTTP/1\.1\x20400\x20Ba
+SF:d\x20Request\r\nContent-Encoding:\x20\r\n\r\n");
+==============NEXT SERVICE FINGERPRINT (SUBMIT INDIVIDUALLY)==============
+SF-Port9527-TCP:V=7.993%I=7%D=11/22%Time=6B02CDF1%P=i686-pc-windows-window
+SF:s%r(GenericLines,D2,"{\"type\":\"error\",\"code\":400,\"message\":\"\xe
+SF:8\xa7\xa3\xe6\x9e\x90\xe8\xaf\xb7\xe6\xb1\x82\xe5\xa4\xb1\xe8\xb4\xa5:\
+SF:x20EOF\x20while\x20parsing\x20a\x20value\x20at\x20line\x202\x20column\x
+SF:200\"}\n{\"type\":\"error\",\"code\":400,\"message\":\"\xe8\xa7\xa3\xe6
+SF:\x9e\x90\xe8\xaf\xb7\xe6\xb1\x82\xe5\xa4\xb1\xe8\xb4\xa5:\x20EOF\x20whi
+SF:le\x20parsing\x20a\x20value\x20at\x20line\x202\x20column\x200\"}\n")%r(
+SF:GetRequest,C7,"{\"type\":\"error\",\"code\":400,\"message\":\"\xe8\xa7\
+SF:xa3\xe6\x9e\x90\xe8\xaf\xb7\xe6\xb1\x82\xe5\xa4\xb1\xe8\xb4\xa5:\x20exp
+SF:ected\x20value\x20at\x20line\x201\x20column\x201\"}\n{\"type\":\"error\
+SF:",\"code\":400,\"message\":\"\xe8\xa7\xa3\xe6\x9e\x90\xe8\xaf\xb7\xe6\x
+SF:b1\x82\xe5\xa4\xb1\xe8\xb4\xa5:\x20EOF\x20while\x20parsing\x20a\x20valu
+SF:e\x20at\x20line\x202\x20column\x200\"}\n")%r(HTTPOptions,C7,"{\"type\":
+SF:\"error\",\"code\":400,\"message\":\"\xe8\xa7\xa3\xe6\x9e\x90\xe8\xaf\x
+SF:b7\xe6\xb1\x82\xe5\xa4\xb1\xe8\xb4\xa5:\x20expected\x20value\x20at\x20l
+SF:ine\x201\x20column\x201\"}\n{\"type\":\"error\",\"code\":400,\"message\
+SF:":\"\xe8\xa7\xa3\xe6\x9e\x90\xe8\xaf\xb7\xe6\xb1\x82\xe5\xa4\xb1\xe8\xb
+SF:4\xa5:\x20EOF\x20while\x20parsing\x20a\x20value\x20at\x20line\x202\x20c
+SF:olumn\x200\"}\n")%r(RTSPRequest,C7,"{\"type\":\"error\",\"code\":400,\"
+SF:message\":\"\xe8\xa7\xa3\xe6\x9e\x90\xe8\xaf\xb7\xe6\xb1\x82\xe5\xa4\xb
+SF:1\xe8\xb4\xa5:\x20expected\x20value\x20at\x20line\x201\x20column\x201\"
+SF:}\n{\"type\":\"error\",\"code\":400,\"message\":\"\xe8\xa7\xa3\xe6\x9e\
+SF:x90\xe8\xaf\xb7\xe6\xb1\x82\xe5\xa4\xb1\xe8\xb4\xa5:\x20EOF\x20while\x2
+SF:0parsing\x20a\x20value\x20at\x20line\x202\x20column\x200\"}\n")%r(Help,
+SF:5E,"{\"type\":\"error\",\"code\":400,\"message\":\"\xe8\xa7\xa3\xe6\x9e
+SF:\x90\xe8\xaf\xb7\xe6\xb1\x82\xe5\xa4\xb1\xe8\xb4\xa5:\x20expected\x20va
+SF:lue\x20at\x20line\x201\x20column\x201\"}\n")%r(SSLSessionReq,5E,"{\"typ
+SF:e\":\"error\",\"code\":400,\"message\":\"\xe8\xa7\xa3\xe6\x9e\x90\xe8\x
+SF:af\xb7\xe6\xb1\x82\xe5\xa4\xb1\xe8\xb4\xa5:\x20expected\x20value\x20at\
+SF:x20line\x201\x20column\x201\"}\n");
+==============NEXT SERVICE FINGERPRINT (SUBMIT INDIVIDUALLY)==============
+SF-Port18488-TCP:V=7.993%I=7%D=11/22%Time=6B02CDF1%P=i686-pc-windows-windo
+SF:ws%r(GetRequest,123,"HTTP/1\.1\x20404\x20Not\x20Found\r\nAccess-Control
+SF:-Allow-Origin:\x20\*\r\nAccess-Control-Allow-Methods:\x20GET,\x20OPTION
+SF:S\r\nAccess-Control-Max-Age:\x20600\r\nCache-Control:\x20no-store\r\nCo
+SF:ntent-Type:\x20application/json;\x20charset=utf-8\r\nDate:\x20Sun,\x202
+SF:2\x20Nov\x202026\x2011:11:45\x20GMT\r\nConnection:\x20close\r\n\r\n{\"o
+SF:k\":false,\"error\":\"Not\x20Found\"}")%r(HTTPOptions,D5,"HTTP/1\.1\x20
+SF:204\x20No\x20Content\r\nAccess-Control-Allow-Origin:\x20\*\r\nAccess-Co
+SF:ntrol-Allow-Methods:\x20GET,\x20OPTIONS\r\nAccess-Control-Max-Age:\x206
+SF:00\r\nCache-Control:\x20no-store\r\nDate:\x20Sun,\x2022\x20Nov\x202026\
+SF:x2011:11:45\x20GMT\r\nConnection:\x20close\r\n\r\n")%r(RTSPRequest,D5,"
+SF:HTTP/1\.1\x20204\x20No\x20Content\r\nAccess-Control-Allow-Origin:\x20\*
+SF:\r\nAccess-Control-Allow-Methods:\x20GET,\x20OPTIONS\r\nAccess-Control-
+SF:Max-Age:\x20600\r\nCache-Control:\x20no-store\r\nDate:\x20Sun,\x2022\x2
+SF:0Nov\x202026\x2011:11:46\x20GMT\r\nConnection:\x20close\r\n\r\n")%r(RPC
+SF:Check,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\
+SF:n\r\n")%r(DNSVersionBindReqTCP,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r
+SF:\nConnection:\x20close\r\n\r\n")%r(DNSStatusRequestTCP,2F,"HTTP/1\.1\x2
+SF:0400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Help,2F,"HTT
+SF:P/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(SSL
+SF:SessionReq,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20clo
+SF:se\r\n\r\n")%r(TerminalServerCookie,2F,"HTTP/1\.1\x20400\x20Bad\x20Requ
+SF:est\r\nConnection:\x20close\r\n\r\n")%r(TLSSessionReq,2F,"HTTP/1\.1\x20
+SF:400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Kerberos,2F,"
+SF:HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(
+SF:SMBProgNeg,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20clo
+SF:se\r\n\r\n")%r(X11Probe,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConne
+SF:ction:\x20close\r\n\r\n")%r(FourOhFourRequest,123,"HTTP/1\.1\x20404\x20
+SF:Not\x20Found\r\nAccess-Control-Allow-Origin:\x20\*\r\nAccess-Control-Al
+SF:low-Methods:\x20GET,\x20OPTIONS\r\nAccess-Control-Max-Age:\x20600\r\nCa
+SF:che-Control:\x20no-store\r\nContent-Type:\x20application/json;\x20chars
+SF:et=utf-8\r\nDate:\x20Sun,\x2022\x20Nov\x202026\x2011:11:46\x20GMT\r\nCo
+SF:nnection:\x20close\r\n\r\n{\"ok\":false,\"error\":\"Not\x20Found\"}");
+==============NEXT SERVICE FINGERPRINT (SUBMIT INDIVIDUALLY)==============
+SF-Port19425-TCP:V=7.993%I=7%D=11/22%Time=6B02CDF1%P=i686-pc-windows-windo
+SF:ws%r(GetRequest,87,"HTTP/1\.1\x20404\x20Not\x20Found\r\nContent-Type:\x
+SF:20application/json\r\nDate:\x20Sun,\x2022\x20Nov\x202026\x2011:11:45\x2
+SF:0GMT\r\nConnection:\x20close\r\n\r\n{\"error\":\"not\x20found\"}")%r(HT
+SF:TPOptions,87,"HTTP/1\.1\x20404\x20Not\x20Found\r\nContent-Type:\x20appl
+SF:ication/json\r\nDate:\x20Sun,\x2022\x20Nov\x202026\x2011:11:46\x20GMT\r
+SF:\nConnection:\x20close\r\n\r\n{\"error\":\"not\x20found\"}")%r(RTSPRequ
+SF:est,87,"HTTP/1\.1\x20404\x20Not\x20Found\r\nContent-Type:\x20applicatio
+SF:n/json\r\nDate:\x20Sun,\x2022\x20Nov\x202026\x2011:11:46\x20GMT\r\nConn
+SF:ection:\x20close\r\n\r\n{\"error\":\"not\x20found\"}")%r(RPCCheck,2F,"H
+SF:TTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(D
+SF:NSVersionBindReqTCP,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnectio
+SF:n:\x20close\r\n\r\n")%r(DNSStatusRequestTCP,2F,"HTTP/1\.1\x20400\x20Bad
+SF:\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Help,2F,"HTTP/1\.1\x204
+SF:00\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(SSLSessionReq,
+SF:2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n"
+SF:)%r(TerminalServerCookie,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConn
+SF:ection:\x20close\r\n\r\n")%r(TLSSessionReq,2F,"HTTP/1\.1\x20400\x20Bad\
+SF:x20Request\r\nConnection:\x20close\r\n\r\n")%r(Kerberos,2F,"HTTP/1\.1\x
+SF:20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(SMBProgNeg,
+SF:2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n"
+SF:)%r(X11Probe,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20c
+SF:lose\r\n\r\n")%r(FourOhFourRequest,87,"HTTP/1\.1\x20404\x20Not\x20Found
+SF:\r\nContent-Type:\x20application/json\r\nDate:\x20Sun,\x2022\x20Nov\x20
+SF:2026\x2011:11:46\x20GMT\r\nConnection:\x20close\r\n\r\n{\"error\":\"not
+SF:\x20found\"}")%r(LPDString,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nCo
+SF:nnection:\x20close\r\n\r\n")%r(LDAPSearchReq,2F,"HTTP/1\.1\x20400\x20Ba
+SF:d\x20Request\r\nConnection:\x20close\r\n\r\n")%r(LDAPBindReq,2F,"HTTP/1
+SF:\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(SIPOpt
+SF:ions,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n
+SF:\r\n");
+==============NEXT SERVICE FINGERPRINT (SUBMIT INDIVIDUALLY)==============
+SF-Port20011-TCP:V=7.993%I=7%D=11/22%Time=6B02CDF1%P=i686-pc-windows-windo
+SF:ws%r(GenericLines,4D,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nContent-Len
+SF:gth:\x200\r\nKeep-Alive:\x20timeout=5,\x20max=5\r\n\r\n")%r(GetRequest,
+SF:4B,"HTTP/1\.1\x20404\x20Not\x20Found\r\nContent-Length:\x200\r\nKeep-Al
+SF:ive:\x20timeout=5,\x20max=5\r\n\r\n")%r(HTTPOptions,4B,"HTTP/1\.1\x2040
+SF:4\x20Not\x20Found\r\nContent-Length:\x200\r\nKeep-Alive:\x20timeout=5,\
+SF:x20max=5\r\n\r\n")%r(RTSPRequest,4D,"HTTP/1\.1\x20400\x20Bad\x20Request
+SF:\r\nContent-Length:\x200\r\nKeep-Alive:\x20timeout=5,\x20max=5\r\n\r\n"
+SF:)%r(Help,4D,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nContent-Length:\x200
+SF:\r\nKeep-Alive:\x20timeout=5,\x20max=5\r\n\r\n")%r(SSLSessionReq,4D,"HT
+SF:TP/1\.1\x20400\x20Bad\x20Request\r\nContent-Length:\x200\r\nKeep-Alive:
+SF:\x20timeout=5,\x20max=5\r\n\r\n")%r(TerminalServerCookie,4D,"HTTP/1\.1\
+SF:x20400\x20Bad\x20Request\r\nContent-Length:\x200\r\nKeep-Alive:\x20time
+SF:out=5,\x20max=5\r\n\r\n")%r(TLSSessionReq,4D,"HTTP/1\.1\x20400\x20Bad\x
+SF:20Request\r\nContent-Length:\x200\r\nKeep-Alive:\x20timeout=5,\x20max=5
+SF:\r\n\r\n")%r(Kerberos,4D,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nContent
+SF:-Length:\x200\r\nKeep-Alive:\x20timeout=5,\x20max=5\r\n\r\n")%r(FourOhF
+SF:ourRequest,4B,"HTTP/1\.1\x20404\x20Not\x20Found\r\nContent-Length:\x200
+SF:\r\nKeep-Alive:\x20timeout=5,\x20max=5\r\n\r\n")%r(LPDString,4D,"HTTP/1
+SF:\.1\x20400\x20Bad\x20Request\r\nContent-Length:\x200\r\nKeep-Alive:\x20
+SF:timeout=5,\x20max=5\r\n\r\n")%r(LDAPSearchReq,4D,"HTTP/1\.1\x20400\x20B
+SF:ad\x20Request\r\nContent-Length:\x200\r\nKeep-Alive:\x20timeout=5,\x20m
+SF:ax=5\r\n\r\n")%r(SIPOptions,4D,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nC
+SF:ontent-Length:\x200\r\nKeep-Alive:\x20timeout=5,\x20max=5\r\n\r\n");
+==============NEXT SERVICE FINGERPRINT (SUBMIT INDIVIDUALLY)==============
+SF-Port20734-TCP:V=7.993%I=7%D=11/22%Time=6B02CE01%P=i686-pc-windows-windo
+SF:ws%r(RPCCheck,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20
+SF:close\r\n\r\n")%r(DNSVersionBindReqTCP,2F,"HTTP/1\.1\x20400\x20Bad\x20R
+SF:equest\r\nConnection:\x20close\r\n\r\n")%r(DNSStatusRequestTCP,2F,"HTTP
+SF:/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Help
+SF:,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n
+SF:")%r(SSLSessionReq,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection
+SF::\x20close\r\n\r\n")%r(TerminalServerCookie,2F,"HTTP/1\.1\x20400\x20Bad
+SF:\x20Request\r\nConnection:\x20close\r\n\r\n")%r(TLSSessionReq,2F,"HTTP/
+SF:1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Kerbe
+SF:ros,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\
+SF:r\n")%r(SMBProgNeg,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection
+SF::\x20close\r\n\r\n")%r(X11Probe,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\
+SF:r\nConnection:\x20close\r\n\r\n")%r(LPDString,2F,"HTTP/1\.1\x20400\x20B
+SF:ad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(LDAPSearchReq,2F,"HTT
+SF:P/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(LDA
+SF:PBindReq,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close
+SF:\r\n\r\n")%r(SIPOptions,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConne
+SF:ction:\x20close\r\n\r\n")%r(LANDesk-RC,2F,"HTTP/1\.1\x20400\x20Bad\x20R
+SF:equest\r\nConnection:\x20close\r\n\r\n")%r(TerminalServer,2F,"HTTP/1\.1
+SF:\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(NCP,2F,"H
+SF:TTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(N
+SF:otesRPC,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\
+SF:r\n\r\n")%r(JavaRMI,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnectio
+SF:n:\x20close\r\n\r\n")%r(WMSRequest,2F,"HTTP/1\.1\x20400\x20Bad\x20Reque
+SF:st\r\nConnection:\x20close\r\n\r\n")%r(oracle-tns,2F,"HTTP/1\.1\x20400\
+SF:x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(ms-sql-s,2F,"HTTP
+SF:/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(afp,
+SF:2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n"
+SF:)%r(giop,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close
+SF:\r\n\r\n");
+==============NEXT SERVICE FINGERPRINT (SUBMIT INDIVIDUALLY)==============
+SF-Port28649-TCP:V=7.993%I=7%D=11/22%Time=6B02CDF1%P=i686-pc-windows-windo
+SF:ws%r(GetRequest,67,"HTTP/1\.1\x20200\x20OK\r\nContent-Type:\x20text/pla
+SF:in\r\nDate:\x20Sun,\x2022\x20Nov\x202026\x2011:11:45\x20GMT\r\nConnecti
+SF:on:\x20close\r\n\r\nok")%r(HTTPOptions,E2,"HTTP/1\.1\x20401\x20Unauthor
+SF:ized\r\nContent-Type:\x20application/json\r\nDate:\x20Sun,\x2022\x20Nov
+SF:\x202026\x2011:11:46\x20GMT\r\nConnection:\x20close\r\n\r\n{\"type\":\"
+SF:error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"Inva
+SF:lid\x20authentication\"},\"request_id\":null}")%r(RTSPRequest,E2,"HTTP/
+SF:1\.1\x20401\x20Unauthorized\r\nContent-Type:\x20application/json\r\nDat
+SF:e:\x20Sun,\x2022\x20Nov\x202026\x2011:11:46\x20GMT\r\nConnection:\x20cl
+SF:ose\r\n\r\n{\"type\":\"error\",\"error\":{\"type\":\"authentication_err
+SF:or\",\"message\":\"Invalid\x20authentication\"},\"request_id\":null}")%
+SF:r(RPCCheck,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20clo
+SF:se\r\n\r\n")%r(DNSVersionBindReqTCP,2F,"HTTP/1\.1\x20400\x20Bad\x20Requ
+SF:est\r\nConnection:\x20close\r\n\r\n")%r(DNSStatusRequestTCP,2F,"HTTP/1\
+SF:.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Help,2F
+SF:,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%
+SF:r(SSLSessionReq,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x
+SF:20close\r\n\r\n")%r(TerminalServerCookie,2F,"HTTP/1\.1\x20400\x20Bad\x2
+SF:0Request\r\nConnection:\x20close\r\n\r\n")%r(TLSSessionReq,2F,"HTTP/1\.
+SF:1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Kerberos
+SF:,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n
+SF:")%r(SMBProgNeg,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x
+SF:20close\r\n\r\n")%r(X11Probe,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\n
+SF:Connection:\x20close\r\n\r\n")%r(FourOhFourRequest,E2,"HTTP/1\.1\x20401
+SF:\x20Unauthorized\r\nContent-Type:\x20application/json\r\nDate:\x20Sun,\
+SF:x2022\x20Nov\x202026\x2011:11:46\x20GMT\r\nConnection:\x20close\r\n\r\n
+SF:{\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"mess
+SF:age\":\"Invalid\x20authentication\"},\"request_id\":null}")%r(LPDString
+SF:,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n
+SF:");
+==============NEXT SERVICE FINGERPRINT (SUBMIT INDIVIDUALLY)==============
+SF-Port30406-TCP:V=7.993%I=7%D=11/22%Time=6B02CDF1%P=i686-pc-windows-windo
+SF:ws%r(GetRequest,52,"HTTP/1\.1\x20404\x20Not\x20Found\r\nDate:\x20Sun,\x
+SF:2022\x20Nov\x202026\x2011:11:45\x20GMT\r\nConnection:\x20close\r\n\r\n"
+SF:)%r(HTTPOptions,52,"HTTP/1\.1\x20404\x20Not\x20Found\r\nDate:\x20Sun,\x
+SF:2022\x20Nov\x202026\x2011:11:46\x20GMT\r\nConnection:\x20close\r\n\r\n"
+SF:)%r(RTSPRequest,52,"HTTP/1\.1\x20404\x20Not\x20Found\r\nDate:\x20Sun,\x
+SF:2022\x20Nov\x202026\x2011:11:46\x20GMT\r\nConnection:\x20close\r\n\r\n"
+SF:)%r(RPCCheck,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20c
+SF:lose\r\n\r\n")%r(DNSVersionBindReqTCP,2F,"HTTP/1\.1\x20400\x20Bad\x20Re
+SF:quest\r\nConnection:\x20close\r\n\r\n")%r(DNSStatusRequestTCP,2F,"HTTP/
+SF:1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Help,
+SF:2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n"
+SF:)%r(SSLSessionReq,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:
+SF:\x20close\r\n\r\n")%r(TerminalServerCookie,2F,"HTTP/1\.1\x20400\x20Bad\
+SF:x20Request\r\nConnection:\x20close\r\n\r\n")%r(TLSSessionReq,2F,"HTTP/1
+SF:\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(Kerber
+SF:os,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r
+SF:\n")%r(SMBProgNeg,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:
+SF:\x20close\r\n\r\n")%r(X11Probe,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r
+SF:\nConnection:\x20close\r\n\r\n")%r(FourOhFourRequest,52,"HTTP/1\.1\x204
+SF:04\x20Not\x20Found\r\nDate:\x20Sun,\x2022\x20Nov\x202026\x2011:11:46\x2
+SF:0GMT\r\nConnection:\x20close\r\n\r\n")%r(LPDString,2F,"HTTP/1\.1\x20400
+SF:\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(LDAPSearchReq,2F
+SF:,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%
+SF:r(LDAPBindReq,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20
+SF:close\r\n\r\n")%r(SIPOptions,2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\n
+SF:Connection:\x20close\r\n\r\n")%r(LANDesk-RC,2F,"HTTP/1\.1\x20400\x20Bad
+SF:\x20Request\r\nConnection:\x20close\r\n\r\n")%r(TerminalServer,2F,"HTTP
+SF:/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n")%r(NCP,
+SF:2F,"HTTP/1\.1\x20400\x20Bad\x20Request\r\nConnection:\x20close\r\n\r\n"
+SF:);
+Service Info: Host: MS-VXNZPXKNMCIT; OS: Windows; CPE: cpe:/o:microsoft:windows
+
+Host script results:
+|_smb-vuln-ms10-054: false
+|_smb-vuln-ms10-061: No accounts left to try
+|_samba-vuln-cve-2012-1182: No accounts left to try
+
+Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .
+Nmap done: 1 IP address (1 host up) scanned in 383.55 seconds

@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0-windows7.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NoWarn>$(NoWarn);CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NetSecurityScanner.Core\NetSecurityScanner.Core.csproj" />
+  </ItemGroup>
+
+  <!--
+    与发布包保持一致的漏洞库环境。
+    VulnerabilityScanner 只从 AppDomain.BaseDirectory\Data 读取静态库，
+    缺少该文件时会退化为内置 3 条规则，导致「漏洞扫描产出结果」判定失真。
+  -->
+  <ItemGroup>
+    <Content Include="..\..\src\NetSecurityScanner.Core\Data\StaticVulnerabilityDatabase.json"
+             Link="Data\StaticVulnerabilityDatabase.json"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

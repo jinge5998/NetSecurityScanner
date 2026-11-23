@@ -9,9 +9,9 @@
     <RootNamespace>NetSecurityScanner</RootNamespace>
     <AssemblyName>LicenseKeyGenerator</AssemblyName>
     <NoWarn>$(NoWarn);NETSDK1138;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS1998</NoWarn>
-    <AssemblyVersion>1.0.2.4</AssemblyVersion>
-    <FileVersion>1.0.2.4</FileVersion>
-    <Version>1.0.2.4</Version>
+    <AssemblyVersion>1.0.2.5</AssemblyVersion>
+    <FileVersion>1.0.2.5</FileVersion>
+    <Version>1.0.2.5</Version>
     <Product>授权码生成器</Product>
     <Company>NetSecurityScanner</Company>
     <Copyright>&#xA9; 2026 NetSecurityScanner</Copyright>

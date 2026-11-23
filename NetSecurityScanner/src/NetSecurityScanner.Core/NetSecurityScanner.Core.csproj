@@ -33,6 +33,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- 允许测试项目访问 internal 成员：NmapEngineExecutor.CompressPortRanges 等
+         纯算法工具直接断言，避免用反射测试私有方法（重命名时会静默失效）。 -->
+    <InternalsVisibleTo Include="NetSecurityScanner.Core.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="7.0.0" />
     <PackageReference Include="EntityFramework" Version="6.5.1" />

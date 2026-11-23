@@ -28,6 +28,17 @@ namespace NetSecurityScanner.Core.Services
     public static class NmapCommandBuilder
     {
         /// <summary>
+        /// <see cref="ExpertScanConfiguration.UdpTimeout"/> 的默认值。
+        /// 用于区分「用户未调整」与「用户显式调整」，避免默认配置额外输出参数。
+        /// </summary>
+        private const int DefaultUdpTimeoutMs = 1000;
+
+        /// <summary>
+        /// <see cref="ExpertScanConfiguration.ServiceDetectTimeout"/> 的默认值，用途同上。
+        /// </summary>
+        private const int DefaultServiceDetectTimeoutMs = 2000;
+
+        /// <summary>
         /// 生成等效 nmap 命令。
         /// </summary>
         /// <param name="config">扫描配置。</param>
@@ -122,6 +133,13 @@ namespace NetSecurityScanner.Core.Services
                 {
                     parts.Add("-sC");
                 }
+
+                // NSE 脚本超时安全网：部分漏洞脚本（如 smb-vuln-ms10-061）在缺乏 SMB
+                // 凭据时会对每种默认认证组合无限重试，实测 ETC 从几十分钟一路涨到 9 小时，
+                // "永不完成"地卡死整次扫描。--host-timeout 是整主机关卡，单脚本的
+                // 无限循环它不会及时触发；必须为单个脚本独立设上限（180s 足够正常
+                // 脚本完成，又能让卡死脚本快速放弃，实测 45s 即收尾）。
+                parts.Add("--script-timeout 180s");
             }
 
             // 主动扫描组合标志（-A = -O + -sV + -sC + --traceroute）
@@ -202,17 +220,46 @@ namespace NetSecurityScanner.Core.Services
             if (config.TcpConcurrency > 0 && config.TcpConcurrency != 50)
                 parts.Add($"--max-parallelism {config.TcpConcurrency}");
 
-            if (config.TcpTimeout > 0 && config.TcpTimeout != 1000)
-                parts.Add($"--max-rtt-timeout {config.TcpTimeout}ms");
-            if (config.TcpTimeout >= 100)
-                parts.Add($"--min-rtt-timeout {Math.Max(10, config.TcpTimeout / 5)}ms");
+            // RTT 等待上限。基线由 TcpTimeout 决定，但两个此前未接线的配置需在此基础上抬升：
+            //   1) UDP 扫描：UDP 无三次握手，单向发包后只能靠等待回包判定，需要比 TCP 更长的等待窗口，
+            //      否则会把「慢回包」误判成 filtered；
+            //   2) 服务识别：nmap 没有独立的服务识别超时参数，只能通过 RTT 上限间接约束探测等待。
+            // 两者均只在用户调整过滑块（非默认值）时才参与取最大值，
+            // 这样默认配置下的命令输出与修复前完全一致，不会改变既有用户预期。
+            var rttTimeout = config.TcpTimeout;
+            if (config.UdpScan && config.UdpTimeout > 0 && config.UdpTimeout != DefaultUdpTimeoutMs)
+                rttTimeout = Math.Max(rttTimeout, config.UdpTimeout);
+            if (config.ServiceDetection && config.ServiceDetectTimeout > 0
+                && config.ServiceDetectTimeout != DefaultServiceDetectTimeoutMs)
+                rttTimeout = Math.Max(rttTimeout, config.ServiceDetectTimeout);
+
+            if (rttTimeout > 0 && rttTimeout != 1000)
+                parts.Add($"--max-rtt-timeout {rttTimeout}ms");
+            if (rttTimeout >= 100)
+                parts.Add($"--min-rtt-timeout {Math.Max(10, rttTimeout / 5)}ms");
 
             if (config.RetryCount > 0 && config.RetryCount != 1)
                 parts.Add($"--max-retries {config.RetryCount}");
 
-            // 主机超时（防止卡在慢速主机上）
-            if (config.TcpTimeout >= 2000)
-                parts.Add($"--host-timeout {config.TcpTimeout * 3}ms");
+            // 主机超时（防止卡在慢速主机上）。
+            // 刻意不使用上面抬升后的 rttTimeout：实测把 UdpTimeout 调到 5000 时，
+            // 若据此得出 --host-timeout 15000ms，nmap 会在 15s 放弃主机并输出 0 条结果。
+            //
+            // ⚠️ 也不能再按 TcpTimeout*3 计算。E2E 实测（nmap 7.993，127.0.0.1）：
+            // TcpTimeout=3000 生成 --host-timeout 9000ms，而全端口 TCP+UDP+服务识别
+            // 9 秒绝无可能完成，nmap 在 9 秒放弃主机，输出 <host timedout="true"> 且无 <port>，
+            // 界面显示「无开放端口」并跳过漏洞扫描 —— 实际该主机有 40+ 个开放端口。
+            // 即「host-timeout 比真实扫描耗时短」会制造整批假阴性。
+            // 因此改为按端口规模估算预算：端口数 × 每端口毫秒 × 协议数，
+            // 并夹在 5 分钟 ~ 2 小时之间，确保它只作「防永久卡死」的安全网，宁大勿小。
+            // 无条件生成（不设 TcpTimeout>=2000 门槛），与 Executor 侧行为保持一致：
+            // 默认配置（TcpTimeout=500）下若省略，目标 SYN 被静默丢弃时全端口扫描
+            // 可能无限徘徊、界面零反馈，正是「nmap 卡死」的典型可见形态。
+            // 该值只作安全网（5 分钟 ~ 2 小时），实际快速扫描会在到时前正常收尾，无收紧风险。
+            {
+                var hostTimeout = EstimateHostTimeoutMs(config);
+                parts.Add($"--host-timeout {hostTimeout}ms");
+            }
 
             if (config.RateLimit && config.PacketRate > 0)
             {
@@ -221,6 +268,40 @@ namespace NetSecurityScanner.Core.Services
                 if (minRate < config.PacketRate)
                     parts.Add($"--min-rate {minRate}");
             }
+        }
+
+        /// <summary>
+        /// 估算单主机的扫描预算毫秒数，用于生成 <c>--host-timeout</c> 安全网。
+        /// 端口规模按 <see cref="ExpertScanConfiguration.PortMode"/> 推断：本类只产出展示命令，
+        /// 拿不到真实端口列表；实际执行时 <see cref="NmapEngineExecutor"/> 会按真实端口数重算。
+        /// </summary>
+        private static long EstimateHostTimeoutMs(ExpertScanConfiguration config)
+        {
+            var portCount = config.PortMode switch
+            {
+                "All" => 65535L,
+                "Sensitive" => 100L,
+                "Custom" => CountCustomPorts(config.CustomPorts),
+                _ => 1000L,
+            };
+            if (portCount <= 0) portCount = 1000;
+
+            var protocolCount = (config.TcpScan ? 1 : 0) + (config.UdpScan ? 1 : 0);
+            if (protocolCount == 0) protocolCount = 1;
+
+            // UDP 无握手，只能靠等待回包判定，单端口预算必须显著高于 TCP
+            var perPortMs = config.UdpScan ? 120L : 60L;
+            var budget = portCount * perPortMs * protocolCount;
+            return Math.Clamp(budget, 300_000L, 7_200_000L);
+        }
+
+        /// <summary>统计自定义端口串里的端口条目数（范围写法如 "80-443" 按 1 条计，仅用于量级估算）。</summary>
+        private static long CountCustomPorts(string? customPorts)
+        {
+            if (string.IsNullOrWhiteSpace(customPorts)) return 0;
+            return customPorts
+                .Split(new[] { ',', ';', ' ', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Count(p => !string.IsNullOrWhiteSpace(p));
         }
 
         private static void AddRandomizeFlags(ExpertScanConfiguration config, List<string> parts)
