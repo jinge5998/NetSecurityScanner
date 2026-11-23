@@ -48,6 +48,12 @@ namespace NetSecurityScanner.Services
             };
         }
 
+        internal UpdateCheckService(HttpClient httpClient) : this()
+        {
+            _httpClient.Dispose();
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+        }
+
         /// <summary>
         /// 检查是否有新版本可用
         /// </summary>
@@ -144,11 +150,14 @@ namespace NetSecurityScanner.Services
                         Name = asset.Name,
                         BrowserDownloadUrl = asset.BrowserDownloadUrl,
                         Size = asset.Size,
-                        ContentType = asset.ContentType
+                        ContentType = asset.ContentType,
+                        Digest = asset.Digest
                     });
                 }
 
                 SelectWindowsAsset(updateInfo);
+                var selectedAsset = updateInfo.Assets.FirstOrDefault(a => a.Name == updateInfo.WindowsAssetName);
+                updateInfo.WindowsAssetSha256 = ParseSha256Digest(selectedAsset?.Digest);
 
                 if (!string.IsNullOrEmpty(updateInfo.WindowsAssetDownloadUrl))
                 {
@@ -296,6 +305,19 @@ namespace NetSecurityScanner.Services
             }
         }
 
+        private static string? ParseSha256Digest(string? digest)
+        {
+            const string prefix = "sha256:";
+            if (string.IsNullOrWhiteSpace(digest) ||
+                !digest.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return null;
+
+            var hash = digest.Substring(prefix.Length).Trim();
+            return hash.Length == 64 && hash.All(Uri.IsHexDigit)
+                ? hash.ToLowerInvariant()
+                : null;
+        }
+
         private static void ParseBaiduDownloadInfo(UpdateInfo updateInfo)
         {
             if (string.IsNullOrEmpty(updateInfo.ReleaseNotes))
@@ -428,5 +450,7 @@ namespace NetSecurityScanner.Services
         public string ContentType { get; set; } = string.Empty;
 
         public long Size { get; set; }
+
+        public string Digest { get; set; } = string.Empty;
     }
 }

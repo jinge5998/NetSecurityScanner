@@ -126,6 +126,7 @@ namespace NetSecurityScanner.Views
                 var success = await _autoUpdater.DownloadAndInstallAsync(
                     _updateInfo.WindowsAssetDownloadUrl!,
                     _updateInfo.WindowsAssetName ?? "update.zip",
+                    _updateInfo.WindowsAssetSha256,
                     progress);
 
                 if (success)

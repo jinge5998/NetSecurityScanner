@@ -34,6 +34,8 @@ namespace NetSecurityScanner.Models
         public long WindowsAssetSize { get; set; }
 
         public string? WindowsAssetName { get; set; }
+
+        public string? WindowsAssetSha256 { get; set; }
     }
 
     public class GitHubAssetInfo
@@ -42,5 +44,6 @@ namespace NetSecurityScanner.Models
         public string BrowserDownloadUrl { get; set; } = string.Empty;
         public long Size { get; set; }
         public string ContentType { get; set; } = string.Empty;
+        public string Digest { get; set; } = string.Empty;
     }
 }

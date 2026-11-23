@@ -52,12 +52,11 @@ namespace NetSecurityScanner.Services
         private static readonly string[] BuiltInMirrorPrefixes =
         {
             "https://gh-proxy.com/",
-            "https://ghfast.top/",
-            "https://mirror.ghproxy.com/"
+            "https://ghfast.top/"
         };
 
         /// <summary>生成下载候选 URL 列表：用户配置镜像 → 原始 URL → 内置镜像。</summary>
-        private IEnumerable<string> GetDownloadCandidates(string url)
+        internal IEnumerable<string> GetDownloadCandidates(string url)
         {
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var candidates = new List<string>();
@@ -92,14 +91,33 @@ namespace NetSecurityScanner.Services
             _backupRootDir = Path.Combine(_appBaseDir, ".backup");
         }
 
+        internal GitHubAutoUpdater(string appBaseDir, string updateTempDir, HttpClient httpClient)
+        {
+            _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+            _appBaseDir = Path.GetFullPath(appBaseDir);
+            if (!_appBaseDir.EndsWith(Path.DirectorySeparatorChar))
+                _appBaseDir += Path.DirectorySeparatorChar;
+            _updateTempDir = updateTempDir;
+            _backupDir = Path.Combine(_appBaseDir, ".backup", DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+            _backupRootDir = Path.Combine(_appBaseDir, ".backup");
+        }
+
         public async Task<bool> DownloadAndInstallAsync(
             string downloadUrl,
             string assetName,
+            string? expectedSha256,
             IProgress<(string Message, int Percent)>? progress = null,
             CancellationToken cancellationToken = default)
         {
             try
             {
+                if (!TryNormalizeSha256(expectedSha256, out var normalizedExpectedSha256))
+                {
+                    ReportProgress("更新包缺少有效的 SHA256 摘要，已停止自动更新", 0, progress,
+                        isError: true, errorMessage: "请使用手动下载，或重新发布包含 GitHub digest 的更新包");
+                    return false;
+                }
+
                 ReportProgress("准备更新环境...", 0, progress);
 
                 CleanDirectory(_updateTempDir);
@@ -123,10 +141,17 @@ namespace NetSecurityScanner.Services
                 }
 
                 var sha256 = ComputeSha256(zipPath);
-                if (!string.IsNullOrEmpty(sha256))
+                if (string.IsNullOrEmpty(sha256) ||
+                    !CryptographicOperations.FixedTimeEquals(
+                        Convert.FromHexString(sha256),
+                        Convert.FromHexString(normalizedExpectedSha256)))
                 {
-                    ReportProgress($"文件哈希: {sha256[..16]}...", 62, progress);
+                    ReportProgress("SHA256 校验失败，更新包可能已损坏或被篡改", 0, progress,
+                        isError: true, errorMessage: "已放弃安装，现有程序未被修改");
+                    return false;
                 }
+
+                ReportProgress($"SHA256 校验通过: {sha256[..16]}...", 62, progress);
 
                 ReportProgress("正在解压更新包...", 65, progress);
                 var extractDir = Path.Combine(_updateTempDir, "extracted");
@@ -535,68 +560,35 @@ del /f /q ""%~f0"" 2>nul
                 }
 
                 Directory.CreateDirectory(_backupDir);
-
                 BackupRecursive(_appBaseDir, _backupDir, new[] { ".backup", ".git", "bin", "obj", "logs", "Logs", "backups", "Backups" });
-
-                var dataDir = Path.Combine(_appBaseDir, "Data");
-                if (Directory.Exists(dataDir))
-                {
-                    var backupDataDir = Path.Combine(_backupDir, "Data");
-                    Directory.CreateDirectory(backupDataDir);
-                    foreach (var file in Directory.GetFiles(dataDir, "*.json"))
-                    {
-                        try
-                        {
-                            File.Copy(file, Path.Combine(backupDataDir, Path.GetFileName(file)), overwrite: true);
-                        }
-                        catch { }
-                    }
-                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"备份失败: {ex.Message}");
+                throw new IOException("无法完整备份当前版本，已取消更新", ex);
             }
         }
 
         private static void BackupRecursive(string sourceDir, string targetDir, string[] excludeDirs)
         {
-            try
+            var dirInfo = new DirectoryInfo(sourceDir);
+
+            foreach (var file in dirInfo.GetFiles())
             {
-                var dirInfo = new DirectoryInfo(sourceDir);
+                if (file.Name == "appsettings.json" || file.Name == "user-settings.json")
+                    continue;
 
-                foreach (var file in dirInfo.GetFiles())
-                {
-                    try
-                    {
-                        if (file.Name == "appsettings.json" || file.Name == "user-settings.json")
-                            continue;
-
-                        if (!file.Extension.Equals(".dll", StringComparison.OrdinalIgnoreCase) &&
-                            !file.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) &&
-                            !file.Extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
-                            continue;
-
-                        var targetPath = Path.Combine(targetDir, file.Name);
-                        if (!File.Exists(targetPath) || file.LastWriteTimeUtc > new FileInfo(targetPath).LastWriteTimeUtc)
-                        {
-                            file.CopyTo(targetPath, overwrite: true);
-                        }
-                    }
-                    catch { }
-                }
-
-                foreach (var subDir in dirInfo.GetDirectories())
-                {
-                    if (excludeDirs.Any(ed => subDir.Name.Equals(ed, StringComparison.OrdinalIgnoreCase)))
-                        continue;
-
-                    var childTarget = Path.Combine(targetDir, subDir.Name);
-                    Directory.CreateDirectory(childTarget);
-                    BackupRecursive(subDir.FullName, childTarget, excludeDirs);
-                }
+                file.CopyTo(Path.Combine(targetDir, file.Name), overwrite: true);
             }
-            catch { }
+
+            foreach (var subDir in dirInfo.GetDirectories())
+            {
+                if (excludeDirs.Any(ed => subDir.Name.Equals(ed, StringComparison.OrdinalIgnoreCase)))
+                    continue;
+
+                var childTarget = Path.Combine(targetDir, subDir.Name);
+                Directory.CreateDirectory(childTarget);
+                BackupRecursive(subDir.FullName, childTarget, excludeDirs);
+            }
         }
 
         private string? FindUpdateSourceDirectory(string extractDir)
@@ -824,6 +816,20 @@ del /f /q ""%~f0"" 2>nul
         {
             var hr = ex.HResult;
             return hr == -2147024864 || hr == -2147024891 || hr == -2147467259;
+        }
+
+        private static bool TryNormalizeSha256(string? value, out string normalized)
+        {
+            normalized = string.Empty;
+            if (string.IsNullOrWhiteSpace(value)) return false;
+
+            var candidate = value.Trim();
+            if (candidate.StartsWith("sha256:", StringComparison.OrdinalIgnoreCase))
+                candidate = candidate.Substring("sha256:".Length);
+
+            if (candidate.Length != 64 || !candidate.All(Uri.IsHexDigit)) return false;
+            normalized = candidate.ToLowerInvariant();
+            return true;
         }
 
         private static string ComputeSha256(string filePath)
